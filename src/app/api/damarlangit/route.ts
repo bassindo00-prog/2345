@@ -2,43 +2,40 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const start = searchParams.get("start") || "0";
-  const length = searchParams.get("length") || "24";
-  const searchValue = searchParams.get("search") || "";
+  const page = searchParams.get("page") || "1";
+  const perPage = searchParams.get("per_page") || searchParams.get("length") || "24";
+  const search = searchParams.get("search") || "";
 
-  const params = new URLSearchParams();
-  params.append("draw", "1");
-  params.append("start", start);
-  params.append("length", length);
-  
-  if (searchValue) {
-    params.append("search[value]", searchValue);
+  const targetUrl = new URL("https://api.damarlangit.co.id/api/public/katalog");
+  targetUrl.searchParams.set("page", page);
+  targetUrl.searchParams.set("per_page", perPage);
+  if (search.trim()) {
+    targetUrl.searchParams.set("search", search.trim());
   }
-  
-  params.append("columns[0][data]", "index");
-  params.append("columns[0][searchable]", "true");
-  params.append("columns[1][data]", "judul_lagu");
-  params.append("columns[1][searchable]", "true");
-  params.append("columns[2][data]", "performer");
-  params.append("columns[2][searchable]", "true");
-  params.append("columns[3][data]", "composer");
-  params.append("columns[3][searchable]", "true");
 
   try {
-    const res = await fetch(`https://damarlangit.co.id/getKatalog?${params.toString()}`, {
+    const res = await fetch(targetUrl.toString(), {
       headers: {
         "Accept": "application/json",
-        "X-Requested-With": "XMLHttpRequest"
-      }
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+      next: { revalidate: 60 },
     });
-    
+
     if (!res.ok) {
-      return NextResponse.json({ error: "Failed to fetch" }, { status: res.status });
+      return NextResponse.json(
+        { success: false, error: `Upstream error: ${res.status}` },
+        { status: res.status }
+      );
     }
-    
+
     const data = await res.json();
     return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Damarlangit API proxy error:", error);
+    return NextResponse.json(
+      { success: false, error: error?.message || "Failed to fetch Damarlangit catalog" },
+      { status: 500 }
+    );
   }
 }
