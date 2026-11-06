@@ -638,6 +638,47 @@ export default function UserDashboardPage() {
     );
   };
 
+  const getSafeDriveLink = (item: { title: string; artist: string; driveLink?: string | null }) => {
+    if (
+      item.driveLink &&
+      item.driveLink.startsWith("https://drive.google.com/") &&
+      !item.driveLink.includes("sample") &&
+      !item.driveLink.includes("-master") &&
+      !item.driveLink.includes("folders/rph-") &&
+      !item.driveLink.includes("folders/khana-") &&
+      !item.driveLink.includes("folders/halo-") &&
+      !item.driveLink.includes("folders/warner-") &&
+      !item.driveLink.includes("folders/tiara-") &&
+      !item.driveLink.includes("folders/farel-") &&
+      !item.driveLink.includes("folders/avelin-") &&
+      !item.driveLink.includes("folders/the-overground-") &&
+      !item.driveLink.includes("folders/breakout-")
+    ) {
+      return item.driveLink;
+    }
+    return `https://drive.google.com/drive/search?q=${encodeURIComponent(item.title + " " + item.artist)}`;
+  };
+
+  const getSafeYoutubeLink = (item: { title: string; artist: string; youtubeLink?: string | null }) => {
+    if (
+      item.youtubeLink &&
+      item.youtubeLink.includes("watch?v=") &&
+      item.youtubeLink.length > 35 &&
+      !item.youtubeLink.includes("official") &&
+      !item.youtubeLink.includes("melly-") &&
+      !item.youtubeLink.includes("pesona-") &&
+      !item.youtubeLink.includes("bagas-")
+    ) {
+      return item.youtubeLink;
+    }
+    if (item.youtubeLink && item.youtubeLink.includes("results?search_query=")) {
+      return item.youtubeLink;
+    }
+    return `https://www.youtube.com/results?search_query=${encodeURIComponent(
+      item.title + " " + item.artist + " Official Audio"
+    )}`;
+  };
+
   const handleCreateArtist = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newArtistName.trim()) {
@@ -4257,14 +4298,16 @@ export default function UserDashboardPage() {
                         const isSelected =
                           pub.name === "ALL"
                             ? catalogPublisherFilter === "ALL" && catalogSource !== "damarlangit"
-                            : catalogPublisherFilter.toLowerCase() === pub.name.toLowerCase();
+                            : pub.name === "PT. Damarlangit Khatulistiwa"
+                            ? catalogSource === "damarlangit"
+                            : catalogPublisherFilter.toLowerCase() === pub.name.toLowerCase() && catalogSource !== "damarlangit";
 
                         const count =
                           pub.name === "ALL"
                             ? catalogs.length
                             : pub.name === "PT. Damarlangit Khatulistiwa"
-                            ? `${catalogs.filter((c) => c.publisher.toLowerCase().includes("damarlangit")).length} (+8.4k)`
-                            : catalogs.filter((c) => c.publisher.toLowerCase() === pub.name.toLowerCase()).length;
+                            ? damarTotal > 0 ? `${damarTotal.toLocaleString("id-ID")}` : "8.421"
+                            : catalogs.filter((c) => c.publisher.toLowerCase().includes(pub.name.toLowerCase()) || pub.name.toLowerCase().includes(c.publisher.toLowerCase())).length;
 
                         return (
                           <button
@@ -4275,7 +4318,8 @@ export default function UserDashboardPage() {
                               setPageCatalog(1);
                               setDamarPage(1);
                               if (pub.name === "PT. Damarlangit Khatulistiwa") {
-                                setCatalogSource("master");
+                                setCatalogSource("damarlangit");
+                                if (damarSongs.length === 0) fetchDamarCatalog(1, catalogSearch);
                               } else {
                                 setCatalogSource("master");
                               }
@@ -4501,28 +4545,24 @@ export default function UserDashboardPage() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
-                                  {item.youtubeLink && (
-                                    <a
-                                      href={item.youtubeLink}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
-                                    >
-                                      <Youtube className="w-3.5 h-3.5" />
-                                      <span>YouTube</span>
-                                    </a>
-                                  )}
-                                  {item.driveLink && (
-                                    <a
-                                      href={item.driveLink}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="flex-1 py-1.5 px-2 rounded-xl bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
-                                    >
-                                      <HardDrive className="w-3.5 h-3.5" />
-                                      <span>Drive</span>
-                                    </a>
-                                  )}
+                                  <a
+                                    href={getSafeYoutubeLink(item)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                                  >
+                                    <Youtube className="w-3.5 h-3.5" />
+                                    <span>YouTube</span>
+                                  </a>
+                                  <a
+                                    href={getSafeDriveLink(item)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex-1 py-1.5 px-2 rounded-xl bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                                  >
+                                    <HardDrive className="w-3.5 h-3.5" />
+                                    <span>Drive</span>
+                                  </a>
                                   <button
                                     type="button"
                                     onClick={() => handleUseCatalogSong(item)}
@@ -4621,35 +4661,27 @@ export default function UserDashboardPage() {
                                     {/* LINK YT / DRIVE */}
                                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
                                       <div className="flex items-center justify-center gap-2">
-                                        {item.youtubeLink ? (
-                                          <a
-                                            href={item.youtubeLink}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            title="Buka Referensi YouTube"
-                                            className="px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
-                                          >
-                                            <Youtube className="w-3.5 h-3.5" />
-                                            <span>YouTube</span>
-                                          </a>
-                                        ) : (
-                                          <span className="text-[10px] text-white/40">-</span>
-                                        )}
+                                        <a
+                                          href={getSafeYoutubeLink(item)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          title="Buka Referensi YouTube"
+                                          className="px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
+                                        >
+                                          <Youtube className="w-3.5 h-3.5" />
+                                          <span>YouTube</span>
+                                        </a>
 
-                                        {item.driveLink ? (
-                                          <a
-                                            href={item.driveLink}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            title="Buka Master Google Drive"
-                                            className="px-2.5 py-1 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
-                                          >
-                                            <HardDrive className="w-3.5 h-3.5" />
-                                            <span>Drive</span>
-                                          </a>
-                                        ) : (
-                                          <span className="text-[10px] text-white/40">-</span>
-                                        )}
+                                        <a
+                                          href={getSafeDriveLink(item)}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          title="Buka Master Google Drive"
+                                          className="px-2.5 py-1 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
+                                        >
+                                          <HardDrive className="w-3.5 h-3.5" />
+                                          <span>Drive</span>
+                                        </a>
                                       </div>
                                     </td>
 
@@ -4706,8 +4738,97 @@ export default function UserDashboardPage() {
                     )}
                   </div>
 
+                  {/* Mobile Cards for Damarlangit (md:hidden) */}
+                  <div className="md:hidden space-y-3">
+                    {damarLoading && damarSongs.length === 0 ? (
+                      <div className="py-12 text-center text-white/60 text-xs">
+                        <RefreshCw className="w-8 h-8 mx-auto text-[#c8f560] animate-spin mb-2" />
+                        <p className="font-semibold text-white">Memuat Katalog Damarlangit...</p>
+                      </div>
+                    ) : damarSongs.length === 0 ? (
+                      <div className="py-8 text-center text-white/60 text-xs">
+                        Tidak ada lagu yang ditemukan di katalog Damarlangit.
+                      </div>
+                    ) : (
+                      damarSongs.map((song: any) => (
+                        <div
+                          key={`m-dk-${song.kd_katalog}`}
+                          className="p-3.5 rounded-2xl bg-black/25 border border-white/10 space-y-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-black/30 border border-white/15 text-[#c8f560]">
+                              DK-{song.kd_katalog}
+                            </span>
+                            <span className="text-[10px] text-white/70">
+                              {song.song_control || "100%"} • {song.member_name || "Damarlangit"}
+                            </span>
+                          </div>
+
+                          <div>
+                            <h4 className="font-bold text-white text-xs truncate">{song.judul_lagu || "-"}</h4>
+                            <p className="text-white/80 text-[11px] truncate mt-0.5">
+                              Performer: <strong className="text-white">{song.performer || "-"}</strong>
+                            </p>
+                            <p className="text-white/60 text-[10px] truncate mt-0.5">
+                              Pencipta: <span>{song.composer || "-"}</span>
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                            {song.link ? (
+                              <a
+                                href={song.link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                              >
+                                <Youtube className="w-3.5 h-3.5" />
+                                <span>YouTube</span>
+                              </a>
+                            ) : (
+                              <a
+                                href={`https://www.youtube.com/results?search_query=${encodeURIComponent((song.judul_lagu || "") + " " + (song.performer || ""))}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/70 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                              >
+                                <Youtube className="w-3.5 h-3.5" />
+                                <span>YouTube</span>
+                              </a>
+                            )}
+                            <a
+                              href={`https://drive.google.com/drive/search?q=${encodeURIComponent((song.judul_lagu || "") + " " + (song.performer || ""))}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 py-1.5 px-2 rounded-xl bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                            >
+                              <HardDrive className="w-3.5 h-3.5" />
+                              <span>Drive</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleUseCatalogSong({
+                                  title: song.judul_lagu,
+                                  artist: song.performer,
+                                  publisher: "PT. Damarlangit Khatulistiwa",
+                                  songId: `DK-${song.kd_katalog}`,
+                                  composer: song.composer,
+                                })
+                              }
+                              className="w-full py-1.5 px-3 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-[11px] flex items-center justify-center gap-1.5 shadow transition-all active:scale-95 cursor-pointer"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Ajukan Rilis / Cover Lagu Ini</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
                   {/* Desktop Table for Damarlangit */}
-                  <div className="overflow-x-auto">
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-xs text-white">
                       <thead className="bg-[#312042]/60 border-b border-white/15 text-[11px] uppercase tracking-wider text-white/75">
                         <tr>
@@ -4774,19 +4895,39 @@ export default function UserDashboardPage() {
                               </td>
 
                               <td className="py-3 px-4 text-center whitespace-nowrap">
-                                {song.link ? (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  {song.link ? (
+                                    <a
+                                      href={song.link}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] shadow transition-all hover:scale-105"
+                                    >
+                                      <Youtube className="w-3.5 h-3.5" />
+                                      <span>YouTube</span>
+                                    </a>
+                                  ) : (
+                                    <a
+                                      href={`https://www.youtube.com/results?search_query=${encodeURIComponent((song.judul_lagu || "") + " " + (song.performer || ""))}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600/70 hover:bg-red-600 text-white font-bold text-[10px] shadow"
+                                    >
+                                      <Youtube className="w-3.5 h-3.5" />
+                                      <span>YouTube</span>
+                                    </a>
+                                  )}
                                   <a
-                                    href={song.link}
+                                    href={`https://drive.google.com/drive/search?q=${encodeURIComponent((song.judul_lagu || "") + " " + (song.performer || ""))}`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] shadow transition-all hover:scale-105"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] shadow transition-all hover:scale-105"
+                                    title="Cari Master di Google Drive"
                                   >
-                                    <Youtube className="w-3.5 h-3.5" />
-                                    <span>YouTube</span>
+                                    <HardDrive className="w-3.5 h-3.5" />
+                                    <span>Drive</span>
                                   </a>
-                                ) : (
-                                  <span className="text-[10px] text-white/40">-</span>
-                                )}
+                                </div>
                               </td>
 
                               <td className="py-3 px-4 text-right whitespace-nowrap">
