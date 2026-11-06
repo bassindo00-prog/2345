@@ -1292,6 +1292,17 @@ export default function AdminDashboardPage() {
                 <span className="px-3 py-1 rounded-full bg-[#c8f560] text-[#312042] text-xs font-bold">
                   Detail Rilisan User
                 </span>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                    selectedRelease.type === "ALBUM" || (selectedRelease.tracks && selectedRelease.tracks.length > 1)
+                      ? "bg-[#c8f560]/20 border border-[#c8f560] text-[#c8f560]"
+                      : "bg-white/15 text-white/90"
+                  }`}
+                >
+                  {selectedRelease.type === "ALBUM" || (selectedRelease.tracks && selectedRelease.tracks.length > 1)
+                    ? `ALBUM • ${selectedRelease.tracks?.length || 1} Lagu`
+                    : "SINGLE"}
+                </span>
                 <span className="text-xs text-white/70">ID: {selectedRelease.id}</span>
               </div>
               <button
@@ -1495,6 +1506,101 @@ export default function AdminDashboardPage() {
                   </button>
                 </div>
               </div>
+
+              {/* DAFTAR TRACK ALBUM (Jika tipe Album / Multi-Track) */}
+              {selectedRelease.tracks && selectedRelease.tracks.length > 1 && (
+                <div className="space-y-3 p-4 rounded-2xl bg-black/25 border border-[#c8f560]/30 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Disc3 className="w-4 h-4 text-[#c8f560] animate-spin" style={{ animationDuration: "8s" }} />
+                      <span>Daftar Track Album ({selectedRelease.tracks.length} Lagu)</span>
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#c8f560] text-[#312042] text-[11px] font-bold">
+                      Format: Album Multi-Track
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    {selectedRelease.tracks.map((track: any, idx: number) => (
+                      <div
+                        key={track.id || idx}
+                        className="p-3.5 rounded-xl bg-white/5 border border-white/15 space-y-2.5 hover:border-[#c8f560]/50 transition-colors"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-6 h-6 rounded-full bg-[#c8f560] text-[#312042] flex items-center justify-center font-bold text-xs shrink-0">
+                              {idx + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-bold text-white text-xs truncate">
+                                {track.title}
+                              </p>
+                              {track.featuring && (
+                                <p className="text-[11px] text-white/60 truncate">
+                                  Feat: {track.featuring}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {(track.audioUrl || track.audioFile) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                downloadAsset(
+                                  track.audioUrl || track.audioFile,
+                                  `${selectedRelease.title}-track-${idx + 1}-${track.title}.mp3`
+                                )
+                              }
+                              className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white text-[11px] font-semibold flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+                            >
+                              <Download className="w-3.5 h-3.5 text-[#c8f560]" />
+                              <span>Unduh Audio Track #{idx + 1}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {(track.audioUrl || track.audioFile) && (
+                          <div className="pt-1">
+                            <audio
+                              controls
+                              src={track.audioUrl || track.audioFile}
+                              className="w-full h-8 rounded-lg bg-black/40 border border-white/15"
+                            />
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1.5 text-[11px] text-white/80 border-t border-white/10">
+                          <div>
+                            <span className="text-white/50 block text-[10px]">Composer:</span>
+                            <span className="font-semibold text-white truncate block">
+                              {track.composer || "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-white/50 block text-[10px]">Producer:</span>
+                            <span className="font-semibold text-white truncate block">
+                              {track.producer || "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-white/50 block text-[10px]">TikTok Clip:</span>
+                            <span className="font-semibold text-[#c8f560] truncate block">
+                              {track.tiktokClip || "-"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-white/50 block text-[10px]">ISRC Code:</span>
+                            <span className="font-mono font-semibold text-[#c8f560] truncate block">
+                              {track.isrc || "-"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons: Approve / Reject / Hold */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/10">
@@ -2995,8 +3101,17 @@ export default function AdminDashboardPage() {
                                 {r.status === "Approved" ? "✓ Approved" : r.status === "Rejected" ? "✕ Rejected" : "⏳ Review"}
                               </span>
                             </div>
-                            <p className="text-white/80 text-xs truncate mt-0.5">
-                              {r.artist} • <span className="text-white/60">{r.genre}</span>
+                            <p className="text-white/80 text-xs truncate mt-0.5 flex items-center gap-1.5">
+                              <span>{r.artist} • <span className="text-white/60">{r.genre}</span></span>
+                              {r.type === "ALBUM" || (r.tracks && r.tracks.length > 1) ? (
+                                <span className="px-2 py-0.5 rounded-full bg-[#c8f560] text-[#312042] text-[9px] font-bold shrink-0">
+                                  ALBUM • {r.tracks?.length || 1} Lagu
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-white/15 text-white/80 text-[9px] font-medium shrink-0">
+                                  SINGLE
+                                </span>
+                              )}
                             </p>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-white/60 mt-1 font-mono">
                               <span>ISRC: <strong className="text-[#c8f560]">{r.isrc || "D-HRM-24-00109"}</strong></span>
@@ -3121,8 +3236,17 @@ export default function AdminDashboardPage() {
                                   <span>{r.title}</span>
                                   <Eye className="w-3.5 h-3.5 text-[#c8f560] opacity-80" />
                                 </p>
-                                <p className="text-white/80 text-xs truncate">
-                                  {r.artist} • <span className="text-white/60">{r.genre}</span>
+                                <p className="text-white/80 text-xs truncate flex items-center gap-1.5">
+                                  <span>{r.artist} • <span className="text-white/60">{r.genre}</span></span>
+                                  {r.type === "ALBUM" || (r.tracks && r.tracks.length > 1) ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-[#c8f560] text-[#312042] text-[9px] font-bold shrink-0">
+                                      ALBUM • {r.tracks?.length || 1} Lagu
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full bg-white/15 text-white/80 text-[9px] font-medium shrink-0">
+                                      SINGLE
+                                    </span>
+                                  )}
                                 </p>
                                 <span className="inline-block mt-0.5 text-[10px] text-[#c8f560] font-mono font-medium">
                                   Rilis: {r.releaseDate}

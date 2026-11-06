@@ -58,6 +58,7 @@ export async function GET(req: Request) {
       return {
         id: r.id,
         title: r.title,
+        type: r.type || "SINGLE",
         artist: r.artist?.stageName || r.primaryArtist || "Artist",
         genre: r.genre || "Pop",
         releaseDate: releaseDateStr,
@@ -77,6 +78,19 @@ export async function GET(req: Request) {
         audioFile: firstTrack ? resolveMediaUrl(firstTrack.audioUrl) : "",
         upc: r.upc || firstTrack?.upc || "899214578101",
         isrc: firstTrack?.isrc || "D-HRM-24-00109",
+        tracks: (r.tracks || []).map((t, idx) => ({
+          id: t.id,
+          trackNumber: idx + 1,
+          title: t.title,
+          audioUrl: resolveMediaUrl(t.audioUrl),
+          audioFile: resolveMediaUrl(t.audioUrl),
+          composer: t.composer || "-",
+          producer: t.producer || "-",
+          featuring: t.featuredArtist || "-",
+          tiktokClip: t.tiktokClipStart || "-",
+          isrc: t.isrc || "-",
+          upc: t.upc || r.upc || "-",
+        })),
         userId: r.artist?.userId || r.artistId,
         user: {
           id: r.artist?.userId || r.artistId,
@@ -107,6 +121,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       title,
+      type,
       artist,
       featuring,
       composer,
@@ -120,6 +135,7 @@ export async function POST(req: Request) {
       coverUrl,
       audioFile,
       platforms,
+      tracks,
     } = body;
 
     if (!title) {
@@ -155,10 +171,45 @@ export async function POST(req: Request) {
       parsedReleaseDate = new Date();
     }
 
+    // Determine release type: SINGLE, ALBUM, or EP
+    const isMultiTrack = Array.isArray(tracks) && tracks.length > 1;
+    let releaseType: "SINGLE" | "ALBUM" | "EP" = "SINGLE";
+    if (type === "ALBUM" || isMultiTrack) {
+      releaseType = "ALBUM";
+    } else if (type === "EP") {
+      releaseType = "EP";
+    }
+
+    // Prepare tracks data
+    const tracksToCreate = (Array.isArray(tracks) && tracks.length > 0)
+      ? tracks.map((t: any, idx: number) => ({
+          title: t.title || `${title} - Track ${idx + 1}`,
+          audioUrl: t.audioUrl || t.audioFile || audioFile || "",
+          featuredArtist: t.featuring || t.featuredArtist || null,
+          composer: t.composer || composer || null,
+          producer: t.producer || producer || null,
+          isrc: t.isrc || isrc || null,
+          upc: t.upc || upc || null,
+          tiktokClipStart: t.tiktokClip || t.tiktokClipStart || tiktokClip || null,
+        }))
+      : [
+          {
+            title: title,
+            audioUrl: audioFile || "",
+            featuredArtist: featuring || null,
+            composer: composer || null,
+            producer: producer || null,
+            isrc: isrc || null,
+            upc: upc || null,
+            tiktokClipStart: tiktokClip || null,
+          },
+        ];
+
     const newRelease = await prisma.release.create({
       data: {
         artistId: userArtist.id,
         title,
+        type: releaseType,
         primaryArtist: artist || userArtist.stageName || "Artist",
         featuredArtist: featuring || null,
         genre: genre || "Pop",
@@ -169,18 +220,7 @@ export async function POST(req: Request) {
         status: "PENDING",
         upc: upc || null,
         tracks: {
-          create: [
-            {
-              title,
-              audioUrl: audioFile || "",
-              featuredArtist: featuring || null,
-              composer: composer || null,
-              producer: producer || null,
-              isrc: isrc || null,
-              upc: upc || null,
-              tiktokClipStart: tiktokClip || null,
-            },
-          ],
+          create: tracksToCreate,
         },
       },
       include: { tracks: true, artist: true },

@@ -129,6 +129,7 @@ export async function GET() {
       return {
         id: r.id,
         title: r.title,
+        type: r.type || "SINGLE",
         artist: r.artist?.stageName || r.primaryArtist || "Artist",
         genre: r.genre || "Pop",
         releaseDate: releaseDateStr,
@@ -148,6 +149,19 @@ export async function GET() {
         audioFile: firstTrack ? resolveMediaUrl(firstTrack.audioUrl) : "",
         upc: r.upc || firstTrack?.upc || "899214578101",
         isrc: firstTrack?.isrc || "D-HRM-24-00109",
+        tracks: (r.tracks || []).map((t, idx) => ({
+          id: t.id,
+          trackNumber: idx + 1,
+          title: t.title,
+          audioUrl: resolveMediaUrl(t.audioUrl),
+          audioFile: resolveMediaUrl(t.audioUrl),
+          composer: t.composer || "-",
+          producer: t.producer || "-",
+          featuring: t.featuredArtist || "-",
+          tiktokClip: t.tiktokClipStart || "-",
+          isrc: t.isrc || "-",
+          upc: t.upc || r.upc || "-",
+        })),
         userId: r.artist?.userId || r.artistId,
         user: {
           id: r.artist?.userId || r.artistId,

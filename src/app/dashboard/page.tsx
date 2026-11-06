@@ -48,6 +48,10 @@ import {
   ExternalLink,
   Menu,
   X,
+  Disc3,
+  Layers,
+  ChevronRight,
+  ChevronLeft,
   Loader2,
   AlertCircle,
   XCircle,
@@ -64,6 +68,7 @@ import Pagination from "@/components/Pagination";
 type ReleaseItem = {
   id: string;
   title: string;
+  type?: string;
   artist: string;
   genre: string;
   releaseDate: string;
@@ -79,6 +84,7 @@ type ReleaseItem = {
   isrc?: string;
   country?: string;
   royaltyGrowth?: string;
+  tracks?: any[];
 };
 
 type WithdrawalItem = {
@@ -323,6 +329,117 @@ export default function UserDashboardPage() {
     }
   };
 
+  // Release Type: "SINGLE" | "ALBUM"
+  const [releaseType, setReleaseType] = useState<"SINGLE" | "ALBUM">("SINGLE");
+
+  // Multi-step bar: 1 (Info) | 2 (Track & Audio) | 3 (Cover & DSP) | 4 (Review & Submit)
+  const [uploadStep, setUploadStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // Album Multi-Track Items State
+  type AlbumTrack = {
+    id: string;
+    title: string;
+    file: File | null;
+    fileName: string;
+    fileSize: string;
+    previewUrl: string;
+    audioUrl: string;
+    audioKey: string;
+    composer: string;
+    producer: string;
+    featuring: string;
+    tiktokStartSec: number;
+    tiktokDurationSec: number;
+    isrc: string;
+  };
+
+  const [albumTracks, setAlbumTracks] = useState<AlbumTrack[]>([
+    {
+      id: "track-1",
+      title: "",
+      file: null,
+      fileName: "",
+      fileSize: "",
+      previewUrl: "",
+      audioUrl: "",
+      audioKey: "",
+      composer: "",
+      producer: "",
+      featuring: "",
+      tiktokStartSec: 45,
+      tiktokDurationSec: 30,
+      isrc: "ID-HRM-24-00101",
+    },
+    {
+      id: "track-2",
+      title: "",
+      file: null,
+      fileName: "",
+      fileSize: "",
+      previewUrl: "",
+      audioUrl: "",
+      audioKey: "",
+      composer: "",
+      producer: "",
+      featuring: "",
+      tiktokStartSec: 45,
+      tiktokDurationSec: 30,
+      isrc: "ID-HRM-24-00102",
+    },
+  ]);
+
+  const handleAddAlbumTrack = () => {
+    const nextIdx = albumTracks.length + 1;
+    setAlbumTracks((prev) => [
+      ...prev,
+      {
+        id: `track-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        title: "",
+        file: null,
+        fileName: "",
+        fileSize: "",
+        previewUrl: "",
+        audioUrl: "",
+        audioKey: "",
+        composer: trackComposer,
+        producer: trackProducer,
+        featuring: "",
+        tiktokStartSec: 45,
+        tiktokDurationSec: 30,
+        isrc: `ID-HRM-24-${Math.floor(10000 + Math.random() * 90000)}`,
+      },
+    ]);
+  };
+
+  const handleRemoveAlbumTrack = (id: string) => {
+    if (albumTracks.length <= 1) {
+      showNotice("Album minimal harus memiliki 1 lagu.");
+      return;
+    }
+    setAlbumTracks((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const handleUpdateAlbumTrack = (id: string, updates: Partial<AlbumTrack>) => {
+    setAlbumTracks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+    );
+  };
+
+  const handleAlbumTrackAudioUpload = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+    const localUrl = URL.createObjectURL(file);
+    handleUpdateAlbumTrack(id, {
+      file,
+      fileName: file.name,
+      fileSize: sizeMB,
+      previewUrl: localUrl,
+      audioUrl: localUrl,
+    });
+    showNotice(`✓ File audio "${file.name}" (${sizeMB}) dipilih untuk track ini.`);
+  };
+
   // Safe Selection of Audio File (Stored locally until Review & Submit)
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -389,12 +506,24 @@ export default function UserDashboardPage() {
   // Open Review & Submit Modal
   const handleOpenReviewModal = () => {
     if (!trackTitle.trim()) {
-      showNotice("Silakan isi Judul Track (Title) terlebih dahulu!");
+      showNotice(`Silakan isi ${releaseType === "ALBUM" ? "Judul Album" : "Judul Lagu (Title)"} terlebih dahulu!`);
+      setUploadStep(1);
       return;
     }
-    if (!selectedAudioFile && !audioFileKey) {
-      showNotice("Silakan pilih file Audio (.wav, .mp3, .flac) terlebih dahulu!");
-      return;
+    if (releaseType === "SINGLE") {
+      if (!selectedAudioFile && !audioFileKey) {
+        showNotice("Silakan pilih file Audio (.wav, .mp3, .flac) untuk single terlebih dahulu!");
+        setUploadStep(2);
+        return;
+      }
+    } else {
+      // Album validation
+      const missingAudio = albumTracks.findIndex((t) => !t.file && !t.audioKey);
+      if (missingAudio !== -1) {
+        showNotice(`Track #${missingAudio + 1} (${albumTracks[missingAudio].title || "Tanpa Judul"}) belum memilih file audio!`);
+        setUploadStep(2);
+        return;
+      }
     }
     setReviewError("");
     setReviewSuccess(false);
@@ -410,26 +539,10 @@ export default function UserDashboardPage() {
     setReviewSuccess(false);
 
     try {
-      let finalAudioKey = audioFileKey;
-      let finalAudioUrl = audioFileUrl;
       let finalCoverKey = uploadCoverKey;
       let finalCoverUrl = uploadCoverUrl;
 
-      // 1. Upload Master Audio if selected
-      if (selectedAudioFile) {
-        setReviewStatusStep(`Mengunggah Master Audio: ${selectedAudioFile.name} (${audioFileSize})...`);
-        const audioUploadResult = await uploadFileWithFallback(selectedAudioFile, "audio", (msg) => {
-          setReviewStatusStep(msg);
-        });
-        finalAudioKey = audioUploadResult.key;
-        finalAudioUrl = audioUploadResult.publicUrl;
-        setAudioFileKey(finalAudioKey);
-        setAudioFileUrl(finalAudioUrl);
-      } else if (!finalAudioKey) {
-        throw new Error("File master audio belum dipilih atau diunggah.");
-      }
-
-      // 2. Upload Cover Artwork if selected
+      // 1. Upload Cover Artwork if selected
       if (selectedCoverFile) {
         setReviewStatusStep(`Mengunggah Cover Artwork: ${selectedCoverFile.name}...`);
         const coverUploadResult = await uploadFileWithFallback(selectedCoverFile, "cover", (msg) => {
@@ -441,12 +554,71 @@ export default function UserDashboardPage() {
         setUploadCoverUrl(finalCoverUrl);
       }
 
-      // 3. Submit Release Metadata to Database
+      let tracksPayload: any[] = [];
+
+      if (releaseType === "SINGLE") {
+        // Upload Single Audio
+        let finalAudioKey = audioFileKey;
+        let finalAudioUrl = audioFileUrl;
+
+        if (selectedAudioFile) {
+          setReviewStatusStep(`Mengunggah Master Audio: ${selectedAudioFile.name} (${audioFileSize})...`);
+          const audioUploadResult = await uploadFileWithFallback(selectedAudioFile, "audio", (msg) => {
+            setReviewStatusStep(msg);
+          });
+          finalAudioKey = audioUploadResult.key;
+          finalAudioUrl = audioUploadResult.publicUrl;
+          setAudioFileKey(finalAudioKey);
+          setAudioFileUrl(finalAudioUrl);
+        } else if (!finalAudioKey) {
+          throw new Error("File master audio belum dipilih atau diunggah.");
+        }
+
+        tracksPayload = [
+          {
+            title: trackTitle,
+            audioUrl: finalAudioUrl || audioFileName,
+            composer: trackComposer,
+            producer: trackProducer,
+            featuring: trackFeaturing,
+            isrc: trackIsrc,
+            upc: trackUpc,
+            tiktokClip: formattedTiktokClip,
+          },
+        ];
+      } else {
+        // Upload All Tracks in Album
+        for (let i = 0; i < albumTracks.length; i++) {
+          const t = albumTracks[i];
+          let trackAudioUrl = t.audioUrl;
+          if (t.file) {
+            setReviewStatusStep(`Mengunggah Track #${i + 1} (${t.title || t.fileName}): ${t.file.name}...`);
+            const upRes = await uploadFileWithFallback(t.file, "audio", (msg) => {
+              setReviewStatusStep(`Track #${i + 1}: ${msg}`);
+            });
+            trackAudioUrl = upRes.publicUrl;
+          }
+          const tClip = `${formatSec(t.tiktokStartSec)} - ${formatSec(t.tiktokStartSec + t.tiktokDurationSec)} (${t.tiktokDurationSec}s)`;
+          tracksPayload.push({
+            title: t.title.trim() || `${trackTitle} - Track ${i + 1}`,
+            audioUrl: trackAudioUrl || t.fileName,
+            composer: t.composer || trackComposer,
+            producer: t.producer || trackProducer,
+            featuring: t.featuring,
+            isrc: t.isrc,
+            upc: trackUpc,
+            tiktokClip: tClip,
+          });
+        }
+      }
+
+      // 2. Submit Release Metadata to Database
       setReviewStatusStep("Mendaftarkan rilisan ke database...");
       const res = await fetch("/api/releases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          type: releaseType,
           title: trackTitle,
           artist: trackFeaturedArtistLabel(),
           featuring: trackFeaturing,
@@ -460,9 +632,10 @@ export default function UserDashboardPage() {
           isrc: trackIsrc,
           coverUrl: finalCoverUrl,
           coverKey: finalCoverKey,
-          audioFile: finalAudioUrl || audioFileName,
-          audioKey: finalAudioKey,
+          audioFile: tracksPayload[0]?.audioUrl || audioFileUrl,
+          audioKey: tracksPayload[0]?.audioKey || audioFileKey,
           platforms: selectedPlatforms.join(","),
+          tracks: tracksPayload,
           status: "Pending",
         }),
       });
@@ -472,7 +645,7 @@ export default function UserDashboardPage() {
         throw new Error(data.error || "Gagal mendaftarkan rilis ke sistem.");
       }
 
-      // 4. Success! Refresh user data
+      // 3. Success! Refresh user data
       await fetchUserData();
       setReviewSuccess(true);
       setReviewStatusStep("✓ Rilisan berhasil dikirim!");
@@ -2633,488 +2806,566 @@ export default function UserDashboardPage() {
           )}
 
           {/* =========================================================
-              VIEW 3: NEW RELEASE — SUBMIT TRACK — ALL CARDS MATCH ROYALTY GROWTH
+              VIEW 3: NEW RELEASE — SUBMIT TRACK & ALBUM (4-BAR FLOW)
              ========================================================= */}
           {activeTab === "upload" && (
-            <div key={`upload-${animKey}`} className="space-y-5">
+            <div key={`upload-${animKey}`} className="space-y-6">
+              {/* Header Title */}
               <div className="animate-card-enter">
-                <h1 className="text-2xl sm:text-3xl font-semibold text-white">
-                  New Release — Submit Track
-                </h1>
-                <p className="text-xs text-white/80 mt-1">
-                  BREAKOUT Music Distribution • upload and distribute to all platforms
-                </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
+                      <span>Rilis Musik Baru</span>
+                      <span className="px-3 py-1 rounded-full bg-[#c8f560] text-[#312042] text-xs font-bold shadow-sm">
+                        {releaseType === "ALBUM" ? "Album / EP" : "Single"}
+                      </span>
+                    </h1>
+                    <p className="text-xs text-white/80 mt-1">
+                      BREAKOUT Music Distribution • Distribusi resmi ke 50+ DSP (Spotify, Apple Music, TikTok, YouTube Music, dll.)
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {/* 4-Step Progress Pill Bar — Translucent Lavender */}
+              {/* 4-BAR STEPPER NAVIGATION WIZARD */}
               <div
-                className="bg-[#8a88b5]/70 border border-white/20 rounded-full px-5 py-3 flex flex-wrap items-center justify-between gap-4 text-xs text-white shadow-md animate-card-enter"
+                className="bg-[#8a88b5]/70 border border-white/20 rounded-2xl p-2 sm:p-2.5 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-white shadow-md animate-card-enter"
                 style={{ animationDelay: "60ms" }}
               >
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-[#312042] text-[#c8f560] flex items-center justify-center font-semibold">
+                {/* Bar 1: Info Rilis */}
+                <button
+                  type="button"
+                  onClick={() => setUploadStep(1)}
+                  className={`p-2.5 rounded-xl flex items-center gap-2.5 transition-all text-left ${
+                    uploadStep === 1
+                      ? "bg-[#312042] text-[#c8f560] shadow-md border border-[#c8f560]/60 ring-1 ring-[#c8f560]/40"
+                      : "bg-white/10 text-white/90 hover:bg-white/20"
+                  }`}
+                >
+                  <span
+                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                      uploadStep === 1 ? "bg-[#c8f560] text-[#312042]" : "bg-white/20 text-white"
+                    }`}
+                  >
                     1
                   </span>
-                  <span className="px-4 py-1 rounded-full bg-[#312042] text-white font-medium">
-                    Upload Track
-                  </span>
-                  <div className="w-16 h-0.5 bg-[#c8f560]/60 hidden sm:block" />
-                </div>
+                  <div className="min-w-0">
+                    <div className="font-bold truncate">Bar 1: Info Rilis</div>
+                    <div className="text-[10px] opacity-75 truncate">
+                      {releaseType === "ALBUM" ? "Album / EP" : "Single"} • Format
+                    </div>
+                  </div>
+                </button>
 
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full border border-white/35 text-white/90 flex items-center justify-center font-medium">
+                {/* Bar 2: Track & Audio */}
+                <button
+                  type="button"
+                  onClick={() => setUploadStep(2)}
+                  className={`p-2.5 rounded-xl flex items-center gap-2.5 transition-all text-left ${
+                    uploadStep === 2
+                      ? "bg-[#312042] text-[#c8f560] shadow-md border border-[#c8f560]/60 ring-1 ring-[#c8f560]/40"
+                      : "bg-white/10 text-white/90 hover:bg-white/20"
+                  }`}
+                >
+                  <span
+                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                      uploadStep === 2 ? "bg-[#c8f560] text-[#312042]" : "bg-white/20 text-white"
+                    }`}
+                  >
                     2
                   </span>
-                  <span className="font-medium text-white/90">Details</span>
-                  <div className="w-16 h-0.5 bg-white/20 hidden sm:block" />
-                </div>
+                  <div className="min-w-0">
+                    <div className="font-bold truncate">Bar 2: Track & Audio</div>
+                    <div className="text-[10px] opacity-75 truncate">
+                      {releaseType === "ALBUM" ? `${albumTracks.length} Track Lagu` : "1 Master Audio"}
+                    </div>
+                  </div>
+                </button>
 
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full border border-white/35 text-white/90 flex items-center justify-center font-medium">
+                {/* Bar 3: Cover & DSP */}
+                <button
+                  type="button"
+                  onClick={() => setUploadStep(3)}
+                  className={`p-2.5 rounded-xl flex items-center gap-2.5 transition-all text-left ${
+                    uploadStep === 3
+                      ? "bg-[#312042] text-[#c8f560] shadow-md border border-[#c8f560]/60 ring-1 ring-[#c8f560]/40"
+                      : "bg-white/10 text-white/90 hover:bg-white/20"
+                  }`}
+                >
+                  <span
+                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                      uploadStep === 3 ? "bg-[#c8f560] text-[#312042]" : "bg-white/20 text-white"
+                    }`}
+                  >
                     3
                   </span>
-                  <span className="font-medium text-white/90">Platforms</span>
-                  <div className="w-16 h-0.5 bg-white/20 hidden sm:block" />
-                </div>
+                  <div className="min-w-0">
+                    <div className="font-bold truncate">Bar 3: Cover & DSP</div>
+                    <div className="text-[10px] opacity-75 truncate">Artwork & Platform</div>
+                  </div>
+                </button>
 
-                <div className="flex items-center gap-3">
-                  <span className="w-6 h-6 rounded-full border border-white/35 text-white/90 flex items-center justify-center font-medium">
+                {/* Bar 4: Review & Kirim */}
+                <button
+                  type="button"
+                  onClick={() => setUploadStep(4)}
+                  className={`p-2.5 rounded-xl flex items-center gap-2.5 transition-all text-left ${
+                    uploadStep === 4
+                      ? "bg-[#312042] text-[#c8f560] shadow-md border border-[#c8f560]/60 ring-1 ring-[#c8f560]/40"
+                      : "bg-white/10 text-white/90 hover:bg-white/20"
+                  }`}
+                >
+                  <span
+                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                      uploadStep === 4 ? "bg-[#c8f560] text-[#312042]" : "bg-white/20 text-white"
+                    }`}
+                  >
                     4
                   </span>
-                  <span className="font-medium text-white/90">Review & Submit</span>
-                  <span className="text-white/65 text-[11px] ml-2">Step 1 of 4</span>
-                </div>
+                  <div className="min-w-0">
+                    <div className="font-bold truncate">Bar 4: Review & Kirim</div>
+                    <div className="text-[10px] opacity-75 truncate">Ringkasan & Submit</div>
+                  </div>
+                </button>
               </div>
 
-              {/* Main 2-Column Upload Layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                {/* Left Column: Upload Track + Track Details */}
-                <div
-                  className={`lg:col-span-7 ${ROYALTY_CARD} space-y-5 animate-card-enter`}
-                  style={{ animationDelay: "120ms" }}
-                >
-                  <div className="flex items-center gap-2 font-semibold text-sm text-white">
-                    <Music className="w-4 h-4 text-[#c8f560]" />
-                    <span>Upload Track</span>
+              {/* =========================================================
+                  BAR 1: INFORMASI UTAMA & FORMAT RILIS (SINGLE / ALBUM)
+                 ========================================================= */}
+              {uploadStep === 1 && (
+                <div className={`${ROYALTY_CARD} space-y-6 animate-card-enter`}>
+                  <div className="flex items-center justify-between pb-3 border-b border-white/15">
+                    <div className="flex items-center gap-2 font-bold text-base text-white">
+                      <Music className="w-5 h-5 text-[#c8f560]" />
+                      <span>Bar 1: Format & Informasi Utama Rilisan</span>
+                    </div>
+                    <span className="text-xs text-[#c8f560] font-semibold">Langkah 1 dari 4</span>
                   </div>
 
-                  {/* Dashed Dropzone with Live Animated Equalizer Waveform */}
-                  <div className="border-2 border-dashed border-white/30 rounded-2xl p-6 text-center bg-white/10">
-                    <p className="text-sm font-semibold text-white">
-                      Drag & drop your audio file here
-                    </p>
-                    <p className="text-xs text-white/75 mt-0.5">
-                      or click to browse .wav, .mp3, .flac • Max 500MB
-                    </p>
-
-                    <div className="my-5 flex items-center justify-center gap-1 h-12">
-                      {[
-                        3, 6, 4, 8, 5, 9, 11, 7, 12, 8, 5, 10, 12, 9, 6, 11, 8, 12, 7, 9, 5, 8,
-                        10, 6, 4, 7, 9, 5, 3,
-                      ].map((h, i) => (
-                        <span
-                          key={i}
-                          style={{
-                            height: `${h * 3.5}px`,
-                            animationDelay: `${(i % 7) * 140}ms`,
-                          }}
-                          className={`w-1 rounded-full animate-eq-bar ${
-                            i % 2 === 0 ? "bg-[#c8f560]" : "bg-white/65"
-                          }`}
-                        />
-                      ))}
-                    </div>
-
-                    <label className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#312042] hover:bg-[#422c58] text-white text-xs font-medium cursor-pointer transition-colors shadow">
-                      <Plus className="w-3.5 h-3.5 text-[#c8f560]" />
-                      <span>{selectedAudioFile ? "Ganti File Audio" : "Select Audio File (.wav, .mp3, .flac)"}</span>
-                      <input
-                        type="file"
-                        accept="audio/*,.wav,.mp3,.flac,.m4a,.aac,.ogg"
-                        className="hidden"
-                        onChange={handleAudioUpload}
-                      />
+                  {/* Pilihan Format Rilis: Single vs Album / EP */}
+                  <div className="space-y-2.5">
+                    <label className="block text-xs font-bold text-white/90 uppercase tracking-wider">
+                      Pilih Format Rilis:
                     </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      {/* Pilihan 1: Single */}
+                      <div
+                        onClick={() => setReleaseType("SINGLE")}
+                        className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-start gap-3.5 select-none ${
+                          releaseType === "SINGLE"
+                            ? "bg-[#312042] border-[#c8f560] shadow-lg ring-2 ring-[#c8f560]/40"
+                            : "bg-white/10 border-white/20 hover:bg-white/15"
+                        }`}
+                      >
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                            releaseType === "SINGLE" ? "bg-[#c8f560] text-[#312042]" : "bg-white/15 text-white"
+                          }`}
+                        >
+                          <Music className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-sm text-white">Single</h4>
+                            {releaseType === "SINGLE" && (
+                              <span className="w-4 h-4 rounded-full bg-[#c8f560] text-[#312042] flex items-center justify-center text-[10px] font-bold">
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-white/70 mt-1">
+                            Rilis 1 lagu utama secara mandiri. Ideal untuk single perdana atau lagu hits.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Pilihan 2: Album / EP */}
+                      <div
+                        onClick={() => setReleaseType("ALBUM")}
+                        className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-start gap-3.5 select-none ${
+                          releaseType === "ALBUM"
+                            ? "bg-[#312042] border-[#c8f560] shadow-lg ring-2 ring-[#c8f560]/40"
+                            : "bg-white/10 border-white/20 hover:bg-white/15"
+                        }`}
+                      >
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                            releaseType === "ALBUM" ? "bg-[#c8f560] text-[#312042]" : "bg-white/15 text-white"
+                          }`}
+                        >
+                          <Disc3 className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-sm text-white">Album / EP</h4>
+                            {releaseType === "ALBUM" && (
+                              <span className="w-4 h-4 rounded-full bg-[#c8f560] text-[#312042] flex items-center justify-center text-[10px] font-bold">
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-white/70 mt-1">
+                            Rilis banyak lagu sekaligus (koleksi EP atau Full Album) dengan urutan tracklist.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Uploaded File Status Bar with S3 / Cloudflare R2 Player */}
-                  <div className="px-4 py-3 rounded-xl bg-white/15 border border-white/20 flex flex-col gap-2.5 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 font-medium text-white min-w-0 pr-2">
-                        <Volume2 className="w-4 h-4 text-[#c8f560] shrink-0" />
-                        <span className="truncate">
-                          {audioFileName} {audioFileSize ? `• ${audioFileSize}` : ""}
-                        </span>
-                      </div>
-                      {selectedAudioFile ? (
-                        <span className="text-[#c8f560] font-medium flex items-center gap-1 shrink-0">
-                          <Check className="w-3.5 h-3.5" />
-                          File siap (upload saat Review & Submit)
-                        </span>
-                      ) : audioFileUrl ? (
-                        <span className="text-[#c8f560] font-medium flex items-center gap-1 shrink-0">
-                          <Check className="w-3.5 h-3.5" />
-                          Tersimpan di Cloudflare R2
-                        </span>
-                      ) : (
-                        <span className="text-white/60 font-medium shrink-0">
-                          Pilih file audio
-                        </span>
-                      )}
+                  {/* Form Detail Metadata Rilis */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2">
+                    {/* Judul Rilis / Album */}
+                    <div>
+                      <label className="block text-white/85 mb-1 font-semibold">
+                        {releaseType === "ALBUM" ? "Judul Album / EP" : "Judul Lagu (Single)"} <span className="text-[#c8f560]">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={trackTitle}
+                        onChange={(e) => setTrackTitle(e.target.value)}
+                        placeholder={releaseType === "ALBUM" ? "Contoh: Mahakarya Jiwa" : "Contoh: Melodi Hati"}
+                        className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                      />
                     </div>
 
-                    {/* Live Audio Preview Player */}
-                    {(localAudioPreviewUrl || audioFileUrl) && (
-                      <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
-                        <span className="text-[11px] text-[#c8f560] font-medium flex items-center gap-1">
-                          <Volume2 className="w-3 h-3" />
-                          <span>Preview Master Audio:</span>
-                        </span>
-                        <audio
-                          controls
-                          src={localAudioPreviewUrl || audioFileUrl}
-                          className="w-full h-8 rounded-lg bg-black/30 border border-white/10"
-                        />
+                    {/* Artis Utama */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-white/85 font-semibold">
+                          Artis Utama (Primary Artist) <span className="text-[#c8f560]">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setArtistModalOpen(true)}
+                          className="text-[11px] text-[#c8f560] hover:underline flex items-center gap-1 font-semibold"
+                        >
+                          <Plus className="w-3 h-3" /> Buat Artis Baru
+                        </button>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Track Details Form */}
-                  <div>
-                    <h4 className="text-sm font-semibold text-white mb-3">
-                      Track Details & Credits
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
-                      <div>
-                        <label className="block text-white/75 mb-1">Title (Judul Lagu)</label>
-                        <input
-                          type="text"
-                          value={trackTitle}
-                          onChange={(e) => setTrackTitle(e.target.value)}
-                          placeholder="Ketik judul lagu..."
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <label className="text-white/75">
-                            Primary Artist (Artis Terdaftar)
-                          </label>
+                      {userArtists.length > 0 ? (
+                        <div className="flex gap-2">
+                          <select
+                            value={trackArtist}
+                            onChange={(e) => {
+                              if (e.target.value === "__NEW__") {
+                                setArtistModalOpen(true);
+                              } else {
+                                setTrackArtist(e.target.value);
+                              }
+                            }}
+                            className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 font-medium text-white focus:outline-none focus:border-[#c8f560]"
+                          >
+                            <option value="" disabled className="bg-[#312042]">
+                              -- Pilih Profil Artis --
+                            </option>
+                            {userArtists.map((a) => (
+                              <option key={a.id} value={a.name} className="bg-[#312042]">
+                                {a.name} ({a.genre || "Pop"})
+                              </option>
+                            ))}
+                            <option value="__NEW__" className="bg-[#312042] text-[#c8f560] font-bold">
+                              + Buat Profil Artis Baru...
+                            </option>
+                          </select>
                           <button
                             type="button"
                             onClick={() => setArtistModalOpen(true)}
-                            className="text-[11px] text-[#c8f560] hover:underline flex items-center gap-1 font-semibold"
+                            className="px-3.5 py-2 bg-[#c8f560] text-[#312042] font-bold rounded-xl text-xs whitespace-nowrap hover:bg-[#b5e050] transition-colors shrink-0"
                           >
-                            <Plus className="w-3 h-3" /> Buat Artis Baru
+                            + Artis
                           </button>
                         </div>
-                        {userArtists.length > 0 ? (
-                          <div className="flex gap-2">
-                            <select
-                              value={trackArtist}
-                              onChange={(e) => {
-                                if (e.target.value === "__NEW__") {
-                                  setArtistModalOpen(true);
-                                } else {
-                                  setTrackArtist(e.target.value);
-                                }
-                              }}
-                              className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white focus:outline-none focus:border-[#c8f560]"
-                            >
-                              <option value="" disabled className="bg-[#312042]">
-                                -- Pilih Artis Terdaftar --
-                              </option>
-                              {userArtists.map((a) => (
-                                <option key={a.id} value={a.name} className="bg-[#312042]">
-                                  {a.name} ({a.genre || "Pop"})
-                                </option>
-                              ))}
-                              <option value="__NEW__" className="bg-[#312042] text-[#c8f560] font-bold">
-                                + Buat Profil Artis Baru...
-                              </option>
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => setArtistModalOpen(true)}
-                              className="px-3 py-2 bg-[#c8f560] text-[#312042] font-bold rounded-xl text-xs whitespace-nowrap hover:bg-[#b5e050] transition-colors shrink-0"
-                              title="Daftarkan Nama Artis Baru"
-                            >
-                              + Artis
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={trackArtist}
-                              onChange={(e) => setTrackArtist(e.target.value)}
-                              placeholder="Ketik nama artis atau klik Buat Artis"
-                              className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setArtistModalOpen(true)}
-                              className="px-3 py-2 bg-[#c8f560] text-[#312042] font-bold rounded-xl text-xs whitespace-nowrap hover:bg-[#b5e050] transition-colors shrink-0"
-                            >
-                              + Buat
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={trackArtist}
+                            onChange={(e) => setTrackArtist(e.target.value)}
+                            placeholder="Ketik nama artis atau klik Buat Artis"
+                            className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setArtistModalOpen(true)}
+                            className="px-3.5 py-2 bg-[#c8f560] text-[#312042] font-bold rounded-xl text-xs whitespace-nowrap hover:bg-[#b5e050] transition-colors shrink-0"
+                          >
+                            + Buat
+                          </button>
+                        </div>
+                      )}
+                    </div>
 
-                      {/* Kolom Featuring */}
-                      <div>
-                        <label className="block text-white/75 mb-1">
-                          Featuring Artist (Feat. / Opsional)
+                    {/* Genre Musik */}
+                    <div>
+                      <label className="block text-white/85 mb-1 font-semibold">Genre Utama</label>
+                      <select
+                        value={trackGenre}
+                        onChange={(e) => setTrackGenre(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 font-medium text-white focus:outline-none focus:border-[#c8f560]"
+                      >
+                        <option value="Pop • Electronic" className="bg-[#312042]">Pop • Electronic</option>
+                        <option value="Electronic • Downtempo" className="bg-[#312042]">Electronic • Downtempo</option>
+                        <option value="Pop" className="bg-[#312042]">Pop</option>
+                        <option value="Rock • Alternative" className="bg-[#312042]">Rock • Alternative</option>
+                        <option value="Dangdut • Koplo" className="bg-[#312042]">Dangdut • Koplo</option>
+                        <option value="Chill • R&B" className="bg-[#312042]">Chill • R&B</option>
+                        <option value="Hip-Hop • Trap" className="bg-[#312042]">Hip-Hop • Trap</option>
+                        <option value="Synthwave • Dance" className="bg-[#312042]">Synthwave • Dance</option>
+                        <option value="Acoustic • Folk" className="bg-[#312042]">Acoustic • Folk</option>
+                      </select>
+                    </div>
+
+                    {/* Publisher (Penerbit Musik) */}
+                    <div>
+                      <label className="block text-white/85 mb-1 font-semibold">
+                        Publisher (Penerbit Musik)
+                      </label>
+                      <input
+                        type="text"
+                        value={trackPublisher}
+                        onChange={(e) => setTrackPublisher(e.target.value)}
+                        placeholder="Contoh: BREAKOUT Publishing / Damarlangit / Sora Music"
+                        className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                      />
+                    </div>
+
+                    {/* Kolom Release Date Otomatis Tanpa Ngetik */}
+                    <div className="sm:col-span-2 p-4 rounded-2xl bg-white/10 border border-white/20 space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="text-white font-semibold flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-[#c8f560]" />
+                          <span>Tanggal Rilis (Target Live di DSP)</span>
                         </label>
-                        <input
-                          type="text"
-                          value={trackFeaturing}
-                          onChange={(e) => setTrackFeaturing(e.target.value)}
-                          placeholder="Contoh: Luna Eclipse"
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
-                        />
+                        <span className="px-3 py-1 rounded-full bg-[#312042] text-[#c8f560] font-semibold text-xs border border-[#c8f560]/30">
+                          Terjadwal: {formattedReleaseDate}
+                        </span>
                       </div>
 
-                      {/* Kolom Genre */}
-                      <div>
-                        <label className="block text-white/75 mb-1">Genre</label>
-                        <select
-                          value={trackGenre}
-                          onChange={(e) => setTrackGenre(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white focus:outline-none focus:border-[#c8f560]"
-                        >
-                          <option value="Electronic • Downtempo" className="bg-[#312042]">
-                            Electronic • Downtempo
-                          </option>
-                          <option value="Pop • Electronic" className="bg-[#312042]">
-                            Pop • Electronic
-                          </option>
-                          <option value="Synthwave • Dance" className="bg-[#312042]">
-                            Synthwave • Dance
-                          </option>
-                          <option value="Chill • R&B" className="bg-[#312042]">
-                            Chill • R&B
-                          </option>
-                          <option value="Hip-Hop • Trap" className="bg-[#312042]">
-                            Hip-Hop • Trap
-                          </option>
-                        </select>
-                      </div>
-
-                      {/* Kolom Composer */}
-                      <div>
-                        <label className="block text-white/75 mb-1">
-                          Composer (Pencipta Lagu)
-                        </label>
-                        <input
-                          type="text"
-                          value={trackComposer}
-                          onChange={(e) => setTrackComposer(e.target.value)}
-                          placeholder="Nama Lengkap Composer"
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
-                        />
-                      </div>
-
-                      {/* Kolom Producer */}
-                      <div>
-                        <label className="block text-white/75 mb-1">
-                          Producer (Produser Musik)
-                        </label>
-                        <input
-                          type="text"
-                          value={trackProducer}
-                          onChange={(e) => setTrackProducer(e.target.value)}
-                          placeholder="Nama Produser / Studio"
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
-                        />
-                      </div>
-
-                      {/* Kolom Publisher */}
-                      <div className="sm:col-span-2">
-                        <label className="block text-white/75 mb-1">
-                          Publisher (Penerbit Musik)
-                        </label>
-                        <input
-                          type="text"
-                          value={trackPublisher}
-                          onChange={(e) => setTrackPublisher(e.target.value)}
-                          placeholder="Nama Publisher (misal: BREAKOUT Publishing / Sora Music / Damarlangit)"
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
-                        />
-                      </div>
-
-                      {/* Kolom Clip Potongan TikTok (Interaktif Tanpa Ngetik) */}
-                      <div className="sm:col-span-2 p-3.5 rounded-2xl bg-white/10 border border-white/20 space-y-2.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <label className="text-white font-semibold flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-[#c8f560] animate-pulse" />
-                            <span>Clip Potongan TikTok & Reels (Viral Hook)</span>
-                          </label>
-                          <span className="px-3 py-0.5 rounded-full bg-[#312042] text-[#c8f560] font-mono font-bold text-[11px]">
-                            {formattedTiktokClip}
-                          </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                        <div className="sm:col-span-5">
+                          <input
+                            type="date"
+                            value={trackDateIso}
+                            onClick={(e) => {
+                              try {
+                                (e.currentTarget as any).showPicker?.();
+                              } catch {}
+                            }}
+                            onChange={(e) => setTrackDateIso(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-xl bg-[#312042] border border-[#c8f560]/50 font-semibold text-white cursor-pointer focus:outline-none"
+                          />
                         </div>
 
-                        {/* Slider Geser Detik Mulai + Pilihan Durasi 15s / 30s / 60s */}
-                        <div className="flex flex-col sm:flex-row items-center gap-3">
-                          <div className="flex-1 w-full">
-                            <input
-                              type="range"
-                              min={0}
-                              max={160}
-                              step={5}
-                              value={tiktokStartSec}
-                              onChange={(e) => setTiktokStartSec(Number(e.target.value))}
-                              className="w-full accent-[#c8f560] cursor-pointer h-1.5 rounded-lg"
-                            />
-                            <div className="flex justify-between text-[10px] text-white/60 mt-0.5">
-                              <span>00:00 (Intro)</span>
-                              <span>00:45 (Chorus 1)</span>
-                              <span>01:30 (Drop)</span>
-                              <span>02:40 (Outro)</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1 bg-white/15 p-1 rounded-xl shrink-0">
-                            {[15, 30, 60].map((dur) => (
-                              <button
-                                key={dur}
-                                type="button"
-                                onClick={() => setTiktokDurationSec(dur)}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-all ${
-                                  tiktokDurationSec === dur
-                                    ? "bg-[#312042] text-[#c8f560]"
-                                    : "text-white/80 hover:text-white"
-                                }`}
-                              >
-                                {dur}s
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Tombol Preset Potongan Cepat */}
-                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                          <span className="text-[10px] text-white/65 mr-1">Pilih Cepat:</span>
+                        <div className="sm:col-span-7 flex flex-wrap items-center gap-1.5">
                           {[
-                            { label: "00:15 (Intro)", start: 15 },
-                            { label: "00:45 (Reff/Chorus)", start: 45 },
-                            { label: "01:15 (Beat Drop)", start: 75 },
-                            { label: "01:50 (Climax)", start: 110 },
-                          ].map((preset) => (
+                            { label: "Hari Ini", days: 0 },
+                            { label: "+3 Hari", days: 3 },
+                            { label: "+7 Hari (Rilis Global)", days: 7 },
+                            { label: "+14 Hari", days: 14 },
+                          ].map((dBtn) => (
                             <button
-                              key={preset.label}
+                              key={dBtn.label}
                               type="button"
-                              onClick={() => setTiktokStartSec(preset.start)}
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition-all ${
-                                tiktokStartSec === preset.start
-                                  ? "bg-[#c8f560] text-[#312042] font-semibold"
-                                  : "bg-white/15 text-white/85 hover:bg-white/25"
-                              }`}
+                              onClick={() => applyQuickDate(dBtn.days)}
+                              className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-[#c8f560] hover:text-[#312042] text-white text-[11px] font-semibold transition-all"
                             >
-                              {preset.label}
+                              {dBtn.label}
                             </button>
                           ))}
                         </div>
                       </div>
+                    </div>
 
-                      {/* Kolom Release Date Otomatis Tanpa Ngetik */}
-                      <div className="sm:col-span-2 p-3.5 rounded-2xl bg-white/10 border border-white/20 space-y-2.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <label className="text-white font-semibold flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-[#c8f560]" />
-                            <span>Release Date (Pilih Otomatis / Kalender)</span>
-                          </label>
-                          <span className="px-3 py-0.5 rounded-full bg-[#312042] text-[#c8f560] font-semibold text-[11px]">
-                            Terjadwal: {formattedReleaseDate}
-                          </span>
-                        </div>
+                    {/* UPC Barcode */}
+                    <div className="sm:col-span-2 p-4 rounded-2xl bg-white/10 border border-white/20">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-white/90 font-semibold flex items-center gap-1.5 text-xs">
+                          <span className="w-2 h-2 rounded-full bg-[#c8f560]" />
+                          <span>UPC (Universal Product Code Barcode Digital)</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTrackUpc(`899${Math.floor(100000000 + Math.random() * 900000000)}`)
+                          }
+                          className="text-[11px] text-[#c8f560] hover:underline font-bold"
+                        >
+                          🎲 Auto UPC Barcode
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={trackUpc}
+                        onChange={(e) => setTrackUpc(e.target.value)}
+                        placeholder="Contoh: 899214578109 (12-13 Digit)"
+                        className="w-full px-4 py-2.5 rounded-xl bg-white/15 border border-white/25 font-mono font-bold text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                      />
+                      <span className="text-[11px] text-white/60 mt-1 block">
+                        Barcode resmi rilisan digital Anda untuk tracking streaming global.
+                      </span>
+                    </div>
+                  </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
-                          {/* Tombol Kalender Otomatis (Klik langsung buka datepicker tanpa ngetik) */}
-                          <div className="sm:col-span-5">
-                            <input
-                              type="date"
-                              value={trackDateIso}
-                              onClick={(e) => {
-                                try {
-                                  (e.currentTarget as any).showPicker?.();
-                                } catch {}
+                  {/* Tombol Lanjut ke Bar 2 */}
+                  <div className="flex items-center justify-end pt-4 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!trackTitle.trim()) {
+                          showNotice(`Silakan isi ${releaseType === "ALBUM" ? "Judul Album" : "Judul Lagu (Title)"} terlebih dahulu!`);
+                          return;
+                        }
+                        setUploadStep(2);
+                      }}
+                      className="px-6 py-3 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-2 hover:bg-[#b5e050] transition-all shadow-lg"
+                    >
+                      <span>Lanjut ke Bar 2: Track & Audio</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================
+                  BAR 2: TRACKLIST & MASTER AUDIO (SINGLE / ALBUM)
+                 ========================================================= */}
+              {uploadStep === 2 && (
+                <div className={`${ROYALTY_CARD} space-y-6 animate-card-enter`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-white/15 gap-2">
+                    <div className="flex items-center gap-2 font-bold text-base text-white">
+                      <Music className="w-5 h-5 text-[#c8f560]" />
+                      <span>
+                        Bar 2: {releaseType === "ALBUM" ? `Daftar Lagu Album (${albumTracks.length} Track)` : "Master Audio & Detail Lagu"}
+                      </span>
+                    </div>
+                    <span className="text-xs text-[#c8f560] font-semibold">Langkah 2 dari 4</span>
+                  </div>
+
+                  {/* KONTEN SINGLE: 1 Track Form */}
+                  {releaseType === "SINGLE" && (
+                    <div className="space-y-5">
+                      {/* Audio File Dropzone */}
+                      <div className="border-2 border-dashed border-white/30 rounded-2xl p-6 text-center bg-white/10">
+                        <p className="text-sm font-semibold text-white">
+                          Unggah File Master Audio Single
+                        </p>
+                        <p className="text-xs text-white/75 mt-0.5">
+                          Format: .wav (disarankan), .mp3, .flac • Maks. 500MB
+                        </p>
+
+                        <div className="my-5 flex items-center justify-center gap-1 h-12">
+                          {[
+                            3, 6, 4, 8, 5, 9, 11, 7, 12, 8, 5, 10, 12, 9, 6, 11, 8, 12, 7, 9, 5, 8,
+                            10, 6, 4, 7, 9, 5, 3,
+                          ].map((h, i) => (
+                            <span
+                              key={i}
+                              style={{
+                                height: `${h * 3.5}px`,
+                                animationDelay: `${(i % 7) * 140}ms`,
                               }}
-                              onChange={(e) => setTrackDateIso(e.target.value)}
-                              className="w-full px-3.5 py-2 rounded-xl bg-[#312042] border border-[#c8f560]/50 font-semibold text-white cursor-pointer focus:outline-none"
+                              className={`w-1 rounded-full animate-eq-bar ${
+                                i % 2 === 0 ? "bg-[#c8f560]" : "bg-white/65"
+                              }`}
                             />
-                          </div>
-
-                          {/* Tombol Pilih Tanggal Otomatis 1-Klik */}
-                          <div className="sm:col-span-7 flex flex-wrap items-center gap-1.5">
-                            {[
-                              { label: "Hari Ini", days: 0 },
-                              { label: "+3 Hari", days: 3 },
-                              { label: "+7 Hari (Rilis Global)", days: 7 },
-                              { label: "+14 Hari", days: 14 },
-                            ].map((dBtn) => (
-                              <button
-                                key={dBtn.label}
-                                type="button"
-                                onClick={() => applyQuickDate(dBtn.days)}
-                                className="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-[#c8f560] hover:text-[#312042] text-white text-[10px] font-medium transition-all"
-                              >
-                                {dBtn.label}
-                              </button>
-                            ))}
-                          </div>
+                          ))}
                         </div>
+
+                        <label className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#312042] hover:bg-[#422c58] text-white text-xs font-semibold cursor-pointer transition-colors shadow-lg">
+                          <Plus className="w-4 h-4 text-[#c8f560]" />
+                          <span>{selectedAudioFile ? "Ganti File Audio" : "Pilih File Master (.wav / .mp3)"}</span>
+                          <input
+                            type="file"
+                            accept="audio/*,.wav,.mp3,.flac,.m4a,.aac,.ogg"
+                            className="hidden"
+                            onChange={handleAudioUpload}
+                          />
+                        </label>
                       </div>
 
-                      {/* Kolom Barcode Digital UPC & ISRC Code */}
-                      <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-3.5 rounded-2xl bg-white/10 border border-white/20">
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-white/80 font-semibold flex items-center gap-1.5 text-xs">
-                              <span className="w-2 h-2 rounded-full bg-[#c8f560]" />
-                              <span>UPC (Universal Product Code)</span>
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setTrackUpc(
-                                  `899${Math.floor(100000000 + Math.random() * 900000000)}`
-                                )
-                              }
-                              className="text-[10px] text-[#c8f560] hover:underline"
-                            >
-                              🎲 Auto UPC
-                            </button>
+                      {/* File Audio Status & Player */}
+                      <div className="px-4 py-3 rounded-xl bg-white/15 border border-white/20 flex flex-col gap-2.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 font-medium text-white min-w-0 pr-2">
+                            <Volume2 className="w-4 h-4 text-[#c8f560] shrink-0" />
+                            <span className="truncate">
+                              {audioFileName} {audioFileSize ? `• ${audioFileSize}` : ""}
+                            </span>
                           </div>
+                          {selectedAudioFile ? (
+                            <span className="text-[#c8f560] font-medium flex items-center gap-1 shrink-0">
+                              <Check className="w-3.5 h-3.5" /> File Siap Diunggah
+                            </span>
+                          ) : (
+                            <span className="text-white/60 font-medium shrink-0">Pilih file audio</span>
+                          )}
+                        </div>
+
+                        {(localAudioPreviewUrl || audioFileUrl) && (
+                          <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
+                            <span className="text-[11px] text-[#c8f560] font-medium flex items-center gap-1">
+                              <Volume2 className="w-3 h-3" />
+                              <span>Preview Master Audio:</span>
+                            </span>
+                            <audio
+                              controls
+                              src={localAudioPreviewUrl || audioFileUrl}
+                              className="w-full h-8 rounded-lg bg-black/30 border border-white/10"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Single Track Details: Feat, Composer, Producer, ISRC */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <label className="block text-white/80 mb-1 font-semibold">
+                            Featuring Artist (Feat. / Opsional)
+                          </label>
                           <input
                             type="text"
-                            value={trackUpc}
-                            onChange={(e) => setTrackUpc(e.target.value)}
-                            placeholder="Contoh: 899214578109 (12 Digit)"
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-mono font-bold text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                            value={trackFeaturing}
+                            onChange={(e) => setTrackFeaturing(e.target.value)}
+                            placeholder="Contoh: Luna Eclipse"
+                            className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
                           />
-                          <span className="text-[10px] text-white/55 mt-0.5 block">
-                            Barcode digital album / single
-                          </span>
+                        </div>
+
+                        <div>
+                          <label className="block text-white/80 mb-1 font-semibold">
+                            Composer (Pencipta Lagu) <span className="text-[#c8f560]">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={trackComposer}
+                            onChange={(e) => setTrackComposer(e.target.value)}
+                            placeholder="Nama Lengkap Pencipta Lagu"
+                            className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-white/80 mb-1 font-semibold">
+                            Producer (Produser Musik)
+                          </label>
+                          <input
+                            type="text"
+                            value={trackProducer}
+                            onChange={(e) => setTrackProducer(e.target.value)}
+                            placeholder="Nama Produser / Studio Rekaman"
+                            className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                          />
                         </div>
 
                         <div>
                           <div className="flex items-center justify-between mb-1">
-                            <label className="text-white/80 font-semibold flex items-center gap-1.5 text-xs">
-                              <span className="w-2 h-2 rounded-full bg-[#c8f560]" />
-                              <span>ISRC Code</span>
-                            </label>
+                            <label className="text-white/80 font-semibold">ISRC Code</label>
                             <button
                               type="button"
                               onClick={() =>
-                                setTrackIsrc(
-                                  `ID-HRM-24-${Math.floor(10000 + Math.random() * 90000)}`
-                                )
+                                setTrackIsrc(`ID-HRM-24-${Math.floor(10000 + Math.random() * 90000)}`)
                               }
-                              className="text-[10px] text-[#c8f560] hover:underline"
+                              className="text-[11px] text-[#c8f560] hover:underline font-bold"
                             >
                               🎲 Auto ISRC
                             </button>
@@ -3124,163 +3375,576 @@ export default function UserDashboardPage() {
                             value={trackIsrc}
                             onChange={(e) => setTrackIsrc(e.target.value)}
                             placeholder="Contoh: ID-HRM-24-00109"
-                            className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-mono font-bold text-[#c8f560] text-xs focus:outline-none focus:border-[#c8f560]"
+                            className="w-full px-4 py-3 rounded-xl bg-white/15 border border-white/25 font-mono font-bold text-[#c8f560] text-xs focus:outline-none focus:border-[#c8f560]"
                           />
-                          <span className="text-[10px] text-white/55 mt-0.5 block">
-                            Kode identifikasi master rekaman audio
-                          </span>
+                        </div>
+
+                        {/* TikTok Clip Slider */}
+                        <div className="sm:col-span-2 p-4 rounded-2xl bg-white/10 border border-white/20 space-y-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <label className="text-white font-semibold flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-[#c8f560] animate-pulse" />
+                              <span>Clip Potongan TikTok & Reels (Viral Hook)</span>
+                            </label>
+                            <span className="px-3 py-1 rounded-full bg-[#312042] text-[#c8f560] font-mono font-bold text-xs">
+                              {formattedTiktokClip}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row items-center gap-3">
+                            <div className="flex-1 w-full">
+                              <input
+                                type="range"
+                                min={0}
+                                max={160}
+                                step={5}
+                                value={tiktokStartSec}
+                                onChange={(e) => setTiktokStartSec(Number(e.target.value))}
+                                className="w-full accent-[#c8f560] cursor-pointer h-1.5 rounded-lg"
+                              />
+                              <div className="flex justify-between text-[10px] text-white/60 mt-0.5">
+                                <span>00:00 (Intro)</span>
+                                <span>00:45 (Chorus 1)</span>
+                                <span>01:30 (Drop)</span>
+                                <span>02:40 (Outro)</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 bg-white/15 p-1 rounded-xl shrink-0">
+                              {[15, 30, 60].map((dur) => (
+                                <button
+                                  key={dur}
+                                  type="button"
+                                  onClick={() => setTiktokDurationSec(dur)}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                    tiktokDurationSec === dur
+                                      ? "bg-[#312042] text-[#c8f560]"
+                                      : "text-white/80 hover:text-white"
+                                  }`}
+                                >
+                                  {dur}s
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* KONTEN ALBUM: Multi-Track Builder */}
+                  {releaseType === "ALBUM" && (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-2xl bg-white/10 border border-white/20">
+                        <div>
+                          <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                            <Disc3 className="w-4 h-4 text-[#c8f560]" />
+                            <span>Tracklist Album ({albumTracks.length} Lagu)</span>
+                          </h4>
+                          <p className="text-[11px] text-white/70">
+                            Tambahkan setiap judul lagu dan unggah master audio masing-masing.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddAlbumTrack}
+                          className="px-4 py-2 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-1.5 hover:bg-[#b5e050] transition-all shadow"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Tambah Lagu ke Album</span>
+                        </button>
+                      </div>
+
+                      {/* List Track Cards */}
+                      <div className="space-y-4">
+                        {albumTracks.map((track, idx) => (
+                          <div
+                            key={track.id}
+                            className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/20 space-y-4 shadow-md"
+                          >
+                            {/* Track Header */}
+                            <div className="flex items-center justify-between pb-3 border-b border-white/15">
+                              <div className="flex items-center gap-2.5">
+                                <span className="w-7 h-7 rounded-full bg-[#c8f560] text-[#312042] flex items-center justify-center font-bold text-xs shrink-0">
+                                  #{idx + 1}
+                                </span>
+                                <h5 className="font-bold text-white text-sm">
+                                  {track.title || `Track #${idx + 1}`}
+                                </h5>
+                              </div>
+                              {albumTracks.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveAlbumTrack(track.id)}
+                                  className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/35 text-red-300 text-xs flex items-center gap-1 transition-colors"
+                                  title="Hapus Track ini"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  <span className="hidden sm:inline">Hapus Track</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Inputs: Title & Audio Upload */}
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 text-xs">
+                              {/* Judul Track */}
+                              <div className="sm:col-span-6">
+                                <label className="block text-white/80 mb-1 font-semibold">
+                                  Judul Lagu #{idx + 1} <span className="text-[#c8f560]">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={track.title}
+                                  onChange={(e) =>
+                                    handleUpdateAlbumTrack(track.id, { title: e.target.value })
+                                  }
+                                  placeholder={`Contoh: Lagu Ke-${idx + 1}`}
+                                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                                />
+                              </div>
+
+                              {/* Upload Master Audio untuk Track ini */}
+                              <div className="sm:col-span-6">
+                                <label className="block text-white/80 mb-1 font-semibold">
+                                  File Audio (.wav / .mp3) <span className="text-[#c8f560]">*</span>
+                                </label>
+                                <label className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-[#312042] border border-[#c8f560]/50 hover:bg-[#422c58] cursor-pointer transition-colors shadow">
+                                  <div className="flex items-center gap-2 truncate pr-2">
+                                    <Volume2 className="w-4 h-4 text-[#c8f560] shrink-0" />
+                                    <span className="text-white font-medium truncate">
+                                      {track.fileName || "Pilih File Audio Master..."}
+                                    </span>
+                                  </div>
+                                  <span className="px-2.5 py-1 rounded-lg bg-[#c8f560] text-[#312042] font-bold text-[10px] shrink-0">
+                                    {track.file ? "Ganti" : "Pilih File"}
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept="audio/*,.wav,.mp3,.flac"
+                                    className="hidden"
+                                    onChange={(e) => handleAlbumTrackAudioUpload(track.id, e)}
+                                  />
+                                </label>
+                              </div>
+
+                              {/* Preview Player if Audio chosen */}
+                              {track.previewUrl && (
+                                <div className="sm:col-span-12 p-2.5 rounded-xl bg-black/30 border border-white/15">
+                                  <div className="flex items-center justify-between mb-1 text-[11px] text-[#c8f560]">
+                                    <span>Preview Master Audio Track #{idx + 1}:</span>
+                                    <span>{track.fileSize}</span>
+                                  </div>
+                                  <audio controls src={track.previewUrl} className="w-full h-8 rounded-lg" />
+                                </div>
+                              )}
+
+                              {/* Composer & Producer */}
+                              <div className="sm:col-span-4">
+                                <label className="block text-white/80 mb-1 font-semibold">
+                                  Composer (Pencipta)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={track.composer}
+                                  onChange={(e) =>
+                                    handleUpdateAlbumTrack(track.id, { composer: e.target.value })
+                                  }
+                                  placeholder="Nama Pencipta"
+                                  className="w-full px-3.5 py-2 rounded-xl bg-white/15 border border-white/25 text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                                />
+                              </div>
+
+                              <div className="sm:col-span-4">
+                                <label className="block text-white/80 mb-1 font-semibold">
+                                  Producer (Produser)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={track.producer}
+                                  onChange={(e) =>
+                                    handleUpdateAlbumTrack(track.id, { producer: e.target.value })
+                                  }
+                                  placeholder="Nama Produser"
+                                  className="w-full px-3.5 py-2 rounded-xl bg-white/15 border border-white/25 text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                                />
+                              </div>
+
+                              <div className="sm:col-span-4">
+                                <label className="block text-white/80 mb-1 font-semibold">
+                                  Feat. (Opsional)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={track.featuring}
+                                  onChange={(e) =>
+                                    handleUpdateAlbumTrack(track.id, { featuring: e.target.value })
+                                  }
+                                  placeholder="Nama Artis Feat"
+                                  className="w-full px-3.5 py-2 rounded-xl bg-white/15 border border-white/25 text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Tombol Tambah Lagu Lain */}
+                      <button
+                        type="button"
+                        onClick={handleAddAlbumTrack}
+                        className="w-full py-3.5 rounded-2xl border-2 border-dashed border-white/30 hover:border-[#c8f560] bg-white/5 hover:bg-white/10 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all"
+                      >
+                        <Plus className="w-4 h-4 text-[#c8f560]" />
+                        <span>+ Tambah Lagu Berikutnya ke Album</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Tombol Navigasi Bar 2 */}
+                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setUploadStep(1)}
+                      className="px-5 py-2.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Kembali ke Bar 1</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (releaseType === "SINGLE") {
+                          if (!selectedAudioFile && !audioFileKey) {
+                            showNotice("Silakan pilih file Audio (.wav, .mp3, .flac) untuk single terlebih dahulu!");
+                            return;
+                          }
+                        } else {
+                          const missingAudio = albumTracks.findIndex((t) => !t.file && !t.audioKey);
+                          if (missingAudio !== -1) {
+                            showNotice(`Track #${missingAudio + 1} (${albumTracks[missingAudio].title || "Tanpa Judul"}) belum memilih file audio!`);
+                            return;
+                          }
+                        }
+                        setUploadStep(3);
+                      }}
+                      className="px-6 py-3 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-2 hover:bg-[#b5e050] transition-all shadow-lg"
+                    >
+                      <span>Lanjut ke Bar 3: Cover & DSP</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================
+                  BAR 3: COVER ARTWORK & TARGET PLATFORM DSP
+                 ========================================================= */}
+              {uploadStep === 3 && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 animate-card-enter">
+                  {/* Left: Cover Art Upload */}
+                  <div className={`lg:col-span-5 ${ROYALTY_CARD} flex flex-col justify-between text-center`}>
+                    <div>
+                      <div className="flex items-center justify-between pb-3 border-b border-white/15 mb-4">
+                        <div className="flex items-center gap-2 font-bold text-base text-white">
+                          <FolderOpen className="w-5 h-5 text-[#c8f560]" />
+                          <span>Cover Artwork</span>
+                        </div>
+                        <span className="text-xs text-[#c8f560] font-semibold">Bar 3 of 4</span>
+                      </div>
+
+                      <div className="w-44 h-44 mx-auto rounded-3xl overflow-hidden shadow-2xl mb-4 border-2 border-white/30 relative group bg-black/40">
+                        <img
+                          src={uploadCoverUrl}
+                          alt="Cover Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 cursor-pointer text-white text-xs font-semibold">
+                          <FolderOpen className="w-6 h-6 text-[#c8f560]" />
+                          <span>Ganti Gambar</span>
+                          <input
+                            type="file"
+                            accept="image/*,.jpg,.jpeg,.png,.webp"
+                            className="hidden"
+                            onChange={handleCoverUpload}
+                          />
+                        </label>
+                      </div>
+
+                      <p className="text-xs font-semibold text-white">
+                        {selectedCoverFile ? `✓ ${selectedCoverFile.name}` : "Ukuran Ideal: 3000 × 3000 px"}
+                      </p>
+                      <p className="text-[11px] text-white/70 mt-0.5">
+                        Format: JPG, PNG, atau WEBP • Maks. 20MB
+                      </p>
+
+                      <div className="flex flex-wrap items-center justify-center gap-2.5 mt-4">
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab("generator")}
+                          className="px-4 py-2 rounded-full bg-[#c8f560] text-[#312042] text-xs font-bold hover:bg-[#b5e050] flex items-center gap-1.5 shadow"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Generate AI Cover</span>
+                        </button>
+
+                        <label className="px-4 py-2 rounded-full bg-white/15 border border-white/30 text-xs font-semibold text-white hover:bg-white/25 cursor-pointer flex items-center gap-1.5 transition-colors">
+                          <FolderOpen className="w-3.5 h-3.5 text-[#c8f560]" />
+                          <span>{selectedCoverFile ? "Ganti File Cover" : "Upload File Manual"}</span>
+                          <input
+                            type="file"
+                            accept="image/*,.jpg,.jpeg,.png,.webp"
+                            className="hidden"
+                            onChange={handleCoverUpload}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-white/10 mt-6 text-left">
+                      <button
+                        type="button"
+                        onClick={() => setUploadStep(2)}
+                        className="px-4 py-2 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        <span>Kembali ke Bar 2</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right: Platform Distribusi 50+ DSP */}
+                  <div className={`lg:col-span-7 ${ROYALTY_CARD} flex flex-col justify-between`}>
+                    <div>
+                      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-white/15 mb-3 gap-2">
+                        <div className="flex items-center gap-2 font-bold text-base text-white">
+                          <Globe className="w-5 h-5 text-[#c8f560]" />
+                          <span>Platform Distribusi ({selectedPlatforms.length}/{ALL_DSP_PLATFORMS.length})</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPlatforms(ALL_DSP_PLATFORMS.map((p) => p.name))}
+                            className="px-3 py-1 rounded-lg bg-[#c8f560] text-[#312042] font-bold text-[11px] hover:bg-[#d8ff75] transition-all"
+                          >
+                            Pilih Semua
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPlatforms([])}
+                            className="px-3 py-1 rounded-lg bg-white/15 text-white text-[11px] hover:bg-white/25 transition-all"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-white/75 mb-3">
+                        Rilisan Anda akan otomatis didistribusikan ke jaringan DSP global terpilih berikut:
+                      </p>
+
+                      <div className="max-h-[380px] overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {ALL_DSP_PLATFORMS.map((plat) => {
+                          const checked = selectedPlatforms.includes(plat.name);
+                          return (
+                            <div
+                              key={plat.id}
+                              onClick={() => handleTogglePlatform(plat.name)}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer select-none transition-all ${
+                                checked
+                                  ? "bg-white/20 border-[#c8f560] shadow-sm"
+                                  : "bg-white/5 border-white/15 hover:bg-white/10"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-7 h-7 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                                  <img
+                                    src={plat.logoUrl}
+                                    alt={plat.name}
+                                    className="w-full h-full object-contain"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                                    }}
+                                  />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-white text-xs truncate">{plat.name}</p>
+                                  <p className="text-[10px] text-white/60 truncate">{plat.category}</p>
+                                </div>
+                              </div>
+
+                              <div
+                                className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                  checked
+                                    ? "border-[#c8f560] bg-[#312042] text-[#c8f560]"
+                                    : "border-white/35 bg-white/10"
+                                }`}
+                              >
+                                {checked && <Check className="w-3 h-3 stroke-[3]" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-white/10 mt-5 flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setUploadStep(4)}
+                        className="px-6 py-3 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-2 hover:bg-[#b5e050] transition-all shadow-lg"
+                      >
+                        <span>Lanjut ke Bar 4: Review & Kirim</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* =========================================================
+                  BAR 4: REVIEW RINGKASAN & KIRIM RILIS
+                 ========================================================= */}
+              {uploadStep === 4 && (
+                <div className={`${ROYALTY_CARD} space-y-6 animate-card-enter`}>
+                  <div className="flex items-center justify-between pb-3 border-b border-white/15">
+                    <div className="flex items-center gap-2 font-bold text-base text-white">
+                      <Shield className="w-5 h-5 text-[#c8f560]" />
+                      <span>Bar 4: Review Ringkasan & Konfirmasi Rilisan</span>
+                    </div>
+                    <span className="text-xs text-[#c8f560] font-semibold">Langkah 4 dari 4</span>
+                  </div>
+
+                  {/* Summary Card */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 p-5 rounded-3xl bg-black/25 border border-white/20">
+                    {/* Artwork Preview */}
+                    <div className="sm:col-span-4 flex flex-col items-center justify-center">
+                      <div className="w-40 h-40 rounded-2xl overflow-hidden shadow-2xl border-2 border-[#c8f560]/40">
+                        <img src={uploadCoverUrl} alt="Cover" className="w-full h-full object-cover" />
+                      </div>
+                      <span className="text-xs text-white/70 mt-2 font-medium">Cover Artwork</span>
+                    </div>
+
+                    {/* Metadata Overview */}
+                    <div className="sm:col-span-8 space-y-3 flex flex-col justify-center text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="px-3 py-1 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs">
+                          {releaseType === "ALBUM" ? `ALBUM (${albumTracks.length} Lagu)` : "SINGLE"}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full bg-white/15 text-white font-semibold">
+                          {trackGenre}
+                        </span>
+                      </div>
+
+                      <h2 className="text-2xl font-bold text-white">{trackTitle || "Judul Rilis"}</h2>
+                      <p className="text-sm text-white/80 font-medium">
+                        Artis: <strong className="text-white">{trackFeaturedArtistLabel()}</strong>
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 text-xs">
+                        <div>
+                          <span className="text-white/60 block text-[11px]">Publisher:</span>
+                          <span className="font-semibold text-white">{trackPublisher || "-"}</span>
+                        </div>
+                        <div>
+                          <span className="text-white/60 block text-[11px]">Tanggal Rilis:</span>
+                          <span className="font-semibold text-white">{formattedReleaseDate}</span>
+                        </div>
+                        <div>
+                          <span className="text-white/60 block text-[11px]">UPC Barcode:</span>
+                          <span className="font-mono font-semibold text-white">{trackUpc || "-"}</span>
+                        </div>
+                        <div>
+                          <span className="text-white/60 block text-[11px]">Total DSP:</span>
+                          <span className="font-semibold text-[#c8f560]">{selectedPlatforms.length} Platform</span>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Right Column: Cover Art Upload + Platform Selection */}
-                <div
-                  className="lg:col-span-5 flex flex-col gap-5 animate-card-enter"
-                  style={{ animationDelay: "190ms" }}
-                >
-                  <div className={`${ROYALTY_CARD} text-center`}>
-                    <div className="flex items-center gap-2 font-semibold text-sm text-left text-white mb-4">
-                      <FolderOpen className="w-4 h-4 text-[#c8f560]" />
-                      <span>Cover Art Upload</span>
-                    </div>
+                  {/* Tracklist Preview */}
+                  <div className="space-y-3">
+                    <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                      <Music className="w-4 h-4 text-[#c8f560]" />
+                      <span>
+                        {releaseType === "ALBUM"
+                          ? `Daftar Lagu dalam Album (${albumTracks.length} Track)`
+                          : "Detail Lagu Single"}
+                      </span>
+                    </h4>
 
-                    <div className="w-28 h-28 mx-auto rounded-2xl overflow-hidden shadow-md mb-3 border border-white/30 flex items-center justify-center">
-                      <img
-                        src={uploadCoverUrl}
-                        alt="Cover Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-
-                    <p className="text-xs font-medium text-white/90">
-                      {selectedCoverFile
-                        ? `✓ File: ${selectedCoverFile.name} (siap diunggah saat Review)`
-                        : "3000 × 3000 px • JPG / PNG / WEBP"}
-                    </p>
-                    <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("generator")}
-                        className="px-3.5 py-1.5 rounded-full bg-[#c8f560] text-[#312042] text-xs font-bold hover:opacity-90 flex items-center gap-1.5 shadow"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Generate Cover (AI)</span>
-                      </button>
-
-                      <label className="px-3.5 py-1.5 rounded-full bg-white/15 border border-white/30 text-xs font-medium text-white hover:bg-white/25 cursor-pointer flex items-center gap-1.5 transition-colors">
-                        <FolderOpen className="w-3.5 h-3.5 text-[#c8f560]" />
-                        <span>{selectedCoverFile ? "Ganti Cover" : "+ Upload Manual"}</span>
-                        <input
-                          type="file"
-                          accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
-                          className="hidden"
-                          onChange={handleCoverUpload}
-                        />
-                      </label>
-                    </div>
-                    <p className="text-[11px] text-white/65 mt-2">
-                      Recommended: 3000×3000px, JPG/PNG, under 20MB
-                    </p>
-                  </div>
-
-                  {/* Platform Selection — 50+ DSPs with Google Favicons */}
-                  <div className={`${ROYALTY_CARD} flex-1`}>
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2 font-semibold text-sm text-white">
-                        <Globe className="w-4 h-4 text-[#c8f560]" />
-                        <span>Platform Distribusi ({selectedPlatforms.length}/{ALL_DSP_PLATFORMS.length})</span>
+                    {releaseType === "SINGLE" ? (
+                      <div className="p-4 rounded-2xl bg-white/10 border border-white/15 space-y-2.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white text-sm">{trackTitle}</span>
+                          <span className="text-[#c8f560] font-medium">
+                            {selectedAudioFile ? `✓ ${audioFileName} (${audioFileSize})` : "Audio Tersimpan"}
+                          </span>
+                        </div>
+                        {(localAudioPreviewUrl || audioFileUrl) && (
+                          <audio controls src={localAudioPreviewUrl || audioFileUrl} className="w-full h-8 rounded-lg" />
+                        )}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1 text-white/80">
+                          <div><span className="text-white/50">Composer:</span> {trackComposer || "-"}</div>
+                          <div><span className="text-white/50">Producer:</span> {trackProducer || "-"}</div>
+                          <div><span className="text-white/50">TikTok Clip:</span> {formattedTiktokClip}</div>
+                          <div><span className="text-white/50">ISRC:</span> {trackIsrc || "-"}</div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPlatforms(ALL_DSP_PLATFORMS.map((p) => p.name))}
-                          className="px-2.5 py-1 rounded-lg bg-[#c8f560] text-[#312042] font-bold text-[10px] hover:bg-[#d8ff75] transition-all"
-                        >
-                          Pilih Semua ({ALL_DSP_PLATFORMS.length} DSP)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPlatforms([])}
-                          className="px-2.5 py-1 rounded-lg bg-white/15 text-white text-[10px] hover:bg-white/25 transition-all"
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    </div>
-                    <p className="text-xs text-white/75 mb-3">
-                      Lagu Anda akan didistribusikan ke jaringan global DSP terpilih berikut dengan logo resmi terverifikasi:
-                    </p>
-
-                    {/* Scrollable Grid of 50+ DSPs */}
-                    <div className="max-h-[380px] overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      {ALL_DSP_PLATFORMS.map((plat) => {
-                        const checked = selectedPlatforms.includes(plat.name);
-                        return (
+                    ) : (
+                      <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                        {albumTracks.map((t, idx) => (
                           <div
-                            key={plat.id}
-                            onClick={() => handleTogglePlatform(plat.name)}
-                            className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 cursor-pointer select-none transition-all ${
-                              checked
-                                ? "bg-white/20 border-[#c8f560] shadow-sm"
-                                : "bg-white/5 border-white/15 hover:bg-white/10"
-                            }`}
+                            key={t.id}
+                            className="p-3.5 rounded-xl bg-white/10 border border-white/15 space-y-2 text-xs"
                           >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-7 h-7 rounded-lg bg-white/15 border border-white/20 flex items-center justify-center p-1 shrink-0 overflow-hidden">
-                                <img
-                                  src={plat.logoUrl}
-                                  alt={plat.name}
-                                  className="w-full h-full object-contain"
-                                  onError={(e) => {
-                                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                                  }}
-                                />
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-full bg-[#c8f560] text-[#312042] flex items-center justify-center font-bold text-xs shrink-0">
+                                  #{idx + 1}
+                                </span>
+                                <span className="font-bold text-white text-xs">{t.title || `Track #${idx + 1}`}</span>
                               </div>
-                              <div className="min-w-0">
-                                <p className="font-semibold text-white text-xs truncate">{plat.name}</p>
-                                <p className="text-[10px] text-white/60 truncate">{plat.category}</p>
-                              </div>
+                              <span className="text-[#c8f560] font-medium text-[11px]">
+                                {t.file ? `✓ ${t.fileName}` : "Audio Siap"}
+                              </span>
                             </div>
-
-                            <div
-                              className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                                checked
-                                  ? "border-[#c8f560] bg-[#312042] text-[#c8f560]"
-                                  : "border-white/35 bg-white/10"
-                              }`}
-                            >
-                              {checked && <Check className="w-3 h-3 stroke-[3]" />}
+                            {t.previewUrl && (
+                              <audio controls src={t.previewUrl} className="w-full h-8 rounded-lg" />
+                            )}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-white/70">
+                              <div><span className="text-white/50">Composer:</span> {t.composer || trackComposer || "-"}</div>
+                              <div><span className="text-white/50">Producer:</span> {t.producer || trackProducer || "-"}</div>
+                              <div><span className="text-white/50">ISRC:</span> {t.isrc || "-"}</div>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons: Kembali vs Submit */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setUploadStep(3)}
+                      className="w-full sm:w-auto px-6 py-3 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Kembali ke Bar 3</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={submittingTrack}
+                      onClick={handleOpenReviewModal}
+                      className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[#c8f560] hover:bg-[#b5e050] text-[#312042] font-bold text-xs flex items-center justify-center gap-2 shadow-2xl transition-all"
+                    >
+                      <span>Kirim Rilisan (Submit Release)</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-              </div>
-
-              {/* Bottom Action Bar */}
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 pt-1">
-                <button
-                  type="button"
-                  disabled={submittingTrack}
-                  onClick={() => handleCreateRelease("Draft")}
-                  className="sm:col-span-4 py-3.5 rounded-full bg-[#8a88b5]/70 hover:bg-[#8a88b5]/90 border border-white/25 text-white font-semibold text-xs transition-all"
-                >
-                  Save as Draft
-                </button>
-                <button
-                  type="button"
-                  disabled={submittingTrack}
-                  onClick={handleOpenReviewModal}
-                  className="sm:col-span-8 py-3.5 rounded-full bg-[#312042] hover:bg-[#422c58] text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg transition-all"
-                >
-                  <span>Review & Submit</span>
-                  <ArrowRight className="w-4 h-4 text-[#c8f560]" />
-                </button>
-              </div>
+              )}
 
               {/* REVIEW & SUBMIT MODAL */}
               {showReviewModal && (
@@ -3420,26 +4084,53 @@ export default function UserDashboardPage() {
                           </div>
                         </div>
 
-                        {/* Audio Details & Player */}
-                        <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2 text-xs">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-white font-medium truncate">
-                              <Music className="w-4 h-4 text-[#c8f560] shrink-0" />
-                              <span className="truncate">{audioFileName}</span>
-                              {audioFileSize && <span className="text-white/60">• {audioFileSize}</span>}
+                        {/* Audio Details & Player (Single vs Album) */}
+                        {releaseType === "SINGLE" ? (
+                          <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-white font-medium truncate">
+                                <Music className="w-4 h-4 text-[#c8f560] shrink-0" />
+                                <span className="truncate">{audioFileName}</span>
+                                {audioFileSize && <span className="text-white/60">• {audioFileSize}</span>}
+                              </div>
+                              <span className="text-[11px] text-[#c8f560] shrink-0 font-medium">
+                                {selectedAudioFile ? "Siap Diunggah" : "Tersimpan"}
+                              </span>
                             </div>
-                            <span className="text-[11px] text-[#c8f560] shrink-0 font-medium">
-                              {selectedAudioFile ? "Siap Diunggah" : "Tersimpan"}
-                            </span>
+                            {(localAudioPreviewUrl || audioFileUrl) && (
+                              <audio
+                                controls
+                                src={localAudioPreviewUrl || audioFileUrl}
+                                className="w-full h-8 rounded-lg outline-none"
+                              />
+                            )}
                           </div>
-                          {(localAudioPreviewUrl || audioFileUrl) && (
-                            <audio
-                              controls
-                              src={localAudioPreviewUrl || audioFileUrl}
-                              className="w-full h-8 rounded-lg outline-none"
-                            />
-                          )}
-                        </div>
+                        ) : (
+                          <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5 text-xs">
+                            <div className="flex items-center justify-between text-white font-semibold">
+                              <span className="flex items-center gap-2">
+                                <Disc3 className="w-4 h-4 text-[#c8f560]" />
+                                <span>Tracklist Album ({albumTracks.length} Lagu)</span>
+                              </span>
+                              <span className="text-[#c8f560] text-[11px]">Semua Track Siap</span>
+                            </div>
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                              {albumTracks.map((t, idx) => (
+                                <div key={t.id} className="p-2.5 rounded-xl bg-black/30 border border-white/10 flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 truncate">
+                                    <span className="w-5 h-5 rounded-full bg-[#c8f560] text-[#312042] text-[10px] font-bold flex items-center justify-center shrink-0">
+                                      {idx + 1}
+                                    </span>
+                                    <span className="text-white font-medium truncate">{t.title || `Track #${idx + 1}`}</span>
+                                  </div>
+                                  <span className="text-[#c8f560] text-[10px] font-medium shrink-0">
+                                    {t.file ? `✓ ${t.fileName}` : "Audio OK"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Selected Platforms */}
                         <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-xs flex flex-wrap items-center gap-2">
@@ -3758,7 +4449,18 @@ export default function UserDashboardPage() {
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-[11px] text-white/70 truncate mt-0.5">{item.genre}</p>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <p className="text-[11px] text-white/70 truncate">{item.genre}</p>
+                                    {item.type === "ALBUM" || (item.tracks && item.tracks.length > 1) ? (
+                                      <span className="px-1.5 py-0.5 rounded-full bg-[#c8f560] text-[#312042] text-[9px] font-bold shrink-0">
+                                        ALBUM • {item.tracks?.length || 1} Lagu
+                                      </span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 rounded-full bg-white/15 text-white/80 text-[9px] font-medium shrink-0">
+                                        SINGLE
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               <div className="grid grid-cols-3 gap-1 pt-2 border-t border-white/10 text-[10px]">
@@ -3820,7 +4522,18 @@ export default function UserDashboardPage() {
                                     />
                                     <div className="min-w-0">
                                       <p className="font-semibold text-white truncate">{item.title}</p>
-                                      <p className="text-[11px] text-white/70 truncate">{item.genre}</p>
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="text-[11px] text-white/70 truncate">{item.genre}</p>
+                                        {item.type === "ALBUM" || (item.tracks && item.tracks.length > 1) ? (
+                                          <span className="px-1.5 py-0.5 rounded-full bg-[#c8f560] text-[#312042] text-[9px] font-bold shrink-0">
+                                            ALBUM • {item.tracks?.length || 1} Lagu
+                                          </span>
+                                        ) : (
+                                          <span className="px-1.5 py-0.5 rounded-full bg-white/15 text-white/80 text-[9px] font-medium shrink-0">
+                                            SINGLE
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                   <div className="col-span-2 text-center font-medium text-white/90 whitespace-nowrap">
