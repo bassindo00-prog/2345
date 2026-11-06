@@ -45,6 +45,9 @@ import {
   Construction,
   AlertTriangle,
   Power,
+  UserCheck,
+  Phone,
+  FileText,
 } from "lucide-react";
 import VisaWithdrawalCardModal from "@/components/VisaWithdrawalCardModal";
 import VisaMetricCard from "@/components/VisaMetricCard";
@@ -89,6 +92,7 @@ export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<
     | "overview"
     | "releases"
+    | "registrations"
     | "my-releases"
     | "my-reject"
     | "catalog"
@@ -148,6 +152,12 @@ export default function AdminDashboardPage() {
   const [pageCatalog, setPageCatalog] = useState(1);
   const [pageWithdrawals, setPageWithdrawals] = useState(1);
   const [pageUsers, setPageUsers] = useState(1);
+  const [pageRegistrations, setPageRegistrations] = useState(1);
+  const [regFilterStatus, setRegFilterStatus] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED">("PENDING");
+  const [regSearch, setRegSearch] = useState("");
+  const [rejectingUserId, setRejectingUserId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [withdrawalTab, setWithdrawalTab] = useState<"Pending" | "Approved" | "Rejected" | "All">("Pending");
 
   // Track Detail Modal State
@@ -371,6 +381,92 @@ export default function AdminDashboardPage() {
       );
     }
     showNotice(`Preset template diterapkan ke form! Klik 'Simpan' untuk mengaktifkan.`);
+  };
+
+  const nonAdminUsers = useMemo(
+    () => users.filter((u) => u.role !== "ADMIN"),
+    [users]
+  );
+  const pendingUsers = useMemo(
+    () => nonAdminUsers.filter((u) => u.status === "PENDING"),
+    [nonAdminUsers]
+  );
+  const approvedUsers = useMemo(
+    () => nonAdminUsers.filter((u) => u.status === "APPROVED"),
+    [nonAdminUsers]
+  );
+  const rejectedUsers = useMemo(
+    () => nonAdminUsers.filter((u) => u.status === "REJECTED"),
+    [nonAdminUsers]
+  );
+
+  const handleApproveRegistration = async (userId: string, userName: string) => {
+    setActionLoadingId(userId);
+    try {
+      const res = await fetch("/api/admin/registrations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, status: "APPROVED" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotice(`✓ Akun ${userName} BERHASIL DI-ACC! Musisi kini dapat login dan membuka dashboard.`);
+        await fetchAdminData();
+      } else {
+        showNotice(`❌ Gagal: ${data.error || "Gagal menyetujui akun"}`);
+      }
+    } catch (e: any) {
+      showNotice(`❌ Error: ${e.message}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRejectRegistration = async (userId: string, userName: string) => {
+    setActionLoadingId(userId);
+    try {
+      const res = await fetch("/api/admin/registrations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          status: "REJECTED",
+          reason: rejectReason || "Data pendaftaran tidak valid atau tidak memenuhi syarat.",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotice(`Pendaftaran artis ${userName} Ditolak.`);
+        setRejectingUserId(null);
+        setRejectReason("");
+        await fetchAdminData();
+      } else {
+        showNotice(`❌ Gagal: ${data.error}`);
+      }
+    } catch (e: any) {
+      showNotice(`❌ Error: ${e.message}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteRegistration = async (userId: string, userName: string) => {
+    if (!confirm(`Hapus pendaftaran ${userName} secara permanen? Akun ini akan dihapus dan emailnya dapat mendaftar kembali.`)) return;
+    setActionLoadingId(userId);
+    try {
+      const res = await fetch(`/api/admin/registrations?id=${userId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        showNotice(`Pendaftaran ${userName} berhasil dihapus.`);
+        await fetchAdminData();
+      } else {
+        showNotice(`❌ Gagal: ${data.error}`);
+      }
+    } catch (e: any) {
+      showNotice(`❌ Error: ${e.message}`);
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
   useEffect(() => {
@@ -1543,6 +1639,12 @@ export default function AdminDashboardPage() {
                   {[
                     { id: "overview", label: "Admin Overview", icon: Home },
                     { id: "releases", label: "Review Submissions", icon: Clock },
+                    {
+                      id: "registrations",
+                      label: "Verifikasi Artis Baru (ACC)",
+                      icon: UserCheck,
+                      badge: pendingUsers.length > 0 ? `${pendingUsers.length} PENDING` : undefined,
+                    },
                     { id: "my-releases", label: "My Releases — ACC", icon: CheckCircle2 },
                     { id: "my-reject", label: "My Reject (Revisi)", icon: XCircle },
                     { id: "catalog", label: "Daftar Katalog Musik", icon: ListMusic },
@@ -1704,6 +1806,16 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
+              {pendingUsers.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("registrations")}
+                  className="px-4 py-2 rounded-full bg-[#c8f560] text-[#312042] text-xs font-bold flex items-center gap-1.5 shadow-md hover:bg-[#b8e450] transition-all cursor-pointer animate-pulse"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>ACC Artis Baru ({pendingUsers.length})</span>
+                </button>
+              )}
               {maintenanceActive && (
                 <button
                   type="button"
@@ -2902,6 +3014,433 @@ export default function AdminDashboardPage() {
 
             return null;
           })()}
+
+          {/* =========================================================
+              ADMIN VIEW: VERIFIKASI PENDAFTARAN ARTIS BARU (ACC ARTIS)
+             ========================================================= */}
+          {activeTab === "registrations" && (
+            <div className="space-y-6 animate-card-enter">
+              {/* Header */}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2.5">
+                    <span className="p-2 rounded-xl bg-[#c8f560] text-[#312042] shadow-md">
+                      <UserCheck className="w-5 h-5" />
+                    </span>
+                    <span>Verifikasi Pendaftaran Artis Baru (ACC)</span>
+                  </h2>
+                  <p className="text-xs text-white/75 mt-1">
+                    Setujui (ACC) atau tolak akun musisi yang baru mendaftar sebelum mereka dapat login dan mengakses dashboard distribusi.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-3.5 py-1.5 rounded-full bg-amber-400 text-[#312042] text-xs font-bold shadow">
+                    {pendingUsers.length} Menunggu ACC
+                  </span>
+                  <span className="px-3.5 py-1.5 rounded-full bg-[#c8f560]/20 text-[#c8f560] border border-[#c8f560]/40 text-xs font-bold">
+                    {approvedUsers.length} Terverifikasi
+                  </span>
+                </div>
+              </div>
+
+              {/* Status Filter Tabs & Search */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                  {(
+                    [
+                      { id: "PENDING", label: `Menunggu ACC (${pendingUsers.length})` },
+                      { id: "APPROVED", label: `Terverifikasi (${approvedUsers.length})` },
+                      { id: "REJECTED", label: `Ditolak (${rejectedUsers.length})` },
+                      { id: "ALL", label: `Semua Pendaftaran (${nonAdminUsers.length})` },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setRegFilterStatus(tab.id);
+                        setPageRegistrations(1);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                        regFilterStatus === tab.id
+                          ? "bg-[#c8f560] text-[#312042] shadow"
+                          : "text-white/80 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative min-w-[220px]">
+                  <Search className="w-4 h-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={regSearch}
+                    onChange={(e) => {
+                      setRegSearch(e.target.value);
+                      setPageRegistrations(1);
+                    }}
+                    placeholder="Cari nama, email, whatsapp, nik..."
+                    className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-white/15 border border-white/25 text-white text-xs placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                  />
+                </div>
+              </div>
+
+              {/* Reject Reason Popover Modal */}
+              {rejectingUserId && (
+                <div className="p-4 rounded-2xl bg-red-950/80 border border-red-500/50 text-white space-y-3 animate-fade-in shadow-2xl">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-sm text-red-200 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-400" />
+                      <span>Alasan Penolakan Pendaftaran</span>
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectingUserId(null);
+                        setRejectReason("");
+                      }}
+                      className="text-white/60 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Tuliskan alasan penolakan (misal: data KTP tidak terbaca, mohon daftar ulang dengan foto KTP yang jelas)..."
+                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-red-500/40 text-white text-xs outline-none focus:border-red-400 resize-none"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectingUserId(null);
+                        setRejectReason("");
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === rejectingUserId}
+                      onClick={() => {
+                        const target = users.find((u) => u.id === rejectingUserId);
+                        handleRejectRegistration(rejectingUserId, target?.name || "Artis");
+                      }}
+                      className="px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow"
+                    >
+                      {actionLoadingId === rejectingUserId ? "Menolak..." : "Tolak Pendaftaran"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Registrations List / Table */}
+              <div className={`${ROYALTY_CARD} overflow-hidden p-0 border border-white/20`}>
+                {(() => {
+                  const filtered = nonAdminUsers.filter((u) => {
+                    const matchStatus =
+                      regFilterStatus === "ALL" || (u.status || "APPROVED") === regFilterStatus;
+                    const q = regSearch.toLowerCase();
+                    const matchSearch =
+                      !regSearch ||
+                      u.name?.toLowerCase().includes(q) ||
+                      u.email?.toLowerCase().includes(q) ||
+                      u.whatsapp?.toLowerCase().includes(q) ||
+                      u.nik?.toLowerCase().includes(q);
+                    return matchStatus && matchSearch;
+                  });
+
+                  const paginated = filtered.slice((pageRegistrations - 1) * 8, pageRegistrations * 8);
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="py-16 text-center text-white/60 text-xs p-6">
+                        <UserCheck className="w-12 h-12 mx-auto text-white/20 mb-3" />
+                        <p className="font-bold text-sm text-white/80">
+                          {regFilterStatus === "PENDING"
+                            ? "Tidak ada pendaftaran artis yang sedang menunggu ACC!"
+                            : "Tidak ada data pendaftaran yang sesuai dengan filter."}
+                        </p>
+                        <p className="text-white/50 text-[11px] mt-1">
+                          Semua artis baru yang mendaftar di halaman registrasi akan tercantum di sini untuk diverifikasi.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <>
+                      {/* Mobile Cards */}
+                      <div className="md:hidden divide-y divide-white/10 p-3 space-y-3">
+                        {paginated.map((u) => (
+                          <div key={u.id} className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-3 text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5">
+                                <img
+                                  src={u.avatar || "/logo.png"}
+                                  alt={u.name}
+                                  className="w-9 h-9 rounded-full object-cover bg-white/10 border border-white/20 shrink-0"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = "none";
+                                  }}
+                                />
+                                <div className="min-w-0">
+                                  <h4 className="font-bold text-white text-xs truncate">{u.name}</h4>
+                                  <p className="text-white/60 text-[10px] truncate">{u.email}</p>
+                                </div>
+                              </div>
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                                  (u.status || "APPROVED") === "PENDING"
+                                    ? "bg-amber-400 text-[#312042] animate-pulse"
+                                    : (u.status || "APPROVED") === "APPROVED"
+                                    ? "bg-[#c8f560] text-[#312042]"
+                                    : "bg-red-500/30 text-red-300 border border-red-500/40"
+                                }`}
+                              >
+                                {u.status || "APPROVED"}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                              <div>
+                                <span className="text-white/50 text-[10px] block">WhatsApp:</span>
+                                {u.whatsapp && u.whatsapp !== "-" ? (
+                                  <a
+                                    href={`https://wa.me/${u.whatsapp.replace(/[^0-9]/g, "")}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[#c8f560] hover:underline font-semibold flex items-center gap-1"
+                                  >
+                                    <Phone className="w-3 h-3" />
+                                    <span>{u.whatsapp}</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-white/60">-</span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-white/50 text-[10px] block">Channel YouTube:</span>
+                                {u.youtubeUrl ? (
+                                  <a
+                                    href={u.youtubeUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-red-300 hover:underline font-semibold flex items-center gap-1 truncate"
+                                  >
+                                    <Youtube className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">Buka Channel</span>
+                                  </a>
+                                ) : (
+                                  <span className="text-white/60">-</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                              {(u.status || "APPROVED") !== "APPROVED" && (
+                                <button
+                                  type="button"
+                                  disabled={actionLoadingId === u.id}
+                                  onClick={() => handleApproveRegistration(u.id, u.name)}
+                                  className="px-3.5 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-xs flex items-center gap-1 shadow cursor-pointer"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>ACC Akun</span>
+                                </button>
+                              )}
+                              {(u.status || "APPROVED") !== "REJECTED" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRejectingUserId(u.id);
+                                    setRejectReason("");
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-red-500/25 hover:bg-red-500/40 text-red-200 border border-red-500/30 text-xs font-semibold cursor-pointer"
+                                >
+                                  Tolak
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRegistration(u.id, u.name)}
+                                className="p-1.5 rounded-xl bg-white/10 hover:bg-red-500/30 text-white/70 hover:text-red-300 transition-colors"
+                                title="Hapus pendaftaran"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Desktop Table */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left text-xs text-white">
+                          <thead className="bg-[#312042]/60 border-b border-white/15 text-[11px] uppercase tracking-wider text-white/75">
+                            <tr>
+                              <th className="py-3.5 px-4 font-semibold">ARTIS / AKUN</th>
+                              <th className="py-3.5 px-4 font-semibold">KONTAK & WHATSAPP</th>
+                              <th className="py-3.5 px-4 font-semibold">YOUTUBE CHANNEL</th>
+                              <th className="py-3.5 px-4 font-semibold">TANGGAL DAFTAR</th>
+                              <th className="py-3.5 px-4 font-semibold">STATUS</th>
+                              <th className="py-3.5 px-4 font-semibold text-right">AKSI KEPUTUSAN</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/10">
+                            {paginated.map((u) => (
+                              <tr key={u.id} className="hover:bg-white/5 transition-colors">
+                                {/* ARTIS / AKUN */}
+                                <td className="py-3.5 px-4 whitespace-nowrap">
+                                  <div className="flex items-center gap-3">
+                                    <img
+                                      src={u.avatar || "/logo.png"}
+                                      alt={u.name}
+                                      className="w-9 h-9 rounded-full object-cover bg-white/10 border border-white/20 shrink-0"
+                                      onError={(e) => {
+                                        (e.target as HTMLElement).style.display = "none";
+                                      }}
+                                    />
+                                    <div>
+                                      <p className="font-bold text-white text-xs">{u.name}</p>
+                                      <p className="text-white/60 text-[11px]">{u.email}</p>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* KONTAK & WHATSAPP */}
+                                <td className="py-3.5 px-4 whitespace-nowrap">
+                                  {u.whatsapp && u.whatsapp !== "-" ? (
+                                    <a
+                                      href={`https://wa.me/${u.whatsapp.replace(/[^0-9]/g, "")}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold hover:bg-emerald-500/30 transition-all"
+                                      title="Kirim pesan WhatsApp"
+                                    >
+                                      <Phone className="w-3 h-3 text-[#c8f560]" />
+                                      <span>{u.whatsapp}</span>
+                                    </a>
+                                  ) : (
+                                    <span className="text-white/50">-</span>
+                                  )}
+                                </td>
+
+                                {/* YOUTUBE CHANNEL */}
+                                <td className="py-3.5 px-4 whitespace-nowrap">
+                                  {u.youtubeUrl ? (
+                                    <a
+                                      href={u.youtubeUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600/80 hover:bg-red-600 text-white font-semibold transition-all shadow"
+                                    >
+                                      <Youtube className="w-3.5 h-3.5" />
+                                      <span>Lihat Channel</span>
+                                    </a>
+                                  ) : (
+                                    <span className="text-white/50">-</span>
+                                  )}
+                                </td>
+
+                                {/* TANGGAL DAFTAR */}
+                                <td className="py-3.5 px-4 text-white/75 whitespace-nowrap">
+                                  {u.createdAt
+                                    ? new Date(u.createdAt).toLocaleDateString("id-ID", {
+                                        day: "2-digit",
+                                        month: "short",
+                                        year: "numeric",
+                                      })
+                                    : "-"}
+                                </td>
+
+                                {/* STATUS */}
+                                <td className="py-3.5 px-4 whitespace-nowrap">
+                                  {(u.status || "APPROVED") === "PENDING" ? (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-[#312042] font-bold text-[10px] animate-pulse">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-[#312042]" />
+                                      Menunggu ACC
+                                    </span>
+                                  ) : (u.status || "APPROVED") === "APPROVED" ? (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#c8f560] text-[#312042] font-bold text-[10px]">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      Terverifikasi (ACC)
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-500/25 border border-red-500/40 text-red-200 font-bold text-[10px]">
+                                      <XCircle className="w-3 h-3" />
+                                      Ditolak
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* AKSI KEPUTUSAN */}
+                                <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-2">
+                                    {(u.status || "APPROVED") !== "APPROVED" && (
+                                      <button
+                                        type="button"
+                                        disabled={actionLoadingId === u.id}
+                                        onClick={() => handleApproveRegistration(u.id, u.name)}
+                                        className="px-3.5 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-xs flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                                        title="Setujui dan beri akses login musisi"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                        <span>ACC Akun</span>
+                                      </button>
+                                    )}
+
+                                    {(u.status || "APPROVED") !== "REJECTED" && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setRejectingUserId(u.id);
+                                          setRejectReason("");
+                                        }}
+                                        className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-red-500/30 text-white hover:text-red-200 text-xs font-semibold transition-all cursor-pointer"
+                                        title="Tolak pendaftaran ini"
+                                      >
+                                        Tolak
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      disabled={actionLoadingId === u.id}
+                                      onClick={() => handleDeleteRegistration(u.id, u.name)}
+                                      className="p-1.5 rounded-xl bg-white/10 hover:bg-red-500/40 text-white/70 hover:text-red-300 transition-colors cursor-pointer"
+                                      title="Hapus permanen"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination */}
+                      <Pagination
+                        currentPage={pageRegistrations}
+                        totalItems={filtered.length}
+                        pageSize={8}
+                        onPageChange={setPageRegistrations}
+                      />
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
 
           {/* =========================================================
               ADMIN VIEW: UPLOAD & KELOLA KATALOG MUSIK (MUNCUL KE USER)
