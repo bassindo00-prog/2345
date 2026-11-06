@@ -1,19 +1,25 @@
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 import { UserSettingsForm } from "@/components/UserSettingsForm";
-import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function UserSettingsPage() {
   const session = await auth();
   
-  if (!session?.user?.id) return null;
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id }
   });
 
-  if (!user) return null;
+  if (!user) {
+    redirect("/login");
+  }
 
   return (
     <div className="animate-fade-in max-w-4xl mx-auto">

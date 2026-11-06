@@ -29,6 +29,7 @@ import {
   ArrowRight,
   Shield,
   UploadCloud,
+  Upload,
   User,
   Users,
   Mic2,
@@ -1003,7 +1004,7 @@ export default function UserDashboardPage() {
   }) => {
     if (song.title) setTrackTitle(song.title);
     if (song.artist) {
-      setTrackPrimaryArtist(song.artist);
+      setTrackArtist(song.artist);
       setTrackComposer(song.composer || song.artist);
     }
     if (song.publisher) setTrackPublisher(song.publisher);
