@@ -21,7 +21,11 @@ export default function LoginClient({ bgUrl }: { bgUrl: string }) {
       setError(res.error);
       setLoading(false);
     } else {
-      router.push("/dashboard");
+      if (res?.role === "ADMIN") {
+        router.push("/admin");
+      } else {
+        router.push("/dashboard");
+      }
       router.refresh();
     }
   }

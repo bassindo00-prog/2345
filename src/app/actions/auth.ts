@@ -1,17 +1,14 @@
 "use server";
 
 import { signIn } from "@/auth";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { AuthError } from "next-auth";
 import { sendOtpEmail, sendContractToAdminEmail } from "@/lib/email";
 
 import { uploadFileToAPI } from "@/lib/r2-helpers";
 
-const prisma = new PrismaClient();
-
 export async function loginAction(formData: FormData) {
-  // ... (keep login logic as is)
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
@@ -25,7 +22,11 @@ export async function loginAction(formData: FormData) {
       password,
       redirect: false,
     });
-    return { success: true };
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+      select: { role: true },
+    });
+    return { success: true, role: user?.role || "USER" };
   } catch (error) {
     if (error instanceof AuthError) {
       switch (error.type) {

@@ -13,25 +13,6 @@ export default auth(async (req) => {
   // @ts-ignore
   const status = req.auth?.user?.status || req.auth?.status || 'APPROVED'
 
-  // Maintenance Check
-  const isMaintenanceRoute = nextUrl.pathname === '/maintenance'
-  const isProtectedPath = nextUrl.pathname.startsWith('/dashboard') || nextUrl.pathname === '/register'
-
-  if (isProtectedPath && !isMaintenanceRoute && role !== 'ADMIN') {
-    try {
-      const res = await fetch(new URL('/api/maintenance', nextUrl.origin), {
-        cache: 'no-store',
-        next: { revalidate: 0 }
-      });
-      const data = await res.json();
-      if (data?.active) {
-        return NextResponse.redirect(new URL('/maintenance', nextUrl));
-      }
-    } catch (error) {
-      console.error("Middleware maintenance check failed:", error);
-    }
-  }
-
   const isAuthRoute = nextUrl.pathname.startsWith('/login') || nextUrl.pathname.startsWith('/register')
   const isAdminRoute = nextUrl.pathname.startsWith('/admin')
   const isUserRoute = nextUrl.pathname.startsWith('/dashboard')
