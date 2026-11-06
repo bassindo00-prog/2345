@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveMediaUrl } from "@/lib/r2";
+import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
 
@@ -187,5 +188,66 @@ export async function GET() {
   } catch (error) {
     console.error("Auth me error:", error);
     return NextResponse.json({ user: null, authenticated: false }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { name, email, avatar, password } = body;
+
+    const updateData: any = {};
+    if (typeof name === "string" && name.trim()) {
+      updateData.name = name.trim();
+    }
+    if (typeof email === "string" && email.trim()) {
+      updateData.email = email.trim().toLowerCase();
+    }
+    if (typeof avatar === "string") {
+      updateData.image = avatar.trim();
+    }
+    if (typeof password === "string" && password.trim().length >= 6) {
+      updateData.password = await bcrypt.hash(password.trim(), 10);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+      },
+    });
+
+    if (updateData.image) {
+      await prisma.artist.updateMany({
+        where: { userId },
+        data: { avatarUrl: updateData.image },
+      }).catch(() => {});
+    }
+
+    return NextResponse.json({
+      ok: true,
+      success: true,
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        avatar: resolveMediaUrl(updatedUser.image) || "/logo.png",
+      },
+    });
+  } catch (error: any) {
+    console.error("PATCH /api/auth/me error:", error);
+    return NextResponse.json({ error: error.message || "Failed to update profile" }, { status: 500 });
   }
 }

@@ -877,6 +877,52 @@ export default function UserDashboardPage() {
     }
   };
 
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleUploadUserAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      showNotice("Ukuran foto maksimal 10MB!");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    showNotice(`Sedang mengunggah foto profil: ${file.name}...`);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "profile");
+      formData.append("uploadType", "profile");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      const newUrl = data.url || (data.key ? `/api/storage/${data.key}` : null);
+      if (res.ok && newUrl) {
+        setSettingsAvatar(newUrl);
+        await fetch("/api/auth/me", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ avatar: newUrl }),
+        });
+        if (user) {
+          setUser({ ...user, avatar: newUrl });
+        }
+        showNotice("Foto profil musisi berhasil diperbarui!");
+      } else {
+        showNotice(`Gagal mengunggah foto: ${data.error || res.statusText}`);
+      }
+    } catch (err: any) {
+      showNotice(`Error upload: ${err.message}`);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingSettings(true);
@@ -5300,21 +5346,35 @@ export default function UserDashboardPage() {
                     </span>
                   </div>
 
-                  {/* Avatar Preview + URL */}
+                  {/* Avatar Preview + Upload / URL */}
                   <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-2xl bg-white/10 border border-white/15">
                     <img
-                      src={settingsAvatar}
+                      src={settingsAvatar || "/logo.png"}
                       alt="Profile Avatar"
-                      className="w-16 h-16 rounded-full object-cover border-2 border-[#c8f560]"
+                      className="w-16 h-16 rounded-full object-cover border-2 border-[#c8f560] shadow"
                     />
-                    <div className="flex-1 w-full text-xs">
-                      <label className="block text-white/75 mb-1 font-medium">
-                        Avatar Photo URL
-                      </label>
+                    <div className="flex-1 w-full text-xs space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="block text-white/75 font-medium">
+                          Foto Profil Musisi
+                        </label>
+                        <label className="cursor-pointer px-3.5 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#b5e050] text-[#312042] font-bold text-xs flex items-center gap-1.5 transition-all shadow active:scale-95">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{uploadingAvatar ? "Mengunggah..." : "Ganti Foto Profil"}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={uploadingAvatar}
+                            className="hidden"
+                            onChange={handleUploadUserAvatar}
+                          />
+                        </label>
+                      </div>
                       <input
                         type="text"
                         value={settingsAvatar}
                         onChange={(e) => setSettingsAvatar(e.target.value)}
+                        placeholder="https://... atau klik tombol 'Ganti Foto Profil' di atas"
                         className="w-full px-3.5 py-2 rounded-xl bg-white/15 border border-white/25 text-white focus:outline-none focus:border-[#c8f560]"
                       />
                     </div>

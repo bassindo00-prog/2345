@@ -49,6 +49,9 @@ import {
   UserCheck,
   Phone,
   FileText,
+  User,
+  Upload,
+  Save,
 } from "lucide-react";
 import VisaWithdrawalCardModal from "@/components/VisaWithdrawalCardModal";
 import VisaMetricCard from "@/components/VisaMetricCard";
@@ -132,6 +135,17 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Admin Profile & Avatar State
+  const [adminUser, setAdminUser] = useState<any>(null);
+  const [adminName, setAdminName] = useState("Admin Executive");
+  const [adminEmail, setAdminEmail] = useState("admin@breakout.id");
+  const [adminAvatar, setAdminAvatar] = useState(
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+  );
+  const [adminPassword, setAdminPassword] = useState("");
+  const [savingAdminProfile, setSavingAdminProfile] = useState(false);
+  const [uploadingAdminAvatar, setUploadingAdminAvatar] = useState(false);
 
   // Catalog Form & Management State
   const [catSongId, setCatSongId] = useState("HRM-ID-0106");
@@ -382,6 +396,20 @@ export default function AdminDashboardPage() {
         }
       } catch (errCat) {
         console.warn("Gagal load katalog di admin:", errCat);
+      }
+
+      // Ambil data profil Admin yang sedang login
+      try {
+        const meRes = await fetch("/api/auth/me");
+        const meData = await meRes.json();
+        if (meData?.user) {
+          setAdminUser(meData.user);
+          if (meData.user.name) setAdminName(meData.user.name);
+          if (meData.user.email) setAdminEmail(meData.user.email);
+          if (meData.user.avatar) setAdminAvatar(meData.user.avatar);
+        }
+      } catch (errMe) {
+        console.warn("Gagal load profil admin:", errMe);
       }
 
       if (data.users && data.releases) {
@@ -925,6 +953,75 @@ export default function AdminDashboardPage() {
     if (res.ok) {
       await fetchAdminData();
       showNotice(`Status lagu diubah menjadi ${nextStatus}`);
+    }
+  };
+
+  const handleUploadAdminAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      showNotice("Ukuran foto maksimal 10MB!");
+      return;
+    }
+
+    setUploadingAdminAvatar(true);
+    showNotice(`Sedang mengunggah foto profil Admin: ${file.name}...`);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "profile");
+      formData.append("uploadType", "profile");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      const newUrl = data.url || (data.key ? `/api/storage/${data.key}` : null);
+      if (res.ok && newUrl) {
+        setAdminAvatar(newUrl);
+        await fetch("/api/auth/me", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ avatar: newUrl }),
+        });
+        showNotice("Foto profil Admin berhasil diperbarui!");
+      } else {
+        showNotice(`Gagal mengunggah foto: ${data.error || res.statusText}`);
+      }
+    } catch (err: any) {
+      showNotice(`Error upload: ${err.message}`);
+    } finally {
+      setUploadingAdminAvatar(false);
+    }
+  };
+
+  const handleSaveAdminProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingAdminProfile(true);
+    try {
+      const res = await fetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: adminName,
+          email: adminEmail,
+          avatar: adminAvatar,
+          ...(adminPassword ? { password: adminPassword } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && (data.ok || data.success)) {
+        setAdminPassword("");
+        showNotice("Profil Admin berhasil disimpan ke database!");
+      } else {
+        showNotice(`Gagal menyimpan profil: ${data.error || res.statusText}`);
+      }
+    } catch (err: any) {
+      showNotice(`Error: ${err.message}`);
+    } finally {
+      setSavingAdminProfile(false);
     }
   };
 
@@ -1867,10 +1964,10 @@ export default function AdminDashboardPage() {
                     type="button"
                     onClick={() => setActiveTab("settings")}
                     title="Buka Pengaturan Admin"
-                    className="flex items-center p-0.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 transition-all cursor-pointer border border-white/40"
+                    className="flex items-center p-0.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 transition-all cursor-pointer border border-[#c8f560]/60 shadow"
                   >
                     <img
-                      src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
+                      src={adminAvatar}
                       alt="Admin Avatar"
                       className="w-8 h-8 rounded-full object-cover"
                     />
@@ -1905,14 +2002,26 @@ export default function AdminDashboardPage() {
                   <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
                 </button>
 
+                {/* GANTI TOMBOL KELUAR DENGAN FOTO PROFIL ADMIN (KLIK KE PENGATURAN) */}
                 <button
                   type="button"
-                  onClick={handleLogout}
-                  title="Keluar Akun Admin"
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-red-500/25 text-white/90 hover:text-white border border-white/15 text-xs font-semibold transition-all cursor-pointer shadow-sm active:scale-95"
+                  onClick={() => setActiveTab("settings")}
+                  title="Buka Pengaturan & Ganti Foto Profil Admin"
+                  className="flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-white transition-all cursor-pointer shadow-md active:scale-95 border border-[#c8f560]/60 group"
                 >
-                  <LogOut className="w-4 h-4 text-red-400" />
-                  <span className="hidden md:inline">Keluar</span>
+                  <img
+                    src={adminAvatar}
+                    alt="Admin Avatar"
+                    className="w-8 h-8 rounded-full object-cover border-2 border-[#c8f560] shadow"
+                  />
+                  <div className="text-left hidden md:block">
+                    <span className="text-xs font-bold block text-white group-hover:text-[#c8f560] transition-colors leading-tight">
+                      {adminName}
+                    </span>
+                    <span className="text-[10px] text-[#c8f560] block leading-tight font-medium">
+                      Pengaturan Profil
+                    </span>
+                  </div>
                 </button>
               </div>
             </div>
@@ -5382,25 +5491,150 @@ export default function AdminDashboardPage() {
               ADMIN VIEW 5: PENGATURAN SISTEM ADMIN (Gear Icon)
              ========================================================= */}
           {activeTab === "settings" && (
-            <div className={`${ROYALTY_CARD} space-y-5 animate-card-enter`}>
-              <div className="flex items-center justify-between pb-3 border-b border-white/15">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center text-[#c8f560]">
-                    <Sliders className="w-4 h-4" />
+            <div className="space-y-6 animate-card-enter">
+              {/* Form Profil & Foto Akun Admin */}
+              <div className={`${ROYALTY_CARD} space-y-5`}>
+                <div className="flex items-center justify-between pb-3 border-b border-white/15">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center text-[#c8f560]">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-white">
+                        Profil & Foto Akun Administrator
+                      </h3>
+                      <p className="text-xs text-white/75">
+                        Kelola foto profil avatar, nama admin, email, dan kata sandi akun
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-white">
-                      Pengaturan Sistem & Kebijakan Distribusi Admin
-                    </h3>
-                    <p className="text-xs text-white/75">
-                      Konfigurasi moderasi otomatis, tema tampilan, batas royalti, dan keamanan label BREAKOUT
-                    </p>
-                  </div>
+                  <span className="px-3 py-1 rounded-full bg-[#312042] text-[#c8f560] text-xs font-semibold">
+                    {adminEmail}
+                  </span>
                 </div>
-                <span className="px-3 py-1 rounded-full bg-[#312042] text-[#c8f560] text-xs font-semibold">
-                  avelinfx@gmail.com
-                </span>
+
+                <form onSubmit={handleSaveAdminProfile} className="space-y-4">
+                  <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-2xl bg-white/10 border border-white/15">
+                    <div className="relative group">
+                      <img
+                        src={adminAvatar}
+                        alt={adminName}
+                        className="w-20 h-20 rounded-2xl object-cover border-2 border-[#c8f560] shadow-md"
+                      />
+                      <label className="absolute inset-0 bg-black/60 rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                        <Upload className="w-5 h-5 text-white mb-1" />
+                        <span className="text-[10px] text-white font-bold">Ganti</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingAdminAvatar}
+                          className="hidden"
+                          onChange={handleUploadAdminAvatar}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="flex-1 space-y-2 text-center sm:text-left">
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                        <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#c8f560] text-[#1c1326] font-bold text-xs hover:bg-[#b8e550] active:scale-95 transition-all cursor-pointer shadow">
+                          <Upload className="w-4 h-4" />
+                          <span>{uploadingAdminAvatar ? "Mengunggah..." : "Ganti Foto Profil Admin"}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={uploadingAdminAvatar}
+                            className="hidden"
+                            onChange={handleUploadAdminAvatar}
+                          />
+                        </label>
+                        {uploadingAdminAvatar && (
+                          <span className="text-xs text-[#c8f560] animate-pulse">Menyimpan foto ke database...</span>
+                        )}
+                      </div>
+                      <p className="text-white/60 text-xs">
+                        Format foto: JPG, PNG, WEBP (Maksimal 10MB). Foto otomatis tersimpan dan diperbarui di header navigasi.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block text-white/75 mb-1 font-semibold">Nama Administrator</label>
+                      <input
+                        type="text"
+                        value={adminName}
+                        onChange={(e) => setAdminName(e.target.value)}
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 text-white focus:outline-none focus:border-[#c8f560] font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-white/75 mb-1 font-semibold">Email Administrator</label>
+                      <input
+                        type="email"
+                        value={adminEmail}
+                        onChange={(e) => setAdminEmail(e.target.value)}
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 text-white focus:outline-none focus:border-[#c8f560] font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-xs">
+                    <label className="block text-white/75 mb-1 font-semibold">
+                      Ubah Password Baru (Kosongkan jika tidak ingin ganti)
+                    </label>
+                    <input
+                      type="password"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      placeholder="Masukkan kata sandi baru..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 text-white focus:outline-none focus:border-[#c8f560] font-medium"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/30 text-xs font-semibold transition-all cursor-pointer shadow-sm active:scale-95"
+                    >
+                      <LogOut className="w-4 h-4 text-red-400" />
+                      <span>Keluar Akun Admin</span>
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={savingAdminProfile}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#c8f560] hover:bg-[#b8e550] text-[#1c1326] font-bold text-xs shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{savingAdminProfile ? "Menyimpan..." : "Simpan Profil Admin"}</span>
+                    </button>
+                  </div>
+                </form>
               </div>
+
+              {/* Pengaturan Sistem & Kebijakan Distribusi Admin */}
+              <div className={`${ROYALTY_CARD} space-y-5`}>
+                <div className="flex items-center justify-between pb-3 border-b border-white/15">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center text-[#c8f560]">
+                      <Sliders className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-white">
+                        Pengaturan Sistem & Kebijakan Distribusi Admin
+                      </h3>
+                      <p className="text-xs text-white/75">
+                        Konfigurasi moderasi otomatis, tema tampilan, batas royalti, dan keamanan label BREAKOUT
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-[#312042] text-[#c8f560] text-xs font-semibold">
+                    {adminEmail}
+                  </span>
+                </div>
 
               {/* Tema Tampilan Dashboard Admin */}
               <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 space-y-3">
@@ -5562,6 +5796,7 @@ export default function AdminDashboardPage() {
                   <span>Simpan Konfigurasi Admin</span>
                 </button>
               </div>
+            </div>
             </div>
           )}
           </main>
