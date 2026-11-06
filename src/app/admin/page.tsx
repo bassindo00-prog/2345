@@ -368,7 +368,21 @@ export default function AdminDashboardPage() {
       if (data.users) setUsers(data.users);
       if (data.releases) setReleases(data.releases);
       if (data.withdrawals) setWithdrawals(data.withdrawals);
-      if (data.catalogs) setCatalogs(data.catalogs);
+      if (data.catalogs && data.catalogs.length > 0) {
+        setCatalogs(data.catalogs);
+      }
+
+      // Pastikan catalog selalu tersinkron penuh dengan endpoint master
+      try {
+        const catRes = await fetch("/api/catalog?limit=3000");
+        const catData = await catRes.json();
+        const catList = catData.items || catData.catalogs || [];
+        if (Array.isArray(catList) && catList.length > 0) {
+          setCatalogs(catList);
+        }
+      } catch (errCat) {
+        console.warn("Gagal load katalog di admin:", errCat);
+      }
 
       if (data.users && data.releases) {
         const appRels = (data.releases || []).filter((r: any) => r.status === "Approved");

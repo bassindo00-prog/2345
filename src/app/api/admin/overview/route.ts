@@ -34,8 +34,9 @@ export async function GET() {
             user: { select: { id: true, name: true, email: true, image: true } },
           },
         }),
-        prisma.publisherCatalogSong.findMany({
+        prisma.catalog.findMany({
           orderBy: { createdAt: "desc" },
+          take: 3000,
         }),
       ]);
 
@@ -183,15 +184,17 @@ export async function GET() {
     });
 
     // Map catalogs
-    const catalogs = rawCatalogSongs.map((c) => ({
+    const catalogs = rawCatalogSongs.map((c: any) => ({
       id: c.id,
-      songId: c.isrc || `CAT-${c.id.slice(0, 6).toUpperCase()}`,
+      songId: c.songId || `CAT-${c.id.slice(0, 6).toUpperCase()}`,
       title: c.title || "Untitled Track",
       artist: c.artist || "Unknown Artist",
       publisher: c.publisher || "BREAKOUT Publishing",
-      status: "Aktif",
-      youtubeUrl: "",
-      driveUrl: "",
+      status: c.status || "Aktif",
+      youtubeLink: c.youtubeLink || "",
+      driveLink: c.driveLink || "",
+      youtubeUrl: c.youtubeLink || "",
+      driveUrl: c.driveLink || "",
     }));
 
     return NextResponse.json({ users, releases, withdrawals, catalogs });

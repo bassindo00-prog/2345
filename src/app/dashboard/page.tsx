@@ -198,7 +198,23 @@ export default function UserDashboardPage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [catalogs, setCatalogs] = useState<CatalogItem[]>([]);
-  const [catalogPublishersSummary, setCatalogPublishersSummary] = useState<Array<{ publisher: string; count: number }>>([]);
+  const [catalogPublishersSummary, setCatalogPublishersSummary] = useState<Array<{ publisher: string; count: number }>>([
+    { publisher: "Sora Music Publisher", count: 10703 },
+    { publisher: "MAHAR PUSTAKA NUSANTARA", count: 9413 },
+    { publisher: "Delapan Belas Musik", count: 2904 },
+    { publisher: "Proaktif Digital Kreasi", count: 2619 },
+    { publisher: "ALFA PUSTAKA NADA", count: 2145 },
+    { publisher: "BREAKOUT Publishing", count: 2018 },
+    { publisher: "PT. Sony Music Publishing Indonesia", count: 2017 },
+    { publisher: "PT. Gajah Mada Publishing", count: 1910 },
+    { publisher: "RPH Music Publishing", count: 1897 },
+    { publisher: "MEGABAYZ Enterprises", count: 1484 },
+    { publisher: "PT WIRAYUDA SWARATAMA JEKA (PUSTAKA JEKA)", count: 1025 },
+    { publisher: "PT. Royal Publikasi Musikindo", count: 766 },
+    { publisher: "PT Star Cipta Musikindo", count: 245 },
+    { publisher: "PT KHANA MEDIA NUSANTARA", count: 172 },
+    { publisher: "PT Pragita Prabawa Pustaka", count: 73 },
+  ]);
   const [totalCatalogDb, setTotalCatalogDb] = useState(39676);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
