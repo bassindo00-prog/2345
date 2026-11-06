@@ -2937,7 +2937,7 @@ export default function UserDashboardPage() {
                         <span>{selectedCoverFile ? "Ganti Cover" : "+ Upload Manual"}</span>
                         <input
                           type="file"
-                          accept="image/jpeg,image/png,image/webp"
+                          accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif"
                           className="hidden"
                           onChange={handleCoverUpload}
                         />

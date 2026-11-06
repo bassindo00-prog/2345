@@ -5,9 +5,47 @@ import { r2Client, BUCKET_ASSETS, BUCKET_PROFILES, BUCKET_RELEASES } from "@/lib
 import { getR2PublicUrl } from "@/lib/r2-helpers";
 
 // File type validation
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/wav', 'audio/mp3'];
-const ALLOWED_DOCUMENT_TYPES = ['application/pdf'];
+const ALLOWED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/pjpeg',
+  'image/png',
+  'image/x-png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'image/gif',
+  'application/octet-stream',
+  ''
+];
+const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.gif'];
+
+const ALLOWED_AUDIO_TYPES = [
+  'audio/mpeg',
+  'audio/wav',
+  'audio/mp3',
+  'audio/wave',
+  'audio/x-wav',
+  'audio/vnd.wave',
+  'audio/flac',
+  'audio/x-flac',
+  'audio/mp4',
+  'audio/m4a',
+  'audio/x-m4a',
+  'audio/aac',
+  'audio/x-aac',
+  'audio/ogg',
+  'audio/vorbis',
+  'audio/x-ms-wma',
+  'audio/aiff',
+  'audio/x-aiff',
+  'application/octet-stream',
+  ''
+];
+const ALLOWED_AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg', '.wma', '.aiff', '.alac'];
+
+const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'application/octet-stream'];
+const ALLOWED_DOCUMENT_EXTENSIONS = ['.pdf'];
 
 // File size limits (in bytes)
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -175,14 +213,46 @@ export async function POST(req: NextRequest) {
     });
 
     // Validate file type
-    if (!allowedTypes.includes(file.type)) {
+    const lowerType = (file.type || '').toLowerCase();
+    const fileName = file.name || '';
+    const fileExt = (fileName.includes('.') ? '.' + fileName.split('.').pop() : '').toLowerCase();
+
+    let isValid = false;
+    if (uploadType === 'audio') {
+      isValid = 
+        lowerType.startsWith('audio/') || 
+        ALLOWED_AUDIO_TYPES.includes(lowerType) || 
+        ALLOWED_AUDIO_EXTENSIONS.includes(fileExt);
+    } else if (['cover', 'profile', 'asset', 'cms', 'brand'].includes(uploadType)) {
+      isValid = 
+        lowerType.startsWith('image/') || 
+        ALLOWED_IMAGE_TYPES.includes(lowerType) || 
+        ALLOWED_IMAGE_EXTENSIONS.includes(fileExt);
+    } else if (['message', 'contract'].includes(uploadType)) {
+      isValid = 
+        lowerType.startsWith('image/') || 
+        lowerType === 'application/pdf' || 
+        ALLOWED_IMAGE_TYPES.includes(lowerType) || 
+        ALLOWED_DOCUMENT_TYPES.includes(lowerType) || 
+        ALLOWED_IMAGE_EXTENSIONS.includes(fileExt) || 
+        ALLOWED_DOCUMENT_EXTENSIONS.includes(fileExt);
+    } else {
+      isValid = 
+        allowedTypes.includes(lowerType) || 
+        ALLOWED_AUDIO_EXTENSIONS.includes(fileExt) || 
+        ALLOWED_IMAGE_EXTENSIONS.includes(fileExt);
+    }
+
+    if (!isValid) {
       logUploadEvent(`[${requestId}] ERROR: INVALID FILE TYPE`, {
         status: 400,
         receivedType: file.type,
+        fileName: file.name,
+        fileExt,
         allowedTypes
       });
       return NextResponse.json({ 
-        error: `Invalid file type. Allowed: ${allowedTypes.join(', ')}`
+        error: `Format file "${file.name}" tidak valid. Format audio yang didukung: MP3, WAV, FLAC, M4A, AAC.`
       }, { status: 400 });
     }
 
@@ -195,7 +265,7 @@ export async function POST(req: NextRequest) {
         maxSizeMB: Math.round(maxSize / 1024 / 1024)
       });
       return NextResponse.json({ 
-        error: `File too large. Maximum: ${Math.round(maxSize / 1024 / 1024)}MB`
+        error: `File terlalu besar (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maksimal: ${Math.round(maxSize / 1024 / 1024)}MB`
       }, { status: 400 });
     }
 
@@ -207,7 +277,7 @@ export async function POST(req: NextRequest) {
 
     // Generate unique filename
     const timestamp = Date.now();
-    const ext = file.name.split('.').pop();
+    const ext = file.name.split('.').pop() || (uploadType === 'audio' ? 'mp3' : 'jpg');
     const userId = session.user.id;
     const identifier = artistId || userId;
     const filename = `${identifier}-${timestamp}.${ext}`;
@@ -221,6 +291,21 @@ export async function POST(req: NextRequest) {
       filename,
       key
     });
+
+    // Determine final content type for R2 storage
+    let finalContentType = file.type;
+    if (!finalContentType || finalContentType === 'application/octet-stream') {
+      if (['.mp3'].includes(fileExt)) finalContentType = 'audio/mpeg';
+      else if (['.wav'].includes(fileExt)) finalContentType = 'audio/wav';
+      else if (['.flac'].includes(fileExt)) finalContentType = 'audio/flac';
+      else if (['.m4a', '.aac'].includes(fileExt)) finalContentType = 'audio/mp4';
+      else if (['.ogg'].includes(fileExt)) finalContentType = 'audio/ogg';
+      else if (['.jpg', '.jpeg'].includes(fileExt)) finalContentType = 'image/jpeg';
+      else if (['.png'].includes(fileExt)) finalContentType = 'image/png';
+      else if (['.webp'].includes(fileExt)) finalContentType = 'image/webp';
+      else if (['.pdf'].includes(fileExt)) finalContentType = 'application/pdf';
+      else finalContentType = uploadType === 'audio' ? 'audio/mpeg' : 'image/jpeg';
+    }
 
     // Convert file to buffer
     let buffer;
@@ -248,7 +333,7 @@ export async function POST(req: NextRequest) {
       Bucket: bucket,
       Key: key,
       Body: buffer,
-      ContentType: file.type,
+      ContentType: finalContentType,
       Metadata: {
         'uploaded-by': userId,
         'upload-type': uploadType,
