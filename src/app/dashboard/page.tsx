@@ -198,6 +198,9 @@ export default function UserDashboardPage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [catalogs, setCatalogs] = useState<CatalogItem[]>([]);
+  const [catalogPublishersSummary, setCatalogPublishersSummary] = useState<Array<{ publisher: string; count: number }>>([]);
+  const [totalCatalogDb, setTotalCatalogDb] = useState(39676);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogPublisherFilter, setCatalogPublisherFilter] = useState("ALL");
   const [catalogSource, setCatalogSource] = useState<"master" | "damarlangit">("master");
@@ -656,11 +659,17 @@ export default function UserDashboardPage() {
 
       // Fetch Music Catalog
       try {
-        const catRes = await fetch("/api/catalog");
+        const catRes = await fetch("/api/catalog?limit=1000");
         const catData = await catRes.json();
         const catList = catData.items || catData.catalogs || [];
         if (Array.isArray(catList)) {
           setCatalogs(catList);
+        }
+        if (Array.isArray(catData.publishers)) {
+          setCatalogPublishersSummary(catData.publishers);
+        }
+        if (typeof catData.total === "number") {
+          setTotalCatalogDb(catData.total);
         }
       } catch (errCat) {
         console.warn("Failed to fetch catalog:", errCat);
@@ -712,6 +721,35 @@ export default function UserDashboardPage() {
     }
   }, [activeTab, catalogSource, damarPage, catalogSearch]);
 
+  const handleSelectPublisher = async (pubName: string) => {
+    setCatalogPublisherFilter(pubName);
+    setPageCatalog(1);
+    setDamarPage(1);
+
+    if (pubName === "PT. Damarlangit Khatulistiwa") {
+      setCatalogSource("damarlangit");
+      if (damarSongs.length === 0) fetchDamarCatalog(1, catalogSearch);
+      return;
+    }
+
+    setCatalogSource("master");
+    try {
+      setLoadingCatalog(true);
+      const url = pubName === "ALL"
+        ? `/api/catalog?limit=1000&search=${encodeURIComponent(catalogSearch)}`
+        : `/api/catalog?publisher=${encodeURIComponent(pubName)}&limit=1000&search=${encodeURIComponent(catalogSearch)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (Array.isArray(data.items)) {
+        setCatalogs(data.items);
+      }
+    } catch (e) {
+      console.error("handleSelectPublisher error:", e);
+    } finally {
+      setLoadingCatalog(false);
+    }
+  };
+
   const handleUseCatalogSong = (song: {
     title?: string;
     artist?: string;
@@ -734,21 +772,12 @@ export default function UserDashboardPage() {
     if (
       item.driveLink &&
       item.driveLink.startsWith("https://drive.google.com/") &&
-      !item.driveLink.includes("sample") &&
-      !item.driveLink.includes("-master") &&
-      !item.driveLink.includes("folders/rph-") &&
-      !item.driveLink.includes("folders/khana-") &&
-      !item.driveLink.includes("folders/halo-") &&
-      !item.driveLink.includes("folders/warner-") &&
-      !item.driveLink.includes("folders/tiara-") &&
-      !item.driveLink.includes("folders/farel-") &&
-      !item.driveLink.includes("folders/avelin-") &&
-      !item.driveLink.includes("folders/the-overground-") &&
-      !item.driveLink.includes("folders/breakout-")
+      !item.driveLink.includes("/drive/search?") &&
+      !item.driveLink.includes("sample")
     ) {
       return item.driveLink;
     }
-    return `https://drive.google.com/drive/search?q=${encodeURIComponent(item.title + " " + item.artist)}`;
+    return null;
   };
 
   const getSafeYoutubeLink = (item: { title: string; artist: string; youtubeLink?: string | null }) => {
@@ -4321,71 +4350,32 @@ export default function UserDashboardPage() {
                 </div>
 
                 {(() => {
-                  const defaultPublishers = [
+                  const allPubList = [
                     {
                       name: "ALL",
                       displayName: "Semua Publisher",
                       tag: "Katalog Master Global",
                       desc: "Seluruh lagu dari semua publisher",
-                    },
-                    {
-                      name: "RPH Music Publishing",
-                      displayName: "RPH Music Publishing",
-                      tag: "Religi Pop Hits & Pop",
-                      desc: "Chrisye, Opick, Desta, Ungu Religi",
-                    },
-                    {
-                      name: "Halo Entertainment Indonesia",
-                      displayName: "Halo Entertainment Indonesia",
-                      tag: "Pop, Dangdut & Hits",
-                      desc: "Virgoun, Anji, Ungu & Artis HEI",
-                    },
-                    {
-                      name: "Khana Music Publishing",
-                      displayName: "Khana Music Publishing",
-                      tag: "Hits Melly Goeslaw & OST",
-                      desc: "Melly Goeslaw, BCL, Pop Hits",
+                      count: totalCatalogDb || catalogs.length,
                     },
                     {
                       name: "PT. Damarlangit Khatulistiwa",
                       displayName: "PT. Damarlangit Khatulistiwa",
-                      tag: "8.400+ Lagu & Master Drive",
-                      desc: "Upstream database publik & master",
+                      tag: "8.400+ Lagu Upstream",
+                      desc: "Upstream database publik",
+                      count: damarTotal > 0 ? damarTotal : 8421,
                     },
-                    {
-                      name: "BREAKOUT Publishing / Sony Music",
-                      displayName: "BREAKOUT / Sony Music",
-                      tag: "Label In-House & Sony",
-                      desc: "Farel Project, Avelin, The Overground",
-                    },
-                    {
-                      name: "Universal Music Publishing Indonesia",
-                      displayName: "Universal Music Indonesia",
-                      tag: "Top Hits Indonesia",
-                      desc: "Tiara Andini, Lyodra, Mahalini",
-                    },
-                    {
-                      name: "Warner Chappell Music Indonesia",
-                      displayName: "Warner Chappell Indonesia",
-                      tag: "Indie Pop & Folk",
-                      desc: "Fiersa Besari, Banda Neira, Bagas Ran",
-                    },
+                    ...catalogPublishersSummary.map((ps) => ({
+                      name: ps.publisher,
+                      displayName: ps.publisher,
+                      tag: ps.publisher.toLowerCase().includes("pragita") ? "File Drive Asli" : "Publisher Terdaftar",
+                      desc: `Katalog resmi ${ps.publisher}`,
+                      count: ps.count,
+                    })),
                   ];
 
-                  const dbPubs = Array.from(new Set(catalogs.map((c) => c.publisher))).filter(Boolean);
-                  const extraPubs = dbPubs
-                    .filter((p) => !defaultPublishers.some((dp) => dp.name.toLowerCase() === p.toLowerCase()))
-                    .map((p) => ({
-                      name: p,
-                      displayName: p,
-                      tag: "Publisher Terdaftar",
-                      desc: `Katalog resmi dari ${p}`,
-                    }));
-
-                  const allPubList = [...defaultPublishers, ...extraPubs];
-
                   return (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
                       {allPubList.map((pub) => {
                         const isSelected =
                           pub.name === "ALL"
@@ -4394,28 +4384,13 @@ export default function UserDashboardPage() {
                             ? catalogSource === "damarlangit"
                             : catalogPublisherFilter.toLowerCase() === pub.name.toLowerCase() && catalogSource !== "damarlangit";
 
-                        const count =
-                          pub.name === "ALL"
-                            ? catalogs.length
-                            : pub.name === "PT. Damarlangit Khatulistiwa"
-                            ? damarTotal > 0 ? `${damarTotal.toLocaleString("id-ID")}` : "8.421"
-                            : catalogs.filter((c) => c.publisher.toLowerCase().includes(pub.name.toLowerCase()) || pub.name.toLowerCase().includes(c.publisher.toLowerCase())).length;
+                        const countDisplay = typeof pub.count === "number" ? pub.count.toLocaleString("id-ID") : pub.count;
 
                         return (
                           <button
                             key={pub.name}
                             type="button"
-                            onClick={() => {
-                              setCatalogPublisherFilter(pub.name);
-                              setPageCatalog(1);
-                              setDamarPage(1);
-                              if (pub.name === "PT. Damarlangit Khatulistiwa") {
-                                setCatalogSource("damarlangit");
-                                if (damarSongs.length === 0) fetchDamarCatalog(1, catalogSearch);
-                              } else {
-                                setCatalogSource("master");
-                              }
-                            }}
+                            onClick={() => handleSelectPublisher(pub.name)}
                             className={`p-3.5 rounded-2xl text-left transition-all cursor-pointer border relative overflow-hidden group active:scale-98 ${
                               isSelected
                                 ? "bg-[#352a4a] text-white border-[#c8f560] shadow-lg ring-1 ring-[#c8f560]/40 scale-[1.01]"
@@ -4433,20 +4408,17 @@ export default function UserDashboardPage() {
                               <span
                                 className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                   isSelected
-                                    ? "bg-[#c8f560]/20 text-[#c8f560] border border-[#c8f560]/40"
-                                    : "bg-black/25 text-white/70"
+                                    ? "bg-[#c8f560] text-[#312042]"
+                                    : "bg-black/30 text-[#c8f560] border border-[#c8f560]/30"
                                 }`}
                               >
-                                {count} Lagu
+                                {countDisplay} Lagu
                               </span>
                             </div>
-
-                            <p className="font-bold text-xs truncate text-white">{pub.displayName}</p>
-                            <p className="text-[10px] text-white/60 truncate mt-0.5">{pub.tag}</p>
-
-                            {isSelected && (
-                              <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#c8f560] animate-ping" />
-                            )}
+                            <h3 className="font-bold text-xs text-white truncate group-hover:text-[#c8f560] transition-colors">
+                              {pub.displayName}
+                            </h3>
+                            <p className="text-[10px] text-white/60 truncate mt-0.5">{pub.desc}</p>
                           </button>
                         );
                       })}
@@ -4646,15 +4618,26 @@ export default function UserDashboardPage() {
                                     <Youtube className="w-3.5 h-3.5" />
                                     <span>YouTube</span>
                                   </a>
-                                  <a
-                                    href={getSafeDriveLink(item)}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex-1 py-1.5 px-2 rounded-xl bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
-                                  >
-                                    <HardDrive className="w-3.5 h-3.5" />
-                                    <span>Drive</span>
-                                  </a>
+                                  {getSafeDriveLink(item) ? (
+                                    <a
+                                      href={getSafeDriveLink(item)!}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title="Buka File Audio Lagu di Google Drive"
+                                      className="flex-1 py-1.5 px-2 rounded-xl bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                                    >
+                                      <HardDrive className="w-3.5 h-3.5" />
+                                      <span>Drive File</span>
+                                    </a>
+                                  ) : (
+                                    <span
+                                      title="File Drive belum ditautkan untuk lagu ini"
+                                      className="flex-1 py-1.5 px-2 rounded-xl bg-white/5 text-white/30 font-medium text-[10px] flex items-center justify-center gap-1 border border-white/5 cursor-not-allowed"
+                                    >
+                                      <HardDrive className="w-3.5 h-3.5 opacity-40" />
+                                      <span>No Drive</span>
+                                    </span>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => handleUseCatalogSong(item)}
@@ -4764,16 +4747,26 @@ export default function UserDashboardPage() {
                                           <span>YouTube</span>
                                         </a>
 
-                                        <a
-                                          href={getSafeDriveLink(item)}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          title="Buka Master Google Drive"
-                                          className="px-2.5 py-1 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
-                                        >
-                                          <HardDrive className="w-3.5 h-3.5" />
-                                          <span>Drive</span>
-                                        </a>
+                                        {getSafeDriveLink(item) ? (
+                                          <a
+                                            href={getSafeDriveLink(item)!}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            title="Buka File Audio Lagu di Google Drive"
+                                            className="px-2.5 py-1 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
+                                          >
+                                            <HardDrive className="w-3.5 h-3.5" />
+                                            <span>Drive</span>
+                                          </a>
+                                        ) : (
+                                          <span
+                                            title="File Google Drive belum ditautkan"
+                                            className="px-2 py-1 rounded-lg bg-white/5 text-white/30 text-[10px] font-medium flex items-center gap-1 cursor-not-allowed border border-white/5"
+                                          >
+                                            <HardDrive className="w-3 h-3 opacity-30" />
+                                            <span>-</span>
+                                          </span>
+                                        )}
                                       </div>
                                     </td>
 

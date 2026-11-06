@@ -9,6 +9,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const q = searchParams.get("q")?.toLowerCase() || searchParams.get("search")?.toLowerCase();
     const publisher = searchParams.get("publisher");
+    const limitParam = searchParams.get("limit");
+    const pageParam = searchParams.get("page");
 
     let whereClause: any = {};
     const conditions: any[] = [];
@@ -28,20 +30,39 @@ export async function GET(req: Request) {
       whereClause.publisher = { contains: publisher, mode: "insensitive" };
     }
 
-    const items = await prisma.catalog.findMany({
-      where: whereClause,
-      orderBy: { createdAt: "desc" },
-    });
+    const limit = limitParam ? Math.min(parseInt(limitParam), 3000) : 1000;
+    const page = pageParam ? Math.max(parseInt(pageParam), 1) : 1;
+    const skip = (page - 1) * limit;
+
+    const [items, total, publishersRaw] = await Promise.all([
+      prisma.catalog.findMany({
+        where: whereClause,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: skip,
+      }),
+      prisma.catalog.count({ where: whereClause }),
+      prisma.$queryRawUnsafe(`
+        SELECT "publisher", count(*)::int as count 
+        FROM "Catalog" 
+        WHERE "publisher" IS NOT NULL AND "publisher" != ''
+        GROUP BY "publisher" 
+        ORDER BY count DESC;
+      `) as Promise<Array<{ publisher: string; count: number }>>,
+    ]);
 
     return NextResponse.json({
       success: true,
       items,
       catalogs: items,
-      total: items.length,
+      total,
+      publishers: publishersRaw || [],
+      page,
+      limit,
     });
   } catch (error: any) {
     console.error("GET /api/catalog error:", error);
-    return NextResponse.json({ success: false, items: [], catalogs: [], error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, items: [], catalogs: [], publishers: [], error: error.message }, { status: 500 });
   }
 }
 
