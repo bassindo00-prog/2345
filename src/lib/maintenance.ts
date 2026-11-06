@@ -8,40 +8,25 @@ export async function isMaintenanceActive(): Promise<boolean> {
       where: { key: "maintenance_active" },
     });
 
-    const isExplicitlyActive = activeSetting?.value === "true";
+    // Saklar master: Jika admin mematikan maintenance (bukan "true"), maka LANGSUNG NONAKTIF (false)
+    if (!activeSetting || activeSetting.value !== "true") {
+      return false;
+    }
 
+    // Jika switch aktif ("true"), periksa apakah ada batas waktu selesai yang sudah terlewat
     const endSetting = await prisma.settings.findUnique({
       where: { key: "maintenance_end" },
     });
 
-    const now = new Date();
-
-    // Jika admin mengatur batas waktu selesai dan waktu tersebut sudah lewat, maintenance otomatis berakhir
     if (endSetting?.value) {
       const endTime = new Date(endSetting.value);
+      const now = new Date();
       if (!isNaN(endTime.getTime()) && now >= endTime) {
         return false;
       }
     }
 
-    // Jika admin secara manual mengaktifkan maintenance (switch aktif), maka LANGSUNG AKTIF tanpa terhalang waktu mulai
-    if (isExplicitlyActive) {
-      return true;
-    }
-
-    // Jika tidak aktif manual, cek apakah ada jadwal mulai otomatis yang waktunya sudah tiba
-    const startSetting = await prisma.settings.findUnique({
-      where: { key: "maintenance_start" },
-    });
-
-    if (startSetting?.value) {
-      const startTime = new Date(startSetting.value);
-      if (!isNaN(startTime.getTime()) && now >= startTime) {
-        return true;
-      }
-    }
-
-    return false;
+    return true;
   } catch (error) {
     console.error("Error checking maintenance status:", error);
     return false;

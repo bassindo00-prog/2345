@@ -104,7 +104,26 @@ export async function saveMaintenanceSettingsAction(formData: FormData) {
       });
     }
 
-    revalidatePath("/", "layout");
+    if (active === "false") {
+      await prisma.settings.upsert({
+        where: { key: "maintenance_start" },
+        update: { value: "" },
+        create: {
+          key: "maintenance_start",
+          value: "",
+          description: "Maintenance setting: maintenance_start"
+        }
+      });
+    }
+
+    try {
+      revalidatePath("/", "layout");
+      revalidatePath("/dashboard");
+      revalidatePath("/dashboard", "layout");
+      revalidatePath("/dashboard/upload");
+      revalidatePath("/maintenance");
+      revalidatePath("/register");
+    } catch {}
 
     return { success: true };
   } catch (error: any) {

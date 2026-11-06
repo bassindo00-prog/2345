@@ -1,7 +1,10 @@
 import { PrismaClient } from "@prisma/client";
+import { redirect } from "next/navigation";
 import { Construction, Calendar, Clock, AlertCircle } from "lucide-react";
+import { isMaintenanceActive } from "@/lib/maintenance";
 import { MaintenanceClock } from "./MaintenanceClock";
 import { Maintenance3DGears } from "./Maintenance3DGears";
+import { MaintenanceAutoRedirect } from "./MaintenanceAutoRedirect";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,11 @@ function getYouTubeId(url: string) {
 }
 
 export default async function MaintenancePage() {
+  const isActive = await isMaintenanceActive();
+  if (!isActive) {
+    redirect("/dashboard");
+  }
+
   const activeSetting = await prisma.settings.findUnique({ where: { key: "maintenance_active" } });
   const titleSetting = await prisma.settings.findUnique({ where: { key: "maintenance_title" } });
   const messageSetting = await prisma.settings.findUnique({ where: { key: "maintenance_message" } });
@@ -67,6 +75,7 @@ export default async function MaintenancePage() {
 
   return (
     <main className="min-h-screen bg-[#09090B] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <MaintenanceAutoRedirect />
       {/* Background Types */}
       {bgType === "gradient" && (
         <>

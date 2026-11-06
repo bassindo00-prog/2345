@@ -81,10 +81,20 @@ export async function POST(req: Request) {
       });
     }
 
+    if (active === "false") {
+      // Pastikan jadwal start lama tidak meninggalkan sisa waktu
+      await prisma.settings.upsert({
+        where: { key: "maintenance_start" },
+        update: { value: "" },
+        create: { key: "maintenance_start", value: "", description: "Maintenance setting: maintenance_start" }
+      });
+    }
+
     try {
       revalidatePath("/");
       revalidatePath("/dashboard");
       revalidatePath("/dashboard", "layout");
+      revalidatePath("/dashboard/upload");
       revalidatePath("/maintenance");
       revalidatePath("/register");
     } catch {}
