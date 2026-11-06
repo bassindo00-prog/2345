@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -501,6 +501,98 @@ export default function UserDashboardPage() {
     setTimeout(() => setToast(""), 3500);
   };
 
+  // Mobile / Browser Back Button Protection & Tab/Modal State Management
+  const activeTabRef = useRef(activeTab);
+  const mobileMenuOpenRef = useRef(mobileMenuOpen);
+  const showReviewModalRef = useRef(showReviewModal);
+  const artistModalOpenRef = useRef(artistModalOpen);
+  const isPopstateNavigationRef = useRef(false);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    mobileMenuOpenRef.current = mobileMenuOpen;
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    showReviewModalRef.current = showReviewModal;
+  }, [showReviewModal]);
+
+  useEffect(() => {
+    artistModalOpenRef.current = artistModalOpen;
+  }, [artistModalOpen]);
+
+  // Trap back navigation and prevent unintended exit to landing page on iOS/Android
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Set initial baseline history state
+    window.history.replaceState({ app: "breakout_dash", tab: "overview" }, "");
+    window.history.pushState({ app: "breakout_dash", tab: activeTab }, "");
+
+    const handlePopState = (e: PopStateEvent) => {
+      // 1. If mobile drawer menu is open, close it
+      if (mobileMenuOpenRef.current) {
+        setMobileMenuOpen(false);
+        window.history.pushState({ app: "breakout_dash", tab: activeTabRef.current }, "");
+        return;
+      }
+
+      // 2. If review/upload modal is open, close it
+      if (showReviewModalRef.current) {
+        setShowReviewModal(false);
+        window.history.pushState({ app: "breakout_dash", tab: activeTabRef.current }, "");
+        return;
+      }
+
+      // 3. If create artist modal is open, close it
+      if (artistModalOpenRef.current) {
+        setArtistModalOpen(false);
+        window.history.pushState({ app: "breakout_dash", tab: activeTabRef.current }, "");
+        return;
+      }
+
+      // 4. If user was on a secondary tab (e.g., releases, upload, catalog, wallet, etc.), return to overview
+      if (activeTabRef.current !== "overview") {
+        isPopstateNavigationRef.current = true;
+        setActiveTab("overview");
+        window.history.pushState({ app: "breakout_dash", tab: "overview" }, "");
+        return;
+      }
+
+      // 5. If already on overview, keep the user on dashboard and show a reminder
+      window.history.pushState({ app: "breakout_dash", tab: "overview" }, "");
+      showNotice("Gunakan tombol Logout jika ingin keluar ke Beranda.");
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  // Push new history state when user actively switches tabs
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isPopstateNavigationRef.current) {
+      isPopstateNavigationRef.current = false;
+      return;
+    }
+    if (activeTab !== "overview") {
+      window.history.pushState({ app: "breakout_dash", tab: activeTab }, "");
+    }
+  }, [activeTab]);
+
+  // Push history state when a modal is opened
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (mobileMenuOpen || showReviewModal || artistModalOpen) {
+      window.history.pushState({ app: "breakout_dash", tab: activeTab, modal: true }, "");
+    }
+  }, [mobileMenuOpen, showReviewModal, artistModalOpen]);
+
   const handleCopySongId = (songId: string) => {
     navigator.clipboard?.writeText(songId);
     setCopiedSongId(songId);
@@ -885,11 +977,11 @@ export default function UserDashboardPage() {
       console.error("Logout API error:", e);
     }
     try {
-      await signOut({ callbackUrl: "/login", redirect: false });
+      await signOut({ callbackUrl: "/", redirect: false });
     } catch (e) {
       console.error("signOut error:", e);
     }
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   const releases = user?.releases || [];

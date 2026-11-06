@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -223,6 +223,104 @@ export default function AdminDashboardPage() {
     setToast(msg);
     setTimeout(() => setToast(""), 3500);
   };
+
+  // Mobile / Browser Back Button Protection & Tab/Modal State Management
+  const activeTabRef = useRef(activeTab);
+  const mobileMenuOpenRef = useRef(mobileMenuOpen);
+  const selectedReleaseRef = useRef(selectedRelease);
+  const selectedWithdrawalForVisaModalRef = useRef(selectedWithdrawalForVisaModal);
+  const selectedArtistDetailRef = useRef(selectedArtistDetail);
+  const rejectingUserIdRef = useRef(rejectingUserId);
+  const isPopstateNavigationRef = useRef(false);
+
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { mobileMenuOpenRef.current = mobileMenuOpen; }, [mobileMenuOpen]);
+  useEffect(() => { selectedReleaseRef.current = selectedRelease; }, [selectedRelease]);
+  useEffect(() => { selectedWithdrawalForVisaModalRef.current = selectedWithdrawalForVisaModal; }, [selectedWithdrawalForVisaModal]);
+  useEffect(() => { selectedArtistDetailRef.current = selectedArtistDetail; }, [selectedArtistDetail]);
+  useEffect(() => { rejectingUserIdRef.current = rejectingUserId; }, [rejectingUserId]);
+
+  // Trap back navigation and prevent unintended exit to landing page on iOS/Android
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    window.history.replaceState({ app: "breakout_admin", tab: "overview" }, "");
+    window.history.pushState({ app: "breakout_admin", tab: activeTab }, "");
+
+    const handlePopState = (e: PopStateEvent) => {
+      // 1. Close track detail modal
+      if (selectedReleaseRef.current) {
+        setSelectedRelease(null);
+        window.history.pushState({ app: "breakout_admin", tab: activeTabRef.current }, "");
+        return;
+      }
+
+      // 2. Close VISA withdrawal modal
+      if (selectedWithdrawalForVisaModalRef.current) {
+        setSelectedWithdrawalForVisaModal(null);
+        window.history.pushState({ app: "breakout_admin", tab: activeTabRef.current }, "");
+        return;
+      }
+
+      // 3. Close artist detail modal
+      if (selectedArtistDetailRef.current) {
+        setSelectedArtistDetail(null);
+        window.history.pushState({ app: "breakout_admin", tab: activeTabRef.current }, "");
+        return;
+      }
+
+      // 4. Close reject reason popover modal
+      if (rejectingUserIdRef.current) {
+        setRejectingUserId(null);
+        window.history.pushState({ app: "breakout_admin", tab: activeTabRef.current }, "");
+        return;
+      }
+
+      // 5. Close mobile drawer menu
+      if (mobileMenuOpenRef.current) {
+        setMobileMenuOpen(false);
+        window.history.pushState({ app: "breakout_admin", tab: activeTabRef.current }, "");
+        return;
+      }
+
+      // 6. If on secondary tab, return to overview
+      if (activeTabRef.current !== "overview") {
+        isPopstateNavigationRef.current = true;
+        setActiveTab("overview");
+        window.history.pushState({ app: "breakout_admin", tab: "overview" }, "");
+        return;
+      }
+
+      // 7. If already on overview, keep admin on dashboard
+      window.history.pushState({ app: "breakout_admin", tab: "overview" }, "");
+      showNotice("Gunakan tombol Logout jika ingin keluar ke Beranda.");
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  // Push new history state when admin actively switches tabs
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isPopstateNavigationRef.current) {
+      isPopstateNavigationRef.current = false;
+      return;
+    }
+    if (activeTab !== "overview") {
+      window.history.pushState({ app: "breakout_admin", tab: activeTab }, "");
+    }
+  }, [activeTab]);
+
+  // Push history state when any modal or drawer is opened
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (mobileMenuOpen || selectedRelease || selectedWithdrawalForVisaModal || selectedArtistDetail || rejectingUserId) {
+      window.history.pushState({ app: "breakout_admin", tab: activeTab, modal: true }, "");
+    }
+  }, [mobileMenuOpen, selectedRelease, selectedWithdrawalForVisaModal, selectedArtistDetail, rejectingUserId]);
 
   useEffect(() => {
     setAnimProgress(0);
@@ -863,11 +961,11 @@ export default function AdminDashboardPage() {
       console.error("Logout API error:", e);
     }
     try {
-      await signOut({ callbackUrl: "/login", redirect: false });
+      await signOut({ callbackUrl: "/", redirect: false });
     } catch (e) {
       console.error("signOut error:", e);
     }
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   const pendingReleases = releases.filter(

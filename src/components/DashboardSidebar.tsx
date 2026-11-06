@@ -130,8 +130,8 @@ export function DashboardSidebar({
           <button 
             onClick={async () => {
               try { await fetch("/api/auth/me", { method: "DELETE" }); } catch (e) {}
-              try { await signOut({ callbackUrl: "/login", redirect: false }); } catch (e) {}
-              window.location.href = "/login";
+              try { await signOut({ callbackUrl: "/", redirect: false }); } catch (e) {}
+              window.location.href = "/";
             }}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-red-500/20 hover:text-red-300 border border-white/15 transition w-full shadow-sm cursor-pointer"
           >

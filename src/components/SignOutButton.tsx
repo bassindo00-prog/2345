@@ -9,9 +9,9 @@ export function SignOutButton() {
       await fetch("/api/auth/me", { method: "DELETE" });
     } catch (e) {}
     try {
-      await signOut({ callbackUrl: "/login", redirect: false });
+      await signOut({ callbackUrl: "/", redirect: false });
     } catch (e) {}
-    window.location.href = "/login";
+    window.location.href = "/";
   };
 
   return (
