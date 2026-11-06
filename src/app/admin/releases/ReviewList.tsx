@@ -851,6 +851,11 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
                                 Producer: <strong className="text-white">{track.producer}</strong>
                               </span>
                             )}
+                            {(release.distributor || (track as any).publisher) && (
+                              <span className="block text-[11px] font-sans">
+                                Publisher: <strong className="text-white">{release.distributor || (track as any).publisher}</strong>
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

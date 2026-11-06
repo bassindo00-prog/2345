@@ -281,6 +281,7 @@ export default function UserDashboardPage() {
   const [trackFeaturing, setTrackFeaturing] = useState("");
   const [trackComposer, setTrackComposer] = useState("");
   const [trackProducer, setTrackProducer] = useState("");
+  const [trackPublisher, setTrackPublisher] = useState("");
   const [trackGenre, setTrackGenre] = useState("Electronic • Downtempo");
   const [tiktokStartSec, setTiktokStartSec] = useState(45); // 00:45
   const [tiktokDurationSec, setTiktokDurationSec] = useState(30); // 30s clip
@@ -451,6 +452,7 @@ export default function UserDashboardPage() {
           featuring: trackFeaturing,
           composer: trackComposer,
           producer: trackProducer,
+          publisher: trackPublisher,
           tiktokClip: formattedTiktokClip,
           genre: trackGenre,
           releaseDate: formattedReleaseDate,
@@ -778,6 +780,7 @@ export default function UserDashboardPage() {
       setTrackPrimaryArtist(song.artist);
       setTrackComposer(song.composer || song.artist);
     }
+    if (song.publisher) setTrackPublisher(song.publisher);
     setActiveTab("upload");
     showNotice(
       `Lagu "${song.title || "Pilihan"}" (${song.publisher || "Publisher"}) dipilih! Silakan lanjutkan isi data rilis cover Anda.`
@@ -969,6 +972,7 @@ export default function UserDashboardPage() {
           featuring: trackFeaturing,
           composer: trackComposer,
           producer: trackProducer,
+          publisher: trackPublisher,
           tiktokClip: formattedTiktokClip,
           genre: trackGenre,
           releaseDate: formattedReleaseDate,
@@ -2923,6 +2927,20 @@ export default function UserDashboardPage() {
                           value={trackProducer}
                           onChange={(e) => setTrackProducer(e.target.value)}
                           placeholder="Nama Produser / Studio"
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                        />
+                      </div>
+
+                      {/* Kolom Publisher */}
+                      <div className="sm:col-span-2">
+                        <label className="block text-white/75 mb-1">
+                          Publisher (Penerbit Musik)
+                        </label>
+                        <input
+                          type="text"
+                          value={trackPublisher}
+                          onChange={(e) => setTrackPublisher(e.target.value)}
+                          placeholder="Nama Publisher (misal: BREAKOUT Publishing / Sora Music / Damarlangit)"
                           className="w-full px-3.5 py-2.5 rounded-xl bg-white/15 border border-white/25 font-medium text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
                         />
                       </div>

@@ -1416,6 +1416,12 @@ export default function AdminDashboardPage() {
                   </span>
                 </div>
                 <div>
+                  <span className="text-white/60 block text-[11px]">Publisher (Penerbit):</span>
+                  <span className="font-semibold text-white">
+                    {selectedRelease.publisher || selectedRelease.distributor || "-"}
+                  </span>
+                </div>
+                <div>
                   <span className="text-white/60 block text-[11px]">Potongan TikTok & Reels:</span>
                   <span className="font-semibold text-[#c8f560]">
                     {selectedRelease.tiktokClip || "-"}
