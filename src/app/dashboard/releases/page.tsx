@@ -60,24 +60,27 @@ export default async function MyReleasesPage() {
   const artistName = user?.artists?.[0]?.stageName || user?.name || "Artist";
 
   return (
-    <div className="animate-fade-in w-full pb-10 px-4 md:px-0">
-      <div className="mb-6 md:mb-8 bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="animate-fade-in w-full pb-10 px-4 md:px-0 text-white">
+      <div className="mb-6 md:mb-8 p-6 md:p-8 rounded-3xl shadow-xl border border-white/15 bg-gradient-to-br from-[#3b274e] via-[#2f1f40] to-[#1e132b] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">My Releases</h1>
-          <p className="text-gray-500 text-sm font-medium">{releases.length} releases found</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">Katalog Rilisan Musik Saya</h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#c8f560] text-[#1a1024] text-[10px] font-black uppercase">Live</span>
+          </div>
+          <p className="text-white/70 text-xs sm:text-sm font-medium mt-1">{releases.length} rilis terdaftar di sistem</p>
         </div>
-        <Link href="/dashboard/upload" className="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold shadow-md shadow-red-500/20 transition flex items-center justify-center gap-2">
-          <Plus className="w-5 h-5" /> New Release
+        <Link href="/dashboard/upload" className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#c8f560] hover:bg-[#d6ff73] text-[#1a1024] font-bold text-xs shadow-lg shadow-[#c8f560]/20 transition flex items-center justify-center gap-2 active:scale-95">
+          <Plus className="w-4 h-4" /> <span>Upload Lagu Baru</span>
         </Link>
       </div>
 
       {releases.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-gray-100 p-10 md:p-16 flex flex-col items-center justify-center text-center shadow-sm">
-          <Disc className="w-16 h-16 text-gray-300 mb-5" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Belum Ada Rilis Musik</h2>
-          <p className="text-gray-500 mb-8 max-w-md">Anda belum mengunggah lagu. Mulai rilis karya musik pertama Anda sekarang.</p>
-          <Link href="/dashboard/upload" className="px-8 py-3.5 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition">
-            Upload Musik
+        <div className="rounded-3xl border border-white/15 p-10 md:p-16 flex flex-col items-center justify-center text-center shadow-xl bg-gradient-to-br from-[#3b274e] to-[#1e132b] text-white">
+          <Disc className="w-16 h-16 text-white/30 mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-2">Belum Ada Rilis Musik</h2>
+          <p className="text-white/60 mb-6 max-w-md text-xs sm:text-sm">Anda belum mengunggah lagu. Mulai rilis karya musik pertama Anda sekarang ke 150+ platform digital.</p>
+          <Link href="/dashboard/upload" className="px-6 py-3 rounded-2xl bg-[#c8f560] text-[#1a1024] font-bold text-xs hover:bg-[#d6ff73] transition shadow-lg shadow-[#c8f560]/20">
+            Upload Musik Sekarang
           </Link>
         </div>
       ) : (

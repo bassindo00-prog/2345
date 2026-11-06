@@ -2,25 +2,22 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { 
-  Play, 
-  Pause, 
-  Download, 
-  Music, 
-  Search, 
+import {
+  Play,
+  Pause,
+  Download,
+  Music,
+  Search,
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
   Volume2,
   VolumeX,
   X,
-  Radio,
   Disc3,
-  Calendar,
-  Layers,
-  Sparkles,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  Eye,
 } from "lucide-react";
 
 export interface TrackItem {
@@ -49,7 +46,7 @@ export interface ReleaseItem {
   } | null;
 }
 
-const FALLBACK_VINYL = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none"><rect width="80" height="80" rx="8" fill="%230f172a"/><circle cx="40" cy="40" r="30" fill="%231e293b" stroke="%23334155" stroke-width="2"/><circle cx="40" cy="40" r="20" fill="%230f172a"/><circle cx="40" cy="40" r="10" fill="%23e11d48"/><circle cx="40" cy="40" r="3" fill="%23ffffff"/></svg>`;
+const FALLBACK_VINYL = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none"><rect width="80" height="80" rx="8" fill="%230f172a"/><circle cx="40" cy="40" r="30" fill="%231e293b" stroke="%23334155" stroke-width="2"/><circle cx="40" cy="40" r="20" fill="%230f172a"/><circle cx="40" cy="40" r="10" fill="%23c8f560"/><circle cx="40" cy="40" r="3" fill="%23ffffff"/></svg>`;
 
 function resolveMediaUrl(url: string | null | undefined): string {
   if (!url) return "";
@@ -187,13 +184,19 @@ export default function UserReleasesClient({
     }
   };
 
-  const handleDownload = (url: string, filename: string, type: "audio" | "cover", e?: React.MouseEvent) => {
+  const handleDownload = (
+    fileUrl: string,
+    filename: string,
+    type: "audio" | "cover",
+    e?: React.MouseEvent
+  ) => {
     if (e) e.stopPropagation();
-    const downloadApiUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+    const downloadApiUrl = `/api/download?url=${encodeURIComponent(
+      fileUrl
+    )}&filename=${encodeURIComponent(filename)}`;
     window.open(downloadApiUrl, "_blank");
   };
 
-  // Filtering
   const filteredReleases = releases.filter((rel) => {
     const matchesSearch =
       rel.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -216,35 +219,41 @@ export default function UserReleasesClient({
     switch (status) {
       case "APPROVED":
       case "RELEASED":
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Approved</span>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#c8f560] text-[#312042] shadow-sm">
+            ✓ Approved
+          </span>
+        );
       case "REJECTED":
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">Rejected</span>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-500/25 border border-red-500/40 text-red-200">
+            ✕ Rejected
+          </span>
+        );
       case "PROCESSING":
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">Processing</span>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/25 border border-amber-500/40 text-amber-200">
+            ⏳ Processing
+          </span>
+        );
       default:
-        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">Review</span>;
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#fde08d] text-[#312042]">
+            ⏳ Review
+          </span>
+        );
     }
   };
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-28 text-white">
       {/* Hidden Audio Element */}
       <audio ref={audioRef} preload="metadata" />
 
-      {/* Header & Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Music Releases</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Daftar rilis musik, pemutar audio, serta unduhan master artwork dan audio.
-          </p>
-        </div>
-      </div>
-
-      {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center gap-3">
+      {/* Filters Bar (Dark Luxury Glass) */}
+      <div className="bg-[#241733]/90 border border-white/15 p-4 rounded-3xl shadow-xl backdrop-blur-md flex flex-col md:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-white/50 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Cari judul lagu, album, atau genre..."
@@ -253,24 +262,24 @@ export default function UserReleasesClient({
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full pl-10 pr-4 py-2 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+            className="w-full pl-10 pr-4 py-2.5 text-sm bg-[#1a1024]/80 border border-white/20 rounded-2xl text-white placeholder-white/40 focus:outline-none focus:border-[#c8f560] transition-all"
           />
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <SlidersHorizontal className="w-4 h-4 text-slate-400 hidden sm:block ml-1" />
+          <SlidersHorizontal className="w-4 h-4 text-white/50 hidden sm:block ml-1" />
           <select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-3 py-2 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 font-medium text-slate-700"
+            className="px-3.5 py-2.5 text-xs font-bold bg-[#1a1024] border border-white/20 rounded-2xl text-white focus:outline-none focus:border-[#c8f560] cursor-pointer"
           >
             <option value="ALL">Semua Status</option>
-            <option value="PENDING">Review</option>
+            <option value="PENDING">Review Moderasi</option>
             <option value="PROCESSING">Processing</option>
-            <option value="APPROVED">Approved</option>
+            <option value="APPROVED">Approved (ACC)</option>
             <option value="REJECTED">Rejected</option>
           </select>
 
@@ -280,7 +289,7 @@ export default function UserReleasesClient({
               setTypeFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-3 py-2 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 font-medium text-slate-700"
+            className="px-3.5 py-2.5 text-xs font-bold bg-[#1a1024] border border-white/20 rounded-2xl text-white focus:outline-none focus:border-[#c8f560] cursor-pointer"
           >
             <option value="ALL">Semua Tipe</option>
             <option value="SINGLE">Single</option>
@@ -290,191 +299,330 @@ export default function UserReleasesClient({
         </div>
       </div>
 
-      {/* Releases List Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      {/* Releases List Container (Dark Purple Luxury) */}
+      <div className="bg-gradient-to-br from-[#3b274e] via-[#2f1f40] to-[#1e132b] rounded-3xl border border-white/15 shadow-2xl overflow-hidden p-4 md:p-6">
         {paginatedReleases.length === 0 ? (
-          <div className="p-12 text-center">
-            <Disc3 className="w-12 h-12 text-slate-300 mx-auto mb-3 animate-spin-slow" />
-            <h3 className="text-base font-semibold text-slate-800">Belum ada rilis musik</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+          <div className="p-14 text-center">
+            <Disc3 className="w-12 h-12 text-white/30 mx-auto mb-3 animate-spin" />
+            <h3 className="text-base font-bold text-white">Belum ada rilis musik</h3>
+            <p className="text-xs text-white/60 mt-1 max-w-sm mx-auto">
               {searchTerm || statusFilter !== "ALL" || typeFilter !== "ALL"
                 ? "Tidak ada rilis yang cocok dengan filter pencarian Anda."
-                : "Mulai unggah rilis musik pertama Anda sekarang."}
+                : "Mulai unggah rilis musik pertama Anda sekarang di menu Unggah Rilisan."}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Cover / Track</th>
-                  <th className="py-3.5 px-4">Tipe & Genre</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4">Tanggal</th>
-                  <th className="py-3.5 px-4 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {paginatedReleases.map((rel) => {
-                  const firstTrack = rel.tracks[0];
-                  const isThisPlaying = firstTrack && currentTrack?.track.id === firstTrack.id && isPlaying;
+          <>
+            {/* MOBILE VIEW */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {paginatedReleases.map((rel) => {
+                const firstTrack = rel.tracks[0];
+                const isThisPlaying =
+                  firstTrack && currentTrack?.track.id === firstTrack.id && isPlaying;
 
-                  return (
-                    <tr
-                      key={rel.id}
-                      onClick={() => setSelectedRelease(rel)}
-                      className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                return (
+                  <div
+                    key={rel.id}
+                    onClick={() => setSelectedRelease(rel)}
+                    className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer space-y-3"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-black/40 border border-white/20 shrink-0">
+                        <img
+                          src={resolveMediaUrl(rel.coverArtworkUrl)}
+                          alt={rel.title}
+                          onError={handleImageError}
+                          className="w-full h-full object-cover"
+                        />
+                        {firstTrack && (
+                          <button
+                            onClick={(e) => togglePlay(firstTrack, rel, e)}
+                            className="absolute inset-0 bg-black/40 flex items-center justify-center text-white"
+                          >
+                            {isThisPlaying ? (
+                              <Pause className="w-5 h-5 fill-current text-[#c8f560]" />
+                            ) : (
+                              <Play className="w-5 h-5 fill-current text-[#c8f560] ml-0.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-bold text-sm text-white truncate flex items-center gap-1.5">
+                            <span>{rel.title}</span>
+                            <Eye className="w-3.5 h-3.5 text-[#c8f560] shrink-0" />
+                          </h4>
+                          {getStatusBadge(rel.status)}
+                        </div>
+
+                        <p className="text-white/80 text-xs truncate mt-0.5">
+                          {rel.artist?.name || artistName || "Breakout Artist"} •{" "}
+                          <span className="text-white/60">{rel.genre}</span>
+                        </p>
+
+                        <div className="flex items-center gap-2 text-[10px] text-white/60 mt-1 font-mono">
+                          <span>{rel.tracks?.length || 1} Track</span>
+                          <span>•</span>
+                          <span>
+                            {new Date(rel.releaseDate).toLocaleDateString("id-ID", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className="flex items-center gap-2 pt-2 border-t border-white/10"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      {/* Cover & Title */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3.5">
-                          <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-900 border border-slate-200/80 flex-shrink-0 shadow-sm">
-                            <img
-                              src={resolveMediaUrl(rel.coverArtworkUrl)}
-                              alt={rel.title}
-                              onError={handleImageError}
-                              className="w-full h-full object-cover"
-                            />
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRelease(rel)}
+                        className="flex-1 py-2 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center justify-center gap-1.5 text-xs font-semibold transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#c8f560]" />
+                        <span>Detail & Unduh</span>
+                      </button>
+
+                      {firstTrack && (
+                        <button
+                          type="button"
+                          onClick={(e) => togglePlay(firstTrack, rel, e)}
+                          className="py-2 px-3.5 rounded-xl bg-white/15 hover:bg-white/25 text-[#c8f560] font-bold text-xs transition-colors"
+                        >
+                          {isThisPlaying ? "Pause" : "Play"}
+                        </button>
+                      )}
+
+                      {rel.status === "RELEASED" && (
+                        <a
+                          href={`/listen/${rel.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="py-2 px-3 rounded-xl bg-[#c8f560] text-[#1a1024] font-bold text-xs flex items-center gap-1"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Smartlink</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* DESKTOP VIEW */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-white/20 text-white/70 text-xs font-semibold uppercase tracking-wider">
+                    <th className="py-3.5 px-4">Cover / Track</th>
+                    <th className="py-3.5 px-4">Tipe & Genre</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
+                    <th className="py-3.5 px-4 text-center">Tanggal Rilis</th>
+                    <th className="py-3.5 px-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10 text-sm">
+                  {paginatedReleases.map((rel) => {
+                    const firstTrack = rel.tracks[0];
+                    const isThisPlaying =
+                      firstTrack && currentTrack?.track.id === firstTrack.id && isPlaying;
+
+                    return (
+                      <tr
+                        key={rel.id}
+                        onClick={() => setSelectedRelease(rel)}
+                        className="hover:bg-white/10 transition-colors cursor-pointer group"
+                      >
+                        {/* Cover & Title */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3.5">
+                            <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-black/40 border border-white/20 shrink-0 shadow">
+                              <img
+                                src={resolveMediaUrl(rel.coverArtworkUrl)}
+                                alt={rel.title}
+                                onError={handleImageError}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              {firstTrack && (
+                                <button
+                                  onClick={(e) => togglePlay(firstTrack, rel, e)}
+                                  className="absolute inset-0 bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-opacity opacity-0 group-hover:opacity-100"
+                                  title={isThisPlaying ? "Pause" : "Putar Lagu"}
+                                >
+                                  {isThisPlaying ? (
+                                    <Pause className="w-5 h-5 fill-current text-[#c8f560]" />
+                                  ) : (
+                                    <Play className="w-5 h-5 fill-current text-[#c8f560] ml-0.5" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-white group-hover:text-[#c8f560] transition-colors truncate max-w-[240px]">
+                                  {rel.title}
+                                </span>
+                                {isThisPlaying && (
+                                  <span className="flex h-2 w-2 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#c8f560] opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#c8f560]"></span>
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-white/60 truncate mt-0.5">
+                                {rel.artist?.name || artistName || "Breakout Artist"} •{" "}
+                                {rel.tracks?.length || 1} Track
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Type & Genre */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {rel.type === "SINGLE" ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-white/10 text-white mr-2 border border-white/10">
+                              SINGLE
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-400/30 mr-2">
+                              {rel.type}
+                            </span>
+                          )}
+                          <span className="text-xs text-white/70">{rel.genre}</span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3.5 px-4 whitespace-nowrap text-center">
+                          {getStatusBadge(rel.status)}
+                        </td>
+
+                        {/* Date */}
+                        <td className="py-3.5 px-4 whitespace-nowrap text-center text-xs text-white/70">
+                          {new Date(rel.releaseDate).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                          <div
+                            className="flex items-center justify-end gap-1.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRelease(rel)}
+                              className="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center gap-1 text-xs font-semibold transition-colors"
+                              title="Lihat Detail Rilisan"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-[#c8f560]" />
+                              <span>Detail</span>
+                            </button>
+
                             {firstTrack && (
                               <button
                                 onClick={(e) => togglePlay(firstTrack, rel, e)}
-                                className="absolute inset-0 bg-black/40 hover:bg-black/60 flex items-center justify-center text-white transition-opacity opacity-0 group-hover:opacity-100"
-                                title={isThisPlaying ? "Pause" : "Putar Lagu"}
+                                className={`p-2 rounded-xl transition-all cursor-pointer ${
+                                  isThisPlaying
+                                    ? "bg-[#c8f560] text-[#1a1024]"
+                                    : "bg-white/15 text-white hover:bg-white/25"
+                                }`}
+                                title={isThisPlaying ? "Pause Audio" : "Putar Audio"}
                               >
                                 {isThisPlaying ? (
-                                  <Pause className="w-5 h-5 fill-current" />
+                                  <Pause className="w-4 h-4 fill-current" />
                                 ) : (
-                                  <Play className="w-5 h-5 fill-current ml-0.5" />
+                                  <Play className="w-4 h-4 fill-current" />
                                 )}
                               </button>
                             )}
+
+                            {firstTrack && (
+                              <button
+                                onClick={(e) =>
+                                  handleDownload(
+                                    firstTrack.audioUrl,
+                                    `${firstTrack.title}.mp3`,
+                                    "audio",
+                                    e
+                                  )
+                                }
+                                className="p-2 rounded-xl bg-white/15 text-white hover:bg-[#c8f560] hover:text-[#1a1024] transition-all cursor-pointer"
+                                title="Download Audio MP3/WAV"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {rel.status === "RELEASED" && (
+                              <a
+                                href={`/listen/${rel.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2.5 py-1.5 rounded-xl bg-[#c8f560] text-[#1a1024] font-bold transition-all flex items-center gap-1 text-xs shadow"
+                                title="Buka Smartlink"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" /> Smartlink
+                              </a>
+                            )}
                           </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-slate-900 truncate max-w-[200px] sm:max-w-[320px]">
-                                {rel.title}
-                              </span>
-                              {isThisPlaying && (
-                                <span className="flex h-2 w-2 relative">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-slate-500 truncate mt-0.5">
-                              {rel.artist?.name || artistName || "Breakout Artist"} • {rel.tracks?.length || 1} Track
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Type & Genre */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {rel.type === "SINGLE" ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 mr-2">SINGLE</span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200 mr-2">{rel.type}</span>
-                          )}
-                        <span className="text-xs text-slate-500">{rel.genre}</span>
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {getStatusBadge(rel.status)}
-                      </td>
-
-                      {/* Date */}
-                      <td className="py-3.5 px-4 whitespace-nowrap text-xs text-slate-500">
-                        {new Date(rel.releaseDate).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          {firstTrack && (
-                            <button
-                              onClick={(e) => togglePlay(firstTrack, rel, e)}
-                              className={`p-2 rounded-xl border transition-all ${
-                                isThisPlaying
-                                  ? "bg-red-50 text-red-600 border-red-200"
-                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                              }`}
-                              title={isThisPlaying ? "Pause Audio" : "Putar Audio"}
-                            >
-                              {isThisPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-                            </button>
-                          )}
-
-                          {firstTrack && (
-                            <button
-                              onClick={(e) => handleDownload(firstTrack.audioUrl, `${firstTrack.title}.mp3`, "audio", e)}
-                              className="p-2 rounded-xl bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition-all"
-                              title="Download Audio MP3/WAV"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-                          )}
-
-                          {rel.status === "RELEASED" && (
-                            <a
-                              href={`/listen/${rel.id}`}
-                              target="_blank"
-                              className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-all flex items-center gap-1 text-xs font-semibold"
-                              title="Buka Smartlink"
-                            >
-                              <ExternalLink className="w-4 h-4" /> Smartlink
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-            <span className="text-xs text-slate-500">
-              Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredReleases.length)} dari {filteredReleases.length} rilis
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white disabled:opacity-40 hover:bg-slate-50"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="px-3 text-xs font-semibold text-slate-700">
-                {currentPage} / {totalPages}
-              </span>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white disabled:opacity-40 hover:bg-slate-50"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3.5 border-t border-white/15 mt-4 text-xs text-white/70">
+                <span>
+                  Menampilkan {(currentPage - 1) * itemsPerPage + 1} -{" "}
+                  {Math.min(currentPage * itemsPerPage, filteredReleases.length)} dari{" "}
+                  {filteredReleases.length} rilis
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="p-1.5 rounded-xl border border-white/15 bg-white/10 text-white disabled:opacity-30 hover:bg-white/20 transition cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="px-3 text-xs font-bold text-white">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="p-1.5 rounded-xl border border-white/15 bg-white/10 text-white disabled:opacity-30 hover:bg-white/20 transition cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
       {/* Release Detail Modal */}
       {selectedRelease && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 p-6 space-y-6">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-gradient-to-br from-[#2f1f40] via-[#241733] to-[#1a1024] border border-white/20 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6 text-white">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-md flex-shrink-0">
+                <div className="w-20 h-20 rounded-2xl overflow-hidden bg-black/40 border border-white/20 shadow-md shrink-0">
                   <img
                     src={resolveMediaUrl(selectedRelease.coverArtworkUrl)}
                     alt={selectedRelease.title}
@@ -483,37 +631,49 @@ export default function UserReleasesClient({
                   />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900">{selectedRelease.title}</h3>
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    {selectedRelease.artist?.name || artistName || "Breakout Artist"} • {selectedRelease.genre}
+                  <h3 className="text-xl font-bold text-white">{selectedRelease.title}</h3>
+                  <p className="text-sm text-white/70 mt-0.5">
+                    {selectedRelease.artist?.name || artistName || "Breakout Artist"} •{" "}
+                    {selectedRelease.genre}
                   </p>
                   <div className="mt-2 flex items-center gap-2">
                     {getStatusBadge(selectedRelease.status)}
                     {selectedRelease.type === "SINGLE" ? (
-                      <span className="text-xs font-medium px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-md">SINGLE</span>
+                      <span className="text-xs font-semibold px-2.5 py-0.5 bg-white/10 text-white rounded-md border border-white/10">
+                        SINGLE
+                      </span>
                     ) : (
-                      <span className="text-xs font-medium px-2.5 py-0.5 bg-purple-100 text-purple-700 border border-purple-200 rounded-md">{selectedRelease.type}</span>
+                      <span className="text-xs font-semibold px-2.5 py-0.5 bg-purple-500/20 text-purple-300 border border-purple-400/30 rounded-md">
+                        {selectedRelease.type}
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedRelease(null)}
-                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Quick Actions Download Cover */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 flex items-center justify-between">
-              <div className="text-xs text-slate-600">
-                <span className="font-semibold block text-slate-900">Cover Artwork Master</span>
-                Unduh file gambar artwork asli untuk promosi atau arsip.
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+              <div className="text-xs text-white/70">
+                <span className="font-bold block text-white">Cover Artwork Master</span>
+                Unduh file gambar artwork asli untuk materi promosi musisi.
               </div>
               <button
-                onClick={(e) => handleDownload(selectedRelease.coverArtworkUrl, `${selectedRelease.title} - Cover.jpg`, "cover", e)}
-                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 rounded-xl border border-slate-200 shadow-sm text-xs font-semibold flex items-center gap-1.5 transition-all"
+                onClick={(e) =>
+                  handleDownload(
+                    selectedRelease.coverArtworkUrl,
+                    `${selectedRelease.title} - Cover.jpg`,
+                    "cover",
+                    e
+                  )
+                }
+                className="px-3.5 py-2 bg-white/15 hover:bg-[#c8f560] hover:text-[#1a1024] text-white rounded-xl border border-white/15 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
               >
                 <Download className="w-3.5 h-3.5" />
                 Unduh Cover
@@ -522,8 +682,8 @@ export default function UserReleasesClient({
 
             {/* Tracklist in Modal */}
             <div className="space-y-3">
-              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Music className="w-4 h-4 text-red-600" />
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Music className="w-4 h-4 text-[#c8f560]" />
                 Daftar Lagu ({selectedRelease.tracks?.length || 0})
               </h4>
               <div className="space-y-2">
@@ -532,19 +692,19 @@ export default function UserReleasesClient({
                   return (
                     <div
                       key={track.id}
-                      className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
                         isTrackActive
-                          ? "bg-red-50/70 border-red-200"
-                          : "bg-white border-slate-200 hover:bg-slate-50"
+                          ? "bg-[#c8f560]/10 border-[#c8f560]/50"
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <button
                           onClick={() => togglePlay(track, selectedRelease)}
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                             isTrackActive
-                              ? "bg-red-600 text-white shadow-md shadow-red-500/30"
-                              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                              ? "bg-[#c8f560] text-[#1a1024] shadow-md shadow-[#c8f560]/30"
+                              : "bg-white/15 text-white hover:bg-white/25"
                           }`}
                         >
                           {isTrackActive ? (
@@ -554,18 +714,21 @@ export default function UserReleasesClient({
                           )}
                         </button>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 truncate">
+                          <p className="text-sm font-bold text-white truncate">
                             {idx + 1}. {track.title}
                           </p>
-                          <p className="text-xs text-slate-400 truncate">
-                            {track.featuredArtist ? `Feat: ${track.featuredArtist} • ` : ''}{track.isrc ? `ISRC: ${track.isrc}` : "ISRC Auto-Generated"}
+                          <p className="text-xs text-white/60 truncate font-mono mt-0.5">
+                            {track.featuredArtist ? `Feat: ${track.featuredArtist} • ` : ""}
+                            {track.isrc ? `ISRC: ${track.isrc}` : "ISRC Auto-Generated"}
                           </p>
                         </div>
                       </div>
 
                       <button
-                        onClick={(e) => handleDownload(track.audioUrl, `${track.title}.mp3`, "audio", e)}
-                        className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                        onClick={(e) =>
+                          handleDownload(track.audioUrl, `${track.title}.mp3`, "audio", e)
+                        }
+                        className="p-2.5 rounded-xl bg-white/10 hover:bg-[#c8f560] hover:text-[#1a1024] text-white transition-colors cursor-pointer"
                         title="Download Lagu Master"
                       >
                         <Download className="w-4 h-4" />
@@ -581,11 +744,11 @@ export default function UserReleasesClient({
 
       {/* Floating Bottom Audio Player Bar */}
       {currentTrack && (
-        <div className="fixed bottom-4 left-4 right-4 md:left-64 md:right-8 z-40 bg-slate-950/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-3.5 shadow-2xl text-white animate-in slide-in-from-bottom duration-300">
+        <div className="fixed bottom-4 left-4 right-4 md:left-72 md:right-8 z-40 bg-[#1a1024]/95 backdrop-blur-xl border border-white/20 rounded-3xl p-3.5 shadow-2xl text-white animate-in slide-in-from-bottom duration-300">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             {/* Track Info */}
             <div className="flex items-center gap-3 w-full sm:w-auto min-w-0">
-              <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-slate-900 border border-slate-700 flex-shrink-0">
+              <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-black/50 border border-white/20 shrink-0">
                 <img
                   src={resolveMediaUrl(currentTrack.release.coverArtworkUrl)}
                   alt="Track Cover"
@@ -597,8 +760,9 @@ export default function UserReleasesClient({
                 <p className="text-sm font-bold text-white truncate leading-tight">
                   {currentTrack.track.title}
                 </p>
-                <p className="text-xs text-slate-400 truncate mt-0.5">
-                  {currentTrack.release.artist?.name || artistName || "Breakout Artist"} • {currentTrack.release.title}
+                <p className="text-xs text-white/60 truncate mt-0.5">
+                  {currentTrack.release.artist?.name || artistName || "Breakout Artist"} •{" "}
+                  {currentTrack.release.title}
                 </p>
               </div>
             </div>
@@ -609,7 +773,7 @@ export default function UserReleasesClient({
                 <button
                   onClick={() => togglePlay(currentTrack.track, currentTrack.release)}
                   disabled={isBuffering}
-                  className="w-10 h-10 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-600/30 transition-all hover:scale-105 active:scale-95"
+                  className="w-10 h-10 rounded-full bg-[#c8f560] hover:bg-[#d8ff75] text-[#1a1024] flex items-center justify-center shadow-lg shadow-[#c8f560]/30 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                 >
                   {isBuffering ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -621,7 +785,7 @@ export default function UserReleasesClient({
                 </button>
               </div>
 
-              <div className="w-full flex items-center gap-2.5 text-xs text-slate-400">
+              <div className="w-full flex items-center gap-2.5 text-xs text-white/60">
                 <span className="w-10 text-right font-mono">{formatTime(currentTime)}</span>
                 <input
                   type="range"
@@ -629,7 +793,7 @@ export default function UserReleasesClient({
                   max={duration || 100}
                   value={currentTime}
                   onChange={handleSeek}
-                  className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-red-600"
+                  className="flex-1 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#c8f560]"
                 />
                 <span className="w-10 font-mono">{formatTime(duration)}</span>
               </div>
@@ -639,14 +803,21 @@ export default function UserReleasesClient({
             <div className="flex items-center gap-2">
               <button
                 onClick={toggleMute}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
+                className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors"
                 title={isMuted ? "Unmute" : "Mute"}
               >
                 {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
               </button>
               <button
-                onClick={(e) => handleDownload(currentTrack.track.audioUrl, `${currentTrack.track.title}.mp3`, "audio", e)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
+                onClick={(e) =>
+                  handleDownload(
+                    currentTrack.track.audioUrl,
+                    `${currentTrack.track.title}.mp3`,
+                    "audio",
+                    e
+                  )
+                }
+                className="p-2 rounded-xl text-white/60 hover:text-[#c8f560] hover:bg-white/10 transition-colors"
                 title="Download Audio"
               >
                 <Download className="w-4 h-4" />
@@ -657,7 +828,7 @@ export default function UserReleasesClient({
                   setIsPlaying(false);
                   setCurrentTrack(null);
                 }}
-                className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-slate-800/60 transition-colors"
+                className="p-2 rounded-xl text-white/40 hover:text-red-400 hover:bg-white/10 transition-colors"
                 title="Tutup Player"
               >
                 <X className="w-4 h-4" />

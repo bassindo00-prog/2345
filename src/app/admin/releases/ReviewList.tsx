@@ -1,20 +1,15 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { 
-  Play, 
-  Pause, 
-  Download, 
-  Eye, 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
-  FileText, 
-  Music, 
-  User, 
-  Tag, 
-  Calendar, 
-  Disc, 
+import {
+  Play,
+  Pause,
+  Download,
+  Eye,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Music,
   ExternalLink,
   Search,
   Filter,
@@ -22,7 +17,9 @@ import {
   VolumeX,
   X,
   Loader2,
-  Disc3
+  Disc3,
+  Check,
+  Radio,
 } from "lucide-react";
 import { updateReleaseStatusAction, updateReleaseLinksAction } from "@/app/actions/admin";
 
@@ -65,7 +62,7 @@ export interface ReviewItem {
   };
 }
 
-const FALLBACK_VINYL = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none"><rect width="80" height="80" rx="8" fill="%230f172a"/><circle cx="40" cy="40" r="30" fill="%231e293b" stroke="%23334155" stroke-width="2"/><circle cx="40" cy="40" r="20" fill="%230f172a"/><circle cx="40" cy="40" r="10" fill="%23e11d48"/><circle cx="40" cy="40" r="3" fill="%23ffffff"/></svg>`;
+const FALLBACK_VINYL = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80" fill="none"><rect width="80" height="80" rx="8" fill="%230f172a"/><circle cx="40" cy="40" r="30" fill="%231e293b" stroke="%23334155" stroke-width="2"/><circle cx="40" cy="40" r="20" fill="%230f172a"/><circle cx="40" cy="40" r="10" fill="%23c8f560"/><circle cx="40" cy="40" r="3" fill="%23ffffff"/></svg>`;
 
 function resolveMediaUrl(url: string | null | undefined): string {
   if (!url) return "";
@@ -89,9 +86,9 @@ function resolveMediaUrl(url: string | null | undefined): string {
 export default function ReviewList({ initialReleases }: { initialReleases: ReviewItem[] }) {
   const [releases, setReleases] = useState<ReviewItem[]>(initialReleases);
   const [selected, setSelected] = useState<ReviewItem | null>(null);
-  const [filter, setFilter] = useState<string>("PENDING");
+  const [filter, setFilter] = useState<string>("ALL");
   const [search, setSearch] = useState<string>("");
-  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Link Modal State
   const [linkModal, setLinkModal] = useState<ReviewItem | null>(null);
@@ -204,11 +201,12 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
     window.open(downloadApiUrl, "_blank");
   };
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
+  const handleStatusChange = async (id: string, newStatus: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     try {
-      const releaseToUpdate = releases.find(r => r.id === id);
+      const releaseToUpdate = releases.find((r) => r.id === id);
       if (!releaseToUpdate) return;
-      setUpdatingStatus(newStatus);
+      setUpdatingId(id);
       const res = await updateReleaseStatusAction(
         id,
         releaseToUpdate.user.id,
@@ -218,26 +216,29 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
         releaseToUpdate.title
       );
       if (res.success) {
-        setReleases(releases.filter((r) => r.id !== id));
+        setReleases((prev) =>
+          prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
+        );
         if (selected && selected.id === id) {
-          setSelected(null);
+          setSelected({ ...selected, status: newStatus });
         }
       } else {
         alert("Gagal mengupdate status: " + (res as any).error);
       }
     } catch (err: any) {
       alert("Terjadi kesalahan: " + err.message);
-    } finally { setUpdatingStatus(null); }
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const handleOpenLinkModal = (release: ReviewItem) => {
     setLinks({
       spotifyUrl: release.spotifyUrl || "",
       appleMusicUrl: release.appleMusicUrl || "",
-      youtubeMusicUrl: release.youtubeMusicUrl || ""
+      youtubeMusicUrl: release.youtubeMusicUrl || "",
     });
     setLinkModal(release);
-    setSelected(null);
   };
 
   const handleSaveLinks = async () => {
@@ -253,7 +254,11 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
         links
       );
       if (res.success) {
-        setReleases(releases.map(r => r.id === linkModal.id ? { ...r, ...links, status: "RELEASED" } : r));
+        setReleases(
+          releases.map((r) =>
+            r.id === linkModal.id ? { ...r, ...links, status: "RELEASED" } : r
+          )
+        );
         setLinkModal(null);
         if (selected?.id === linkModal.id) {
           setSelected({ ...selected, ...links, status: "RELEASED" });
@@ -270,7 +275,7 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
 
   const filtered = releases.filter((r) => {
     const matchesFilter = filter === "ALL" || r.status === filter;
-    const matchesSearch = 
+    const matchesSearch =
       r.title.toLowerCase().includes(search.toLowerCase()) ||
       r.user?.artist?.name?.toLowerCase().includes(search.toLowerCase()) ||
       r.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -279,184 +284,359 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
   });
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="space-y-6 pb-28 text-white">
       {/* Hidden Audio Element */}
       <audio ref={audioRef} preload="metadata" />
 
-      {/* Search & Filter Header */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+      {/* Search & Filter Header (Dark Luxury Glass) */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-[#241733]/90 border border-white/15 p-4 rounded-3xl shadow-xl backdrop-blur-md">
         <div className="relative w-full md:w-96">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
           <input
             type="text"
-            placeholder="Cari judul lagu, artis, atau genre..."
+            placeholder="Cari lagu, artis, atau genre..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
+            className="w-full pl-10 pr-4 py-2.5 bg-[#1a1024]/80 border border-white/20 rounded-2xl text-sm text-white placeholder-white/40 focus:outline-none focus:border-[#c8f560] transition-all"
           />
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
-          <Filter className="w-4 h-4 text-slate-400 hidden md:block mr-1" />
+        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+          <Filter className="w-4 h-4 text-white/50 hidden md:block mr-1" />
           {["ALL", "PENDING", "PROCESSING", "APPROVED", "REJECTED"].map((st) => (
             <button
               key={st}
               onClick={() => setFilter(st)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 filter === st
-                  ? "bg-red-600 text-white shadow-sm shadow-red-500/20"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  ? "bg-[#c8f560] text-[#1a1024] shadow-md shadow-[#c8f560]/20"
+                  : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
               }`}
             >
-              {st}
+              {st === "ALL"
+                ? "Semua"
+                : st === "PENDING"
+                ? "Antrean (Pending)"
+                : st === "APPROVED"
+                ? "Disetujui (ACC)"
+                : st === "REJECTED"
+                ? "Ditolak"
+                : st}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      {/* Main Table / Card Container */}
+      <div className="bg-gradient-to-br from-[#3b274e] via-[#2f1f40] to-[#1e132b] rounded-3xl border border-white/15 shadow-2xl overflow-hidden p-4 md:p-6">
         {filtered.length === 0 ? (
           <div className="text-center py-16">
-            <Disc3 className="w-12 h-12 text-slate-300 mx-auto mb-3 animate-spin-slow" />
-            <h3 className="text-sm font-semibold text-slate-700">Tidak ada data rilis</h3>
-            <p className="text-xs text-slate-400 mt-1">Belum ada pengajuan lagu yang sesuai dengan filter.</p>
+            <Disc3 className="w-12 h-12 text-white/30 mx-auto mb-3 animate-spin" />
+            <h3 className="text-base font-bold text-white">Tidak ada submisi lagu</h3>
+            <p className="text-xs text-white/60 mt-1">
+              Belum ada antrean lagu yang cocok dengan filter yang dipilih.
+            </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-500 text-xs font-semibold uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Artwork & Judul</th>
-                  <th className="py-3.5 px-4">Artis / Uploader</th>
-                  <th className="py-3.5 px-4">Tipe & Genre</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4">Tanggal Rilis</th>
-                  <th className="py-3.5 px-4 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {filtered.map((rel) => {
-                  const firstTrack = rel.tracks[0];
-                  const isThisPlaying = firstTrack && currentTrack?.track.id === firstTrack.id && isPlaying;
+          <>
+            {/* MOBILE VIEW (< md) */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {filtered.map((rel) => {
+                const firstTrack = rel.tracks[0];
+                const isThisPlaying =
+                  firstTrack && currentTrack?.track.id === firstTrack.id && isPlaying;
+                const isThisUpdating = updatingId === rel.id;
 
-                  return (
-                    <tr
-                      key={rel.id}
-                      onClick={() => setSelected(rel)}
-                      className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                return (
+                  <div
+                    key={rel.id}
+                    onClick={() => setSelected(rel)}
+                    className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all cursor-pointer space-y-3"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-black/40 border border-white/20 shrink-0">
+                        <img
+                          src={resolveMediaUrl(rel.coverArtworkUrl)}
+                          alt={rel.title}
+                          onError={handleImageError}
+                          className="w-full h-full object-cover"
+                        />
+                        {firstTrack && (
+                          <button
+                            onClick={(e) => togglePlay(firstTrack, rel, e)}
+                            className="absolute inset-0 bg-black/40 hover:bg-black/60 flex items-center justify-center text-white"
+                          >
+                            {isThisPlaying ? (
+                              <Pause className="w-5 h-5 fill-current text-[#c8f560]" />
+                            ) : (
+                              <Play className="w-5 h-5 fill-current text-[#c8f560] ml-0.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-bold text-sm text-white truncate flex items-center gap-1.5">
+                            <span>{rel.title}</span>
+                            <Eye className="w-3.5 h-3.5 text-[#c8f560] shrink-0" />
+                          </h4>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                              rel.status === "APPROVED" || rel.status === "RELEASED"
+                                ? "bg-[#c8f560] text-[#312042]"
+                                : rel.status === "REJECTED"
+                                ? "bg-red-500/25 border border-red-500/40 text-red-200"
+                                : rel.status === "PROCESSING"
+                                ? "bg-amber-500/25 border border-amber-500/40 text-amber-200"
+                                : "bg-[#fde08d] text-[#312042]"
+                            }`}
+                          >
+                            {rel.status === "APPROVED" || rel.status === "RELEASED"
+                              ? "✓ ACC"
+                              : rel.status === "REJECTED"
+                              ? "✕ Ditolak"
+                              : "⏳ Review"}
+                          </span>
+                        </div>
+
+                        <p className="text-white/80 text-xs truncate mt-0.5">
+                          {rel.user?.artist?.name || rel.user?.name || "Artist"} •{" "}
+                          <span className="text-white/60">{rel.genre}</span>
+                        </p>
+
+                        <div className="flex items-center gap-2 text-[10px] text-white/60 mt-1 font-mono">
+                          <span>{rel.tracks.length} Track</span>
+                          <span>•</span>
+                          <span>
+                            {new Date(rel.releaseDate).toLocaleDateString("id-ID", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Action Buttons */}
+                    <div
+                      className="flex items-center gap-2 pt-2 border-t border-white/10"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-900 border border-slate-200/80 flex-shrink-0 shadow-sm">
-                            <img
-                              src={resolveMediaUrl(rel.coverArtworkUrl)}
-                              alt={rel.title}
-                              onError={handleImageError}
-                              className="w-full h-full object-cover"
-                            />
-                            {firstTrack && (
+                      <button
+                        type="button"
+                        onClick={() => setSelected(rel)}
+                        className="flex-1 py-2 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center justify-center gap-1.5 text-xs font-semibold transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#c8f560]" />
+                        <span>Detail & Unduh</span>
+                      </button>
+
+                      {rel.status !== "APPROVED" && (
+                        <button
+                          type="button"
+                          disabled={isThisUpdating}
+                          onClick={(e) => handleStatusChange(rel.id, "APPROVED", e)}
+                          className="py-2 px-4 rounded-xl bg-[#c8f560] text-[#1a1024] font-bold text-xs hover:bg-[#d8ff75] transition-colors shadow disabled:opacity-50"
+                        >
+                          {isThisUpdating ? "..." : "ACC"}
+                        </button>
+                      )}
+
+                      {rel.status !== "REJECTED" && (
+                        <button
+                          type="button"
+                          disabled={isThisUpdating}
+                          onClick={(e) => handleStatusChange(rel.id, "REJECTED", e)}
+                          className="py-2 px-3 rounded-xl bg-red-500/25 hover:bg-red-500/40 border border-red-500/40 text-red-200 font-semibold text-xs transition-colors disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* DESKTOP VIEW (>= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-white/20 text-white/70 text-xs font-semibold uppercase tracking-wider">
+                    <th className="py-3.5 px-4">Artwork & Judul Lagu</th>
+                    <th className="py-3.5 px-4">Artis / Uploader</th>
+                    <th className="py-3.5 px-4">Tipe & Genre</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
+                    <th className="py-3.5 px-4 text-center">Tanggal Rilis</th>
+                    <th className="py-3.5 px-4 text-right">Aksi Moderasi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10 text-sm">
+                  {filtered.map((rel) => {
+                    const firstTrack = rel.tracks[0];
+                    const isThisPlaying =
+                      firstTrack && currentTrack?.track.id === firstTrack.id && isPlaying;
+                    const isThisUpdating = updatingId === rel.id;
+
+                    return (
+                      <tr
+                        key={rel.id}
+                        onClick={() => setSelected(rel)}
+                        className="hover:bg-white/10 transition-colors cursor-pointer group"
+                      >
+                        {/* Artwork & Judul */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-black/40 border border-white/20 shrink-0 shadow">
+                              <img
+                                src={resolveMediaUrl(rel.coverArtworkUrl)}
+                                alt={rel.title}
+                                onError={handleImageError}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              {firstTrack && (
+                                <button
+                                  onClick={(e) => togglePlay(firstTrack, rel, e)}
+                                  className="absolute inset-0 bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-opacity opacity-0 group-hover:opacity-100"
+                                  title={isThisPlaying ? "Pause" : "Play Master"}
+                                >
+                                  {isThisPlaying ? (
+                                    <Pause className="w-5 h-5 fill-current text-[#c8f560]" />
+                                  ) : (
+                                    <Play className="w-5 h-5 fill-current text-[#c8f560] ml-0.5" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-white group-hover:text-[#c8f560] transition-colors truncate block max-w-[220px]">
+                                {rel.title}
+                              </span>
+                              <span className="text-xs text-white/60">
+                                {rel.tracks.length} Track
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Artis / Uploader */}
+                        <td className="py-3.5 px-4">
+                          <div className="text-white font-medium truncate max-w-[170px]">
+                            {rel.user?.artist?.name || rel.user?.name || "No Artist"}
+                          </div>
+                          <div className="text-xs text-white/50 truncate max-w-[170px]">
+                            {rel.user?.email}
+                          </div>
+                        </td>
+
+                        {/* Tipe & Genre */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {rel.type === "SINGLE" ? (
+                            <span className="px-2 py-0.5 rounded-md bg-white/10 text-white text-xs font-semibold mr-1.5 border border-white/10">
+                              SINGLE
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-xs font-semibold mr-1.5 border border-purple-400/30">
+                              {rel.type}
+                            </span>
+                          )}
+                          <span className="text-xs text-white/70">{rel.genre}</span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3.5 px-4 whitespace-nowrap text-center">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-bold inline-block shadow-sm ${
+                              rel.status === "APPROVED" || rel.status === "RELEASED"
+                                ? "bg-[#c8f560] text-[#312042]"
+                                : rel.status === "REJECTED"
+                                ? "bg-red-500/25 border border-red-500/40 text-red-200"
+                                : rel.status === "PROCESSING"
+                                ? "bg-amber-500/25 border border-amber-500/40 text-amber-200"
+                                : "bg-[#fde08d] text-[#312042]"
+                            }`}
+                          >
+                            {rel.status === "APPROVED" || rel.status === "RELEASED"
+                              ? "✓ ACC"
+                              : rel.status === "REJECTED"
+                              ? "✕ Ditolak"
+                              : rel.status === "PROCESSING"
+                              ? "⏳ Proses"
+                              : "⏳ Review"}
+                          </span>
+                        </td>
+
+                        {/* Tanggal Rilis */}
+                        <td className="py-3.5 px-4 whitespace-nowrap text-center text-xs text-white/70">
+                          {new Date(rel.releaseDate).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </td>
+
+                        {/* Aksi Moderasi */}
+                        <td
+                          className="py-3.5 px-4 whitespace-nowrap text-right"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Detail & Unduh */}
+                            <button
+                              type="button"
+                              onClick={() => setSelected(rel)}
+                              className="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center gap-1 text-xs font-semibold transition-colors"
+                              title="Lihat Detail Lagu & Unduh Master"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-[#c8f560]" />
+                              <span>Detail</span>
+                            </button>
+
+                            {/* Prominent Quick ACC */}
+                            {rel.status !== "APPROVED" && (
                               <button
-                                onClick={(e) => togglePlay(firstTrack, rel, e)}
-                                className="absolute inset-0 bg-black/40 hover:bg-black/60 flex items-center justify-center text-white transition-opacity opacity-0 group-hover:opacity-100"
-                                title={isThisPlaying ? "Pause" : "Play Audio"}
+                                type="button"
+                                disabled={isThisUpdating}
+                                onClick={(e) => handleStatusChange(rel.id, "APPROVED", e)}
+                                className="px-3 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#d8ff75] text-[#1a1024] font-black text-xs shadow-md transition-colors cursor-pointer disabled:opacity-50"
+                                title="Setujui dan ACC Lagu Ini"
                               >
-                                {isThisPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+                                {isThisUpdating ? "..." : "ACC"}
+                              </button>
+                            )}
+
+                            {/* Quick Reject */}
+                            {rel.status !== "REJECTED" && (
+                              <button
+                                type="button"
+                                disabled={isThisUpdating}
+                                onClick={(e) => handleStatusChange(rel.id, "REJECTED", e)}
+                                className="px-2.5 py-1.5 rounded-xl bg-red-500/25 hover:bg-red-500/40 border border-red-500/40 text-red-200 font-bold text-xs shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+                                title="Tolak Lagu Ini"
+                              >
+                                Reject
                               </button>
                             )}
                           </div>
-                          <div className="min-w-0">
-                            <span className="font-semibold text-slate-900 truncate block max-w-[200px]">
-                              {rel.title}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              {rel.tracks.length} Track
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="text-slate-800 font-medium truncate max-w-[150px]">
-                          {rel.user?.artist?.name || rel.user?.name || "No Artist"}
-                        </div>
-                        <div className="text-xs text-slate-400 truncate max-w-[150px]">
-                          {rel.user?.email}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {rel.type === "SINGLE" ? (
-                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold mr-1.5">SINGLE</span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 text-xs font-semibold mr-1.5 border border-purple-200">{rel.type}</span>
-                          )}
-                        <span className="text-xs text-slate-500">{rel.genre}</span>
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                            rel.status === "APPROVED" || rel.status === "RELEASED"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : rel.status === "REJECTED"
-                              ? "bg-rose-50 text-rose-700 border border-rose-200"
-                              : rel.status === "PROCESSING"
-                              ? "bg-amber-50 text-amber-700 border border-amber-200"
-                              : "bg-blue-50 text-blue-700 border border-blue-200"
-                          }`}
-                        >
-                          {rel.status}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap text-xs text-slate-500">
-                        {new Date(rel.releaseDate).toLocaleDateString("id-ID", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric"
-                        })}
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          {firstTrack && (
-                            <button
-                              onClick={(e) => togglePlay(firstTrack, rel, e)}
-                              className={`p-2 rounded-xl border transition-all ${
-                                isThisPlaying
-                                  ? "bg-red-50 text-red-600 border-red-200"
-                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                              }`}
-                              title={isThisPlaying ? "Pause" : "Play Audio"}
-                            >
-                              {isThisPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setSelected(rel)}
-                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                            title="Lihat Detail Rilis"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {/* Floating Bottom Audio Player */}
       {currentTrack && (
-        <div className="fixed bottom-4 left-4 right-4 md:left-64 md:right-8 z-40 bg-slate-950/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-3.5 shadow-2xl text-white animate-in slide-in-from-bottom duration-300">
+        <div className="fixed bottom-4 left-4 right-4 md:left-72 md:right-8 z-40 bg-[#1a1024]/95 backdrop-blur-xl border border-white/20 rounded-3xl p-3.5 shadow-2xl text-white animate-in slide-in-from-bottom duration-300">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 w-full sm:w-auto min-w-0">
-              <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-slate-900 border border-slate-700 flex-shrink-0">
+              <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-black/50 border border-white/20 shrink-0">
                 <img
                   src={resolveMediaUrl(currentTrack.release.coverArtworkUrl)}
                   alt="Track Cover"
@@ -468,8 +648,11 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
                 <p className="text-sm font-bold text-white truncate leading-tight">
                   {currentTrack.track.title}
                 </p>
-                <p className="text-xs text-slate-400 truncate mt-0.5">
-                  {currentTrack.release.user?.artist?.name || currentTrack.release.user?.name || "Breakout Artist"} - {currentTrack.release.title}
+                <p className="text-xs text-white/60 truncate mt-0.5">
+                  {currentTrack.release.user?.artist?.name ||
+                    currentTrack.release.user?.name ||
+                    "Artist"}{" "}
+                  — {currentTrack.release.title}
                 </p>
               </div>
             </div>
@@ -479,7 +662,7 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
                 <button
                   onClick={() => togglePlay(currentTrack.track, currentTrack.release)}
                   disabled={isBuffering}
-                  className="w-10 h-10 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center shadow-lg shadow-red-600/30 transition-all hover:scale-105 active:scale-95"
+                  className="w-10 h-10 rounded-full bg-[#c8f560] hover:bg-[#d8ff75] text-[#1a1024] flex items-center justify-center shadow-lg shadow-[#c8f560]/30 transition-all hover:scale-105 active:scale-95"
                 >
                   {isBuffering ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -491,7 +674,7 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
                 </button>
               </div>
 
-              <div className="w-full flex items-center gap-2.5 text-xs text-slate-400">
+              <div className="w-full flex items-center gap-2.5 text-xs text-white/60">
                 <span className="w-10 text-right font-mono">{formatTime(currentTime)}</span>
                 <input
                   type="range"
@@ -499,7 +682,7 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
                   max={duration || 100}
                   value={currentTime}
                   onChange={handleSeek}
-                  className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-red-600"
+                  className="flex-1 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#c8f560]"
                 />
                 <span className="w-10 font-mono">{formatTime(duration)}</span>
               </div>
@@ -508,15 +691,22 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
             <div className="flex items-center gap-2">
               <button
                 onClick={toggleMute}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
+                className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors"
                 title={isMuted ? "Unmute" : "Mute"}
               >
                 {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
               </button>
               <button
-                onClick={(e) => handleDownload(currentTrack.track.audioUrl, `${currentTrack.track.title}.mp3`, "audio", e)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-                title="Download Audio"
+                onClick={(e) =>
+                  handleDownload(
+                    currentTrack.track.audioUrl,
+                    `${currentTrack.track.title}.mp3`,
+                    "audio",
+                    e
+                  )
+                }
+                className="p-2 rounded-xl text-white/60 hover:text-[#c8f560] hover:bg-white/10 transition-colors"
+                title="Unduh Master Audio"
               >
                 <Download className="w-4 h-4" />
               </button>
@@ -526,7 +716,7 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
                   setIsPlaying(false);
                   setCurrentTrack(null);
                 }}
-                className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-slate-800/60 transition-colors"
+                className="p-2 rounded-xl text-white/40 hover:text-red-400 hover:bg-white/10 transition-colors"
                 title="Tutup Player"
               >
                 <X className="w-4 h-4" />
@@ -536,13 +726,13 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
         </div>
       )}
 
-      {/* Modal Detail & Review */}
+      {/* Modal Detail & Review Moderasi (Dark Luxury Glass) */}
       {selected && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 p-6 space-y-6">
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-gradient-to-br from-[#2f1f40] via-[#241733] to-[#1a1024] rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-white/20 p-6 space-y-6 text-white">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
-                <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 shadow-md flex-shrink-0">
+                <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-black/50 border border-white/20 shadow-md shrink-0">
                   <img
                     src={resolveMediaUrl(selected.coverArtworkUrl)}
                     alt={selected.title}
@@ -551,44 +741,41 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
                   />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900">{selected.title}</h3>
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    {selected.user?.artist?.name || selected.user?.name} - {selected.genre}
+                  <h3 className="text-xl font-bold text-white">{selected.title}</h3>
+                  <p className="text-sm text-white/70 mt-0.5">
+                    {selected.user?.artist?.name || selected.user?.name} • {selected.genre}
                   </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className="mt-2 flex items-center gap-2 flex-wrap">
-                      {selected.type === "SINGLE" ? (
-                          <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-md">SINGLE</span>
-                        ) : (
-                          <span className="px-2.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-semibold rounded-md border border-purple-200">{selected.type}</span>
-                        )}
-                      {selected.upc && (
-                        <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded-md border border-blue-200">
-                          UPC: {selected.upc}
-                        </span>
-                      )}
-                      {selected.featuredArtist && (
-                        <span className="px-2.5 py-0.5 bg-purple-50 text-purple-700 text-xs font-semibold rounded-md border border-purple-200">
-                          Feat: {selected.featuredArtist}
-                        </span>
-                      )}
-                    </div>
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {selected.type === "SINGLE" ? (
+                      <span className="px-2.5 py-0.5 bg-white/10 text-white text-xs font-semibold rounded-md border border-white/10">
+                        SINGLE
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 bg-purple-500/20 text-purple-300 text-xs font-semibold rounded-md border border-purple-400/30">
+                        {selected.type}
+                      </span>
+                    )}
                     {selected.upc && (
-                      <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded-md border border-blue-200">
+                      <span className="px-2.5 py-0.5 bg-white/10 text-[#c8f560] text-xs font-mono font-semibold rounded-md border border-white/10">
                         UPC: {selected.upc}
                       </span>
                     )}
                     {selected.featuredArtist && (
-                      <span className="px-2.5 py-0.5 bg-purple-50 text-purple-700 text-xs font-semibold rounded-md border border-purple-200">
+                      <span className="px-2.5 py-0.5 bg-white/10 text-white/90 text-xs font-semibold rounded-md border border-white/10">
                         Feat: {selected.featuredArtist}
                       </span>
                     )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDownload(selected.coverArtworkUrl, `${selected.title} - Cover.jpg`, "cover", e);
+                        handleDownload(
+                          selected.coverArtworkUrl,
+                          `${selected.title} - Cover.jpg`,
+                          "cover",
+                          e
+                        );
                       }}
-                      className="px-2.5 py-0.5 bg-red-50 text-red-600 text-xs font-semibold rounded-md border border-red-200 hover:bg-red-100 flex items-center gap-1"
+                      className="px-2.5 py-0.5 bg-white/10 hover:bg-[#c8f560] hover:text-[#1a1024] text-white text-xs font-semibold rounded-md border border-white/15 transition-all flex items-center gap-1 cursor-pointer"
                     >
                       <Download className="w-3 h-3" /> Unduh Cover
                     </button>
@@ -597,7 +784,7 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
               </div>
               <button
                 onClick={() => setSelected(null)}
-                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -605,8 +792,8 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
 
             {/* Track list */}
             <div className="space-y-3">
-              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Music className="w-4 h-4 text-red-600" />
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Music className="w-4 h-4 text-[#c8f560]" />
                 Daftar Lagu ({selected.tracks.length})
               </h4>
               <div className="space-y-2">
@@ -615,17 +802,19 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
                   return (
                     <div
                       key={track.id}
-                      className={`p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
-                        isTrackActive ? "bg-red-50/70 border-red-200" : "bg-white border-slate-200 hover:bg-slate-50"
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all ${
+                        isTrackActive
+                          ? "bg-[#c8f560]/10 border-[#c8f560]/50"
+                          : "bg-white/5 border-white/10 hover:bg-white/10"
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <button
                           onClick={() => togglePlay(track, selected)}
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                             isTrackActive
-                              ? "bg-red-600 text-white shadow-md shadow-red-500/30"
-                              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                              ? "bg-[#c8f560] text-[#1a1024] shadow-md shadow-[#c8f560]/30"
+                              : "bg-white/15 text-white hover:bg-white/25"
                           }`}
                         >
                           {isTrackActive ? (
@@ -635,30 +824,43 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
                           )}
                         </button>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900 truncate">
+                          <p className="text-sm font-bold text-white truncate">
                             {idx + 1}. {track.title}
                           </p>
-                          <div className="text-xs text-slate-400 mt-1 space-y-0.5">
-                              <span className="inline-block font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mr-2 mb-1">
-                                {track.isrc ? `ISRC: ${track.isrc}` : "ISRC Auto-Generated"}
+                          <div className="text-xs text-white/60 mt-1 space-y-0.5 font-mono">
+                            <span className="inline-block text-[10px] text-[#c8f560] bg-white/10 px-1.5 py-0.5 rounded mr-2 mb-1 border border-white/10">
+                              {track.isrc ? `ISRC: ${track.isrc}` : "ISRC Auto-Generated"}
+                            </span>
+                            {track.upc && (
+                              <span className="inline-block text-[10px] text-white/80 bg-white/10 px-1.5 py-0.5 rounded mr-2 mb-1 border border-white/10">
+                                UPC: {track.upc}
                               </span>
-                              {track.upc && (
-                                <span className="inline-block font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mr-2 mb-1">
-                                  UPC: {track.upc}
-                                </span>
-                              )}
-                              {track.featuredArtist && <span className="block text-[11px]">Feat: <span className="text-slate-600 font-medium">{track.featuredArtist}</span></span>}
-                              {track.composer && <span className="block text-[11px]">Composer: <span className="text-slate-600 font-medium">{track.composer}</span></span>}
-                              {track.producer && <span className="block text-[11px]">Producer: <span className="text-slate-600 font-medium">{track.producer}</span></span>}
-                              {track.tiktokClipStart && <span className="block text-[11px]">TikTok Clip: <span className="text-slate-600 font-medium">{track.tiktokClipStart}</span></span>}
-                              </div>
+                            )}
+                            {track.featuredArtist && (
+                              <span className="block text-[11px] font-sans">
+                                Feat: <strong className="text-white">{track.featuredArtist}</strong>
+                              </span>
+                            )}
+                            {track.composer && (
+                              <span className="block text-[11px] font-sans">
+                                Composer: <strong className="text-white">{track.composer}</strong>
+                              </span>
+                            )}
+                            {track.producer && (
+                              <span className="block text-[11px] font-sans">
+                                Producer: <strong className="text-white">{track.producer}</strong>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
                       <button
-                        onClick={(e) => handleDownload(track.audioUrl, `${track.title}.mp3`, "audio", e)}
-                        className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                        title="Download Audio Master"
+                        onClick={(e) =>
+                          handleDownload(track.audioUrl, `${track.title}.mp3`, "audio", e)
+                        }
+                        className="p-2.5 rounded-xl bg-white/10 hover:bg-[#c8f560] hover:text-[#1a1024] text-white transition-colors cursor-pointer"
+                        title="Unduh Master Audio"
                       >
                         <Download className="w-4 h-4" />
                       </button>
@@ -668,39 +870,39 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
               </div>
             </div>
 
-            {/* Status Change Buttons */}
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
-              <div className="text-xs text-slate-500">
-                Ubah status persetujuan rilis:
+            {/* Moderation Actions Footer */}
+            <div className="pt-4 border-t border-white/15 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="text-xs text-white/60">
+                Persetujuan rilisan ini:
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  disabled={(updatingStatus !== null) || selected.status === "APPROVED"}
-                  onClick={() => handleStatusChange(selected.id, "APPROVED")}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl disabled:opacity-50 transition-all shadow-sm"
+                  disabled={updatingId === selected.id}
+                  onClick={(e) => handleStatusChange(selected.id, "APPROVED", e)}
+                  className="px-4 py-2 bg-[#c8f560] hover:bg-[#d8ff75] text-[#1a1024] text-xs font-black rounded-xl shadow-lg transition-all cursor-pointer disabled:opacity-50"
                 >
-                  Approve
+                  {updatingId === selected.id ? "Memproses..." : "ACC Rilisan"}
                 </button>
                 <button
-                  disabled={(updatingStatus !== null) || selected.status === "PROCESSING"}
-                  onClick={() => handleStatusChange(selected.id, "PROCESSING")}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-xl disabled:opacity-50 transition-all shadow-sm"
+                  disabled={updatingId === selected.id}
+                  onClick={(e) => handleStatusChange(selected.id, "PROCESSING", e)}
+                  className="px-3.5 py-2 bg-amber-500/25 hover:bg-amber-500/40 border border-amber-500/40 text-amber-200 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
                 >
-                  Processing
+                  Set Processing
                 </button>
                 <button
-                  disabled={(updatingStatus !== null) || selected.status === "REJECTED"}
-                  onClick={() => handleStatusChange(selected.id, "REJECTED")}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl disabled:opacity-50 transition-all shadow-sm"
+                  disabled={updatingId === selected.id}
+                  onClick={(e) => handleStatusChange(selected.id, "REJECTED", e)}
+                  className="px-3.5 py-2 bg-red-500/25 hover:bg-red-500/40 border border-red-500/40 text-red-200 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
                 >
-                  Reject
+                  Reject Rilisan
                 </button>
                 {(selected.status === "APPROVED" || selected.status === "RELEASED") && (
                   <button
                     onClick={() => handleOpenLinkModal(selected)}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition-all shadow-sm flex items-center gap-1"
+                    className="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                   >
-                    <ExternalLink className="w-3 h-3" /> Input Link DSP
+                    <ExternalLink className="w-3.5 h-3.5" /> Input Link DSP
                   </button>
                 )}
               </div>
@@ -709,65 +911,73 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
         </div>
       )}
 
-      {/* Link Modal */}
+      {/* Link Modal (DSP) */}
       {linkModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl relative animate-in zoom-in-95">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-gradient-to-br from-[#2f1f40] via-[#241733] to-[#1a1024] rounded-3xl p-6 w-full max-w-md shadow-2xl border border-white/20 relative text-white">
             <button
               onClick={() => setLinkModal(null)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
+              className="absolute top-4 right-4 p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Input Link Rilisan</h3>
-            <p className="text-xs text-slate-500 mb-6">Masukkan link DSP untuk membuat Smartlink otomatis dan mengirim notifikasi email ke artis.</p>
-            
+            <h3 className="text-lg font-bold text-white mb-1">Input Link Rilisan (DSP)</h3>
+            <p className="text-xs text-white/60 mb-6">
+              Masukkan link platform streaming (Spotify, Apple Music, YouTube) untuk sinkronisasi Smartlink dan notifikasi email artis.
+            </p>
+
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Spotify URL</label>
+                <label className="block text-xs font-semibold text-white/80 mb-1">
+                  Spotify URL
+                </label>
                 <input
                   type="url"
                   value={links.spotifyUrl}
-                  onChange={(e) => setLinks({...links, spotifyUrl: e.target.value})}
+                  onChange={(e) => setLinks({ ...links, spotifyUrl: e.target.value })}
                   placeholder="https://open.spotify.com/album/..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
+                  className="w-full px-3.5 py-2.5 bg-[#1a1024]/80 border border-white/20 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#c8f560]"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Apple Music URL</label>
+                <label className="block text-xs font-semibold text-white/80 mb-1">
+                  Apple Music URL
+                </label>
                 <input
                   type="url"
                   value={links.appleMusicUrl}
-                  onChange={(e) => setLinks({...links, appleMusicUrl: e.target.value})}
+                  onChange={(e) => setLinks({ ...links, appleMusicUrl: e.target.value })}
                   placeholder="https://music.apple.com/..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
+                  className="w-full px-3.5 py-2.5 bg-[#1a1024]/80 border border-white/20 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#c8f560]"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">YouTube Music URL</label>
+                <label className="block text-xs font-semibold text-white/80 mb-1">
+                  YouTube Music URL
+                </label>
                 <input
                   type="url"
                   value={links.youtubeMusicUrl}
-                  onChange={(e) => setLinks({...links, youtubeMusicUrl: e.target.value})}
+                  onChange={(e) => setLinks({ ...links, youtubeMusicUrl: e.target.value })}
                   placeholder="https://music.youtube.com/..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
+                  className="w-full px-3.5 py-2.5 bg-[#1a1024]/80 border border-white/20 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-[#c8f560]"
                 />
               </div>
-              
+
               <div className="pt-4 flex items-center justify-end gap-3">
                 <button
                   onClick={() => setLinkModal(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-all"
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   onClick={handleSaveLinks}
                   disabled={savingLinks}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-all flex items-center gap-2"
+                  className="px-4 py-2 bg-[#c8f560] hover:bg-[#d8ff75] text-[#1a1024] text-xs font-black rounded-xl disabled:opacity-50 transition-all flex items-center gap-2 cursor-pointer shadow-lg"
                 >
                   {savingLinks && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {savingLinks ? "Menyimpan..." : "Simpan & Kirim Email"}
+                  {savingLinks ? "Menyimpan..." : "Simpan & Kirim Notif"}
                 </button>
               </div>
             </div>
@@ -777,6 +987,3 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
     </div>
   );
 }
-
-
-

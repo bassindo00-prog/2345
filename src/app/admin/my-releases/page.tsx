@@ -49,15 +49,18 @@ export default async function AdminMyReleasesPage() {
   });
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto pb-10 px-4 md:px-0">
-      <div className="mb-6 bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="animate-fade-in max-w-7xl mx-auto pb-10 px-4 md:px-0 text-white">
+      <div className="mb-6 p-6 md:p-8 rounded-3xl shadow-xl border border-white/15 bg-gradient-to-br from-[#3b274e] via-[#2f1f40] to-[#1e132b] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">My Releases (Katalog Aktif)</h1>
-          <p className="text-gray-500 text-sm">Kelola rilisan musik resmi yang telah disetujui & didistribusikan.</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black text-white tracking-tight">My Releases (Katalog Rilis Aktif ACC)</h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#c8f560] text-[#1a1024] text-[10px] font-black uppercase">Live</span>
+          </div>
+          <p className="text-white/70 text-xs sm:text-sm mt-1">Kelola seluruh rilisan musik resmi yang telah disetujui (ACC) & aktif didistribusikan ke platform.</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="px-4 py-2 bg-purple-50 border border-purple-100 text-purple-700 rounded-2xl text-xs font-bold shadow-sm">
-            Total: <span className="font-extrabold text-sm">{approvedReleases.length}</span> Rilisan
+          <div className="px-4 py-2 bg-black/30 border border-white/15 text-[#c8f560] rounded-2xl text-xs font-bold shadow-sm">
+            Total: <span className="font-extrabold text-sm text-white">{approvedReleases.length}</span> Rilisan Aktif
           </div>
         </div>
       </div>
