@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { Construction, Calendar, Clock, AlertCircle } from "lucide-react";
 import { MaintenanceClock } from "./MaintenanceClock";
+import { Maintenance3DGears } from "./Maintenance3DGears";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,21 @@ export default async function MaintenancePage() {
         </>
       )}
 
+      {/* Ambient 3D Rotating Background Gears */}
+      <div className="absolute -top-24 -right-24 w-96 h-96 opacity-10 pointer-events-none animate-spin" style={{ animationDuration: "60s" }}>
+        <svg viewBox="0 0 100 100" className="w-full h-full text-[#c8f560] fill-current">
+          <path d="M 47,4 L 53,4 L 54,12 L 61,14 L 67,8 L 72,12 L 69,19 L 75,23 L 82,19 L 85,25 L 79,30 L 83,37 L 91,36 L 92,42 L 85,46 L 86,53 L 94,55 L 93,61 L 85,63 L 83,70 L 89,76 L 86,81 L 79,78 L 74,83 L 78,91 L 72,94 L 67,88 L 60,91 L 62,99 L 56,100 L 53,92 L 46,92 L 43,100 L 37,99 L 39,91 L 32,88 L 27,94 L 21,91 L 25,83 L 20,78 L 13,81 L 10,76 L 16,70 L 14,63 L 6,61 L 5,55 L 13,53 L 14,46 L 7,42 L 8,36 L 16,37 L 20,30 L 14,25 L 17,19 L 24,23 L 30,19 L 27,12 L 32,8 L 38,14 L 45,12 Z" />
+          <circle cx="50" cy="50" r="25" fill="#09090B" />
+        </svg>
+      </div>
+
+      <div className="absolute -bottom-28 -left-28 w-80 h-80 opacity-10 pointer-events-none animate-spin" style={{ animationDuration: "45s", animationDirection: "reverse" }}>
+        <svg viewBox="0 0 100 100" className="w-full h-full text-[#a855f7] fill-current">
+          <path d="M 47,4 L 53,4 L 54,12 L 61,14 L 67,8 L 72,12 L 69,19 L 75,23 L 82,19 L 85,25 L 79,30 L 83,37 L 91,36 L 92,42 L 85,46 L 86,53 L 94,55 L 93,61 L 85,63 L 83,70 L 89,76 L 86,81 L 79,78 L 74,83 L 78,91 L 72,94 L 67,88 L 60,91 L 62,99 L 56,100 L 53,92 L 46,92 L 43,100 L 37,99 L 39,91 L 32,88 L 27,94 L 21,91 L 25,83 L 20,78 L 13,81 L 10,76 L 16,70 L 14,63 L 6,61 L 5,55 L 13,53 L 14,46 L 7,42 L 8,36 L 16,37 L 20,30 L 14,25 L 17,19 L 24,23 L 30,19 L 27,12 L 32,8 L 38,14 L 45,12 Z" />
+          <circle cx="50" cy="50" r="22" fill="#09090B" />
+        </svg>
+      </div>
+
       {bgType === "solid" && (
         <div className="absolute inset-0 bg-black pointer-events-none z-0"></div>
       )}
@@ -100,18 +116,15 @@ export default async function MaintenancePage() {
         </div>
       )}
 
-      <div className="w-full max-w-2xl bg-black/40 backdrop-blur-md border border-white/5 rounded-[2.5rem] p-8 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.3)] text-center relative z-10 flex flex-col items-center">
+      <div className="w-full max-w-2xl bg-black/40 backdrop-blur-md border border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.3)] text-center relative z-10 flex flex-col items-center">
         {/* Logo */}
-        <div className="w-40 h-16 mb-8 relative flex items-center justify-center">
+        <div className="w-40 h-16 mb-4 relative flex items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={maintenanceLogo} alt="BREAKOUT.ID" className="max-w-full max-h-full object-contain" />
+          <img src={maintenanceLogo} alt="BREAKOUT.ID" className="max-w-full max-h-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]" />
         </div>
 
-        {/* Animated Icon */}
-        <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#f000ff]/70 to-[#8a2be2]/70 flex items-center justify-center mb-8 shadow-[0_0_30px_rgba(240,0,255,0.2)] relative group">
-          <div className="absolute inset-0 bg-white/10 rounded-3xl animate-ping opacity-25"></div>
-          <Construction className="w-12 h-12 text-white animate-pulse" />
-        </div>
+        {/* 3D Interlocking Mechanical Gears & Crossed Wrenches Centerpiece */}
+        <Maintenance3DGears />
 
         <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-white/90 to-white/70 bg-clip-text text-transparent mb-2">
           {title}
