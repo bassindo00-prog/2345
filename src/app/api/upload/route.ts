@@ -118,11 +118,20 @@ export async function POST(req: NextRequest) {
     
     // Auto-detect uploadType if missing
     if (!uploadType && file) {
-      if (file.type?.startsWith("audio/") || file.name?.match(/\.(mp3|wav|flac|m4a|aac|ogg)$/i)) {
+      const ext = (file.name || '').toLowerCase();
+      const mime = (file.type || '').toLowerCase();
+      if (mime.startsWith("audio/") || ext.match(/\.(mp3|wav|flac|m4a|aac|ogg|wma|aiff|alac)$/i)) {
         uploadType = "audio";
-      } else if (file.type?.startsWith("image/") || file.name?.match(/\.(jpg|jpeg|png|webp)$/i)) {
+      } else if (mime.startsWith("image/") || ext.match(/\.(jpg|jpeg|png|webp|heic|heif|gif)$/i)) {
         uploadType = "cover";
+      } else {
+        uploadType = "audio";
       }
+    }
+    
+    // Ensure default uploadType if still unset
+    if (!uploadType) {
+      uploadType = "audio";
     }
     
     logUploadEvent(`[${requestId}] FORM FIELDS EXTRACTED`, {
@@ -140,14 +149,6 @@ export async function POST(req: NextRequest) {
         reason: 'No file in form data'
       });
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
-    }
-
-    if (!uploadType) {
-      logUploadEvent(`[${requestId}] ERROR: NO UPLOAD TYPE`, {
-        status: 400,
-        reason: 'Upload type not specified'
-      });
-      return NextResponse.json({ error: "Upload type required" }, { status: 400 });
     }
 
     // Validate file type and size based on upload type
@@ -196,12 +197,11 @@ export async function POST(req: NextRequest) {
         allowedTypes = ALLOWED_IMAGE_TYPES;
         break;
       default:
-        logUploadEvent(`[${requestId}] ERROR: INVALID UPLOAD TYPE`, {
-          status: 400,
-          uploadType,
-          allowed: ['cover', 'audio', 'profile', 'asset', 'cms', 'brand', 'message', 'contract']
-        });
-        return NextResponse.json({ error: "Invalid upload type" }, { status: 400 });
+        bucket = BUCKET_RELEASES;
+        folder = 'audio';
+        maxSize = MAX_AUDIO_SIZE;
+        allowedTypes = ALLOWED_AUDIO_TYPES;
+        uploadType = 'audio';
     }
 
     logUploadEvent(`[${requestId}] VALIDATION RULES SET`, {
@@ -220,16 +220,22 @@ export async function POST(req: NextRequest) {
     let isValid = false;
     if (uploadType === 'audio') {
       isValid = 
+        !lowerType ||
+        lowerType === 'application/octet-stream' ||
         lowerType.startsWith('audio/') || 
         ALLOWED_AUDIO_TYPES.includes(lowerType) || 
         ALLOWED_AUDIO_EXTENSIONS.includes(fileExt);
     } else if (['cover', 'profile', 'asset', 'cms', 'brand'].includes(uploadType)) {
       isValid = 
+        !lowerType ||
+        lowerType === 'application/octet-stream' ||
         lowerType.startsWith('image/') || 
         ALLOWED_IMAGE_TYPES.includes(lowerType) || 
         ALLOWED_IMAGE_EXTENSIONS.includes(fileExt);
     } else if (['message', 'contract'].includes(uploadType)) {
       isValid = 
+        !lowerType ||
+        lowerType === 'application/octet-stream' ||
         lowerType.startsWith('image/') || 
         lowerType === 'application/pdf' || 
         ALLOWED_IMAGE_TYPES.includes(lowerType) || 
@@ -237,10 +243,7 @@ export async function POST(req: NextRequest) {
         ALLOWED_IMAGE_EXTENSIONS.includes(fileExt) || 
         ALLOWED_DOCUMENT_EXTENSIONS.includes(fileExt);
     } else {
-      isValid = 
-        allowedTypes.includes(lowerType) || 
-        ALLOWED_AUDIO_EXTENSIONS.includes(fileExt) || 
-        ALLOWED_IMAGE_EXTENSIONS.includes(fileExt);
+      isValid = true;
     }
 
     if (!isValid) {
