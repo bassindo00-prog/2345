@@ -273,17 +273,24 @@ export function Maintenance3DGears() {
             </svg>
           </div>
 
-          {/* Central Crossing Bolt Shield */}
+          {/* Central Crossing Bolt Shield with Slanted Breakout "B" Logo */}
           <div
-            className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#c8f560] via-[#9333ea] to-[#1e1b4b] p-0.5 shadow-[0_0_24px_rgba(200,245,96,0.6)] animate-pulse"
+            className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#c8f560] via-[#9333ea] to-[#1e1b4b] p-0.5 shadow-[0_0_24px_rgba(200,245,96,0.6)] animate-pulse"
             style={{
               transform: "translateZ(70px)",
             }}
           >
-            <div className="w-full h-full bg-[#0d0914] rounded-2xl flex items-center justify-center border border-white/20">
-              <span className="text-sm font-extrabold text-[#c8f560] tracking-tighter">
-                3D
-              </span>
+            <div className="w-full h-full bg-[#0d0914] rounded-2xl flex items-center justify-center border border-white/20 p-2 overflow-hidden">
+              <div
+                className="w-full h-full flex items-center justify-center"
+                style={{ transform: "rotate(-8deg) skewX(-8deg)" }}
+              >
+                <img
+                  src="/breakout-b-logo.png"
+                  alt="Breakout B"
+                  className="w-full h-full object-contain filter drop-shadow-[0_0_6px_#c8f560]"
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -117,10 +117,28 @@ export default async function MaintenancePage() {
       )}
 
       <div className="w-full max-w-2xl bg-black/40 backdrop-blur-md border border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.3)] text-center relative z-10 flex flex-col items-center">
-        {/* Logo */}
-        <div className="w-40 h-16 mb-4 relative flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={maintenanceLogo} alt="BREAKOUT.ID" className="max-w-full max-h-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]" />
+        {/* Slanted Breakout "B" Brand Logo Emblem */}
+        <div className="flex flex-col items-center justify-center mb-3 group">
+          <div className="relative flex items-center justify-center p-3.5 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 border border-white/15 shadow-[0_0_30px_rgba(200,245,96,0.25)] hover:shadow-[0_0_40px_rgba(200,245,96,0.45)] transition-all">
+            <div
+              className="relative w-14 h-18 sm:w-16 sm:h-20 flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
+              style={{ transform: "rotate(-10deg) skewX(-10deg)" }}
+            >
+              <img
+                src="/breakout-b-logo.png"
+                alt="BREAKOUT B Logo"
+                className="w-full h-full object-contain filter drop-shadow-[0_0_14px_rgba(200,245,96,0.8)]"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-2.5">
+            <span className="text-sm font-black tracking-[0.25em] text-white uppercase">
+              BREAKOUT
+            </span>
+            <span className="text-[10px] font-extrabold tracking-widest px-2 py-0.5 rounded-full bg-[#c8f560] text-[#1c1326] uppercase">
+              RECORDS
+            </span>
+          </div>
         </div>
 
         {/* 3D Interlocking Mechanical Gears & Crossed Wrenches Centerpiece */}
