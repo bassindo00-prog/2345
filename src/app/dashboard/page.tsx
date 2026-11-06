@@ -796,24 +796,28 @@ export default function UserDashboardPage() {
     return null;
   };
 
-  const getSafeYoutubeLink = (item: { title: string; artist: string; youtubeLink?: string | null }) => {
+  const getSafeYoutubeLink = (item: { title: string; artist: string; youtubeLink?: string | null }): string | null => {
+    if (!item.youtubeLink || typeof item.youtubeLink !== "string") return null;
+    const link = item.youtubeLink.trim();
     if (
-      item.youtubeLink &&
-      item.youtubeLink.includes("watch?v=") &&
-      item.youtubeLink.length > 35 &&
-      !item.youtubeLink.includes("official") &&
-      !item.youtubeLink.includes("melly-") &&
-      !item.youtubeLink.includes("pesona-") &&
-      !item.youtubeLink.includes("bagas-")
+      !link ||
+      link === "-" ||
+      link.includes("/results?search_query=") ||
+      link.includes("youtube.com/results")
     ) {
-      return item.youtubeLink;
+      return null;
     }
-    if (item.youtubeLink && item.youtubeLink.includes("results?search_query=")) {
-      return item.youtubeLink;
+    if (
+      link.includes("youtube.com/watch") ||
+      link.includes("youtu.be/") ||
+      link.includes("youtube.com/embed/") ||
+      link.includes("youtube.com/shorts/") ||
+      link.startsWith("https://") ||
+      link.startsWith("http://")
+    ) {
+      return link;
     }
-    return `https://www.youtube.com/results?search_query=${encodeURIComponent(
-      item.title + " " + item.artist + " Official Audio"
-    )}`;
+    return null;
   };
 
   const handleCreateArtist = async (e?: React.FormEvent) => {
@@ -4616,15 +4620,26 @@ export default function UserDashboardPage() {
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
-                                  <a
-                                    href={getSafeYoutubeLink(item)}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
-                                  >
-                                    <Youtube className="w-3.5 h-3.5" />
-                                    <span>YouTube</span>
-                                  </a>
+                                  {getSafeYoutubeLink(item) ? (
+                                    <a
+                                      href={getSafeYoutubeLink(item)!}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title="Buka Video YouTube Asli"
+                                      className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow transition-all active:scale-95 cursor-pointer"
+                                    >
+                                      <Youtube className="w-3.5 h-3.5" />
+                                      <span>YouTube</span>
+                                    </a>
+                                  ) : (
+                                    <span
+                                      title="Video YouTube belum ditautkan untuk lagu ini"
+                                      className="flex-1 py-1.5 px-2 rounded-xl bg-white/5 text-white/30 font-medium text-[10px] flex items-center justify-center gap-1 border border-white/5 cursor-not-allowed"
+                                    >
+                                      <Youtube className="w-3.5 h-3.5 opacity-30" />
+                                      <span>No Video</span>
+                                    </span>
+                                  )}
                                   {getSafeDriveLink(item) ? (
                                     <a
                                       href={getSafeDriveLink(item)!}
@@ -4743,16 +4758,26 @@ export default function UserDashboardPage() {
                                     {/* LINK YT / DRIVE */}
                                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
                                       <div className="flex items-center justify-center gap-2">
-                                        <a
-                                          href={getSafeYoutubeLink(item)}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          title="Buka Referensi YouTube"
-                                          className="px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
-                                        >
-                                          <Youtube className="w-3.5 h-3.5" />
-                                          <span>YouTube</span>
-                                        </a>
+                                        {getSafeYoutubeLink(item) ? (
+                                          <a
+                                            href={getSafeYoutubeLink(item)!}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            title="Buka Referensi YouTube Asli"
+                                            className="px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105 cursor-pointer"
+                                          >
+                                            <Youtube className="w-3.5 h-3.5" />
+                                            <span>YouTube</span>
+                                          </a>
+                                        ) : (
+                                          <span
+                                            title="Video YouTube belum ditautkan untuk lagu ini"
+                                            className="px-2 py-1 rounded-lg bg-white/5 text-white/30 text-[10px] font-medium flex items-center gap-1 cursor-not-allowed border border-white/5"
+                                          >
+                                            <Youtube className="w-3 h-3 opacity-30" />
+                                            <span>-</span>
+                                          </span>
+                                        )}
 
                                         {getSafeDriveLink(item) ? (
                                           <a
@@ -4872,21 +4897,20 @@ export default function UserDashboardPage() {
                                 href={song.link}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                                title="Buka Video YouTube Asli"
+                                className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow transition-all active:scale-95 cursor-pointer"
                               >
                                 <Youtube className="w-3.5 h-3.5" />
                                 <span>YouTube</span>
                               </a>
                             ) : (
-                              <a
-                                href={`https://www.youtube.com/results?search_query=${encodeURIComponent((song.judul_lagu || "") + " " + (song.performer || ""))}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/70 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                              <span
+                                title="Video YouTube tidak tersedia"
+                                className="flex-1 py-1.5 px-2 rounded-xl bg-white/5 text-white/30 font-medium text-[10px] flex items-center justify-center gap-1 border border-white/5 cursor-not-allowed"
                               >
-                                <Youtube className="w-3.5 h-3.5" />
-                                <span>YouTube</span>
-                              </a>
+                                <Youtube className="w-3.5 h-3.5 opacity-30" />
+                                <span>No Video</span>
+                              </span>
                             )}
                             <a
                               href={`https://drive.google.com/drive/search?q=${encodeURIComponent((song.judul_lagu || "") + " " + (song.performer || ""))}`}
@@ -4993,21 +5017,20 @@ export default function UserDashboardPage() {
                                       href={song.link}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] shadow transition-all hover:scale-105"
+                                      title="Buka Video YouTube Asli"
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] shadow transition-all hover:scale-105 cursor-pointer"
                                     >
                                       <Youtube className="w-3.5 h-3.5" />
                                       <span>YouTube</span>
                                     </a>
                                   ) : (
-                                    <a
-                                      href={`https://www.youtube.com/results?search_query=${encodeURIComponent((song.judul_lagu || "") + " " + (song.performer || ""))}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600/70 hover:bg-red-600 text-white font-bold text-[10px] shadow"
+                                    <span
+                                      title="Video YouTube belum tersedia"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-white/30 text-[10px] font-medium border border-white/5 cursor-not-allowed"
                                     >
-                                      <Youtube className="w-3.5 h-3.5" />
-                                      <span>YouTube</span>
-                                    </a>
+                                      <Youtube className="w-3 h-3 opacity-30" />
+                                      <span>-</span>
+                                    </span>
                                   )}
                                   <a
                                     href={`https://drive.google.com/drive/search?q=${encodeURIComponent((song.judul_lagu || "") + " " + (song.performer || ""))}`}
