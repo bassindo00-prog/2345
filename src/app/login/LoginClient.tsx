@@ -15,18 +15,19 @@ export default function LoginClient({ bgUrl }: { bgUrl: string }) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const formData = new FormData(e.currentTarget);
-    const res = await loginAction(formData);
-    if (res?.error) {
-      setError(res.error);
-      setLoading(false);
-    } else {
-      if (res?.role === "ADMIN") {
-        router.push("/admin");
+    try {
+      const formData = new FormData(e.currentTarget);
+      const res = await loginAction(formData);
+      if (res?.error) {
+        setError(res.error);
+        setLoading(false);
       } else {
-        router.push("/dashboard");
+        const targetUrl = res?.role === "ADMIN" ? "/admin" : "/dashboard";
+        window.location.href = targetUrl;
       }
-      router.refresh();
+    } catch (err: any) {
+      setError(err?.message || "Terjadi kesalahan saat masuk. Silakan coba lagi.");
+      setLoading(false);
     }
   }
 

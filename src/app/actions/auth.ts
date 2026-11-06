@@ -9,7 +9,7 @@ import { sendOtpEmail, sendContractToAdminEmail } from "@/lib/email";
 import { uploadFileToAPI } from "@/lib/r2-helpers";
 
 export async function loginAction(formData: FormData) {
-  const email = formData.get("email") as string;
+  const email = (formData.get("email") as string)?.trim().toLowerCase();
   const password = formData.get("password") as string;
 
   if (!email || !password) {
@@ -23,7 +23,7 @@ export async function loginAction(formData: FormData) {
       redirect: false,
     });
     const user = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
+      where: { email },
       select: { role: true },
     });
     return { success: true, role: user?.role || "USER" };
@@ -31,16 +31,21 @@ export async function loginAction(formData: FormData) {
     if (error instanceof AuthError) {
       switch (error.type) {
         case "CredentialsSignin":
-          return { error: "Invalid credentials." };
+          return { error: "Email atau password salah." };
         default:
-          return { error: "Something went wrong during authentication." };
+          return { error: "Terjadi kesalahan login: " + (error.cause?.err?.message || error.message) };
       }
     }
-    if (error instanceof Error && error.message.includes('NEXT_REDIRECT')) {
-      throw error;
+    if (error instanceof Error) {
+      if (error.message.includes('NEXT_REDIRECT')) {
+        throw error;
+      }
+      if (error.message.includes("Akun Anda masih menunggu") || error.message.includes("Pendaftaran ditolak")) {
+        return { error: error.message };
+      }
     }
     console.error("Login error:", error);
-    return { error: "Internal server error. Please try again later." };
+    return { error: "Email atau password salah." };
   }
 }
 
