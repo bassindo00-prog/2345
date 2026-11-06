@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import ReviewList from "./ReviewList";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function AdminReleasesPage() {
   const pendingReleases = await prisma.release.findMany({

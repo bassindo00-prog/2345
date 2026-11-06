@@ -95,7 +95,67 @@ export default function ReviewList({ initialReleases }: { initialReleases: Revie
   const [links, setLinks] = useState({ spotifyUrl: "", appleMusicUrl: "", youtubeMusicUrl: "" });
   const [savingLinks, setSavingLinks] = useState(false);
 
-  // Audio Player State
+  // Auto-sync polling every 8 seconds & on window focus so new submissions appear immediately
+  useEffect(() => {
+    const fetchLatestReleases = async () => {
+      try {
+        const res = await fetch(`/api/releases?all=true&t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { Pragma: "no-cache", "Cache-Control": "no-cache" },
+        });
+        const data = await res.json();
+        if (data?.releases && Array.isArray(data.releases)) {
+          const pending = data.releases.filter(
+            (r: any) => r.status === "Pending" || r.status === "PENDING"
+          );
+          setReleases(
+            pending.map((r: any) => ({
+              id: r.id,
+              title: r.title,
+              genre: r.genre || "Pop",
+              type: r.type || "SINGLE",
+              status: "PENDING",
+              coverArtworkUrl: r.coverUrl || "",
+              releaseDate: r.releaseDate || new Date().toISOString(),
+              featuredArtist: r.featuring || null,
+              upc: r.upc || null,
+              distributor: r.publisher || r.distributor || null,
+              spotifyUrl: r.spotifyUrl || null,
+              appleMusicUrl: r.appleMusicUrl || null,
+              youtubeMusicUrl: r.youtubeMusicUrl || null,
+              tiktokUrl: r.tiktokUrl || null,
+              user: {
+                id: r.userId || r.id,
+                name: r.user?.name || r.artist || "Artist",
+                email: r.user?.email || null,
+                artist: { name: r.artist || "Artist" },
+              },
+              tracks: (r.tracks || []).map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                audioUrl: t.audioUrl || t.audioFile,
+                composer: t.composer || null,
+                producer: t.producer || null,
+                lyrics: null,
+                isrc: t.isrc || null,
+                upc: t.upc || null,
+                tiktokClipStart: t.tiktokClip || null,
+                featuredArtist: t.featuring || null,
+              })),
+            }))
+          );
+        }
+      } catch (err) {}
+    };
+
+    const poll = setInterval(fetchLatestReleases, 8000);
+    const onFocus = () => fetchLatestReleases();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(poll);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, []);
   const [currentTrack, setCurrentTrack] = useState<{
     track: TrackItem;
     release: ReviewItem;

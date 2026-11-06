@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveMediaUrl } from "@/lib/r2";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
   try {
@@ -217,7 +218,16 @@ export async function GET() {
       driveUrl: c.driveLink || "",
     }));
 
-    return NextResponse.json({ users, releases, withdrawals, catalogs });
+    return NextResponse.json(
+      { users, releases, withdrawals, catalogs },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Admin overview error:", error);
     return NextResponse.json(

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveMediaUrl } from "@/lib/r2";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET(req: Request) {
   try {
@@ -100,7 +102,16 @@ export async function GET(req: Request) {
       };
     });
 
-    return NextResponse.json({ releases });
+    return NextResponse.json(
+      { releases },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("GET releases error:", error);
     return NextResponse.json(
@@ -240,6 +251,16 @@ export async function POST(req: Request) {
       });
     } catch (teleErr) {
       console.warn("Telegram notification warning:", teleErr);
+    }
+
+    // Revalidate paths for admin and dashboard
+    try {
+      revalidatePath("/admin");
+      revalidatePath("/admin/releases");
+      revalidatePath("/dashboard");
+      revalidatePath("/dashboard/releases");
+    } catch (revErr) {
+      console.warn("Revalidate error:", revErr);
     }
 
     return NextResponse.json({ ok: true, success: true, release: newRelease });

@@ -246,6 +246,8 @@ export default function AdminDashboardPage() {
   const selectedArtistDetailRef = useRef(selectedArtistDetail);
   const rejectingUserIdRef = useRef(rejectingUserId);
   const isPopstateNavigationRef = useRef(false);
+  const prevPendingCountRef = useRef<number | null>(null);
+  const isFetchingRef = useRef(false);
 
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
   useEffect(() => { mobileMenuOpenRef.current = mobileMenuOpen; }, [mobileMenuOpen]);
@@ -374,42 +376,59 @@ export default function AdminDashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchAdminData = async () => {
-    setLoading(true);
+  const fetchAdminData = async (silent = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+    if (!silent) setLoading(true);
     try {
-      const res = await fetch("/api/admin/overview");
+      const res = await fetch(`/api/admin/overview?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { Pragma: "no-cache", "Cache-Control": "no-cache" },
+      });
       const data = await res.json();
       if (data.users) setUsers(data.users);
-      if (data.releases) setReleases(data.releases);
+      if (data.releases) {
+        setReleases(data.releases);
+        const pendingCount = (data.releases || []).filter(
+          (r: any) => r.status === "Pending" || r.status === "PENDING"
+        ).length;
+        if (prevPendingCountRef.current !== null && pendingCount > prevPendingCountRef.current) {
+          const diff = pendingCount - prevPendingCountRef.current;
+          showNotice(`🎵 ${diff} Rilisan lagu baru masuk dari musisi! (${pendingCount} menunggu ACC)`);
+        }
+        prevPendingCountRef.current = pendingCount;
+      }
       if (data.withdrawals) setWithdrawals(data.withdrawals);
       if (data.catalogs && data.catalogs.length > 0) {
         setCatalogs(data.catalogs);
       }
 
-      // Pastikan catalog selalu tersinkron penuh dengan endpoint master
-      try {
-        const catRes = await fetch("/api/catalog?limit=3000");
-        const catData = await catRes.json();
-        const catList = catData.items || catData.catalogs || [];
-        if (Array.isArray(catList) && catList.length > 0) {
-          setCatalogs(catList);
+      if (!silent) {
+        // Pastikan catalog selalu tersinkron penuh dengan endpoint master
+        try {
+          const catRes = await fetch("/api/catalog?limit=3000");
+          const catData = await catRes.json();
+          const catList = catData.items || catData.catalogs || [];
+          if (Array.isArray(catList) && catList.length > 0) {
+            setCatalogs(catList);
+          }
+        } catch (errCat) {
+          console.warn("Gagal load katalog di admin:", errCat);
         }
-      } catch (errCat) {
-        console.warn("Gagal load katalog di admin:", errCat);
-      }
 
-      // Ambil data profil Admin yang sedang login
-      try {
-        const meRes = await fetch("/api/auth/me");
-        const meData = await meRes.json();
-        if (meData?.user) {
-          setAdminUser(meData.user);
-          if (meData.user.name) setAdminName(meData.user.name);
-          if (meData.user.email) setAdminEmail(meData.user.email);
-          if (meData.user.avatar) setAdminAvatar(meData.user.avatar);
+        // Ambil data profil Admin yang sedang login
+        try {
+          const meRes = await fetch("/api/auth/me");
+          const meData = await meRes.json();
+          if (meData?.user) {
+            setAdminUser(meData.user);
+            if (meData.user.name) setAdminName(meData.user.name);
+            if (meData.user.email) setAdminEmail(meData.user.email);
+            if (meData.user.avatar) setAdminAvatar(meData.user.avatar);
+          }
+        } catch (errMe) {
+          console.warn("Gagal load profil admin:", errMe);
         }
-      } catch (errMe) {
-        console.warn("Gagal load profil admin:", errMe);
       }
 
       if (data.users && data.releases) {
@@ -431,12 +450,16 @@ export default function AdminDashboardPage() {
         }
       }
 
-      const msgRes = await fetch("/api/messages?admin=true");
+      const msgRes = await fetch(`/api/messages?admin=true&t=${Date.now()}`, {
+        cache: "no-store",
+      });
       const msgData = await msgRes.json();
       if (msgData.messages) setMessages(msgData.messages);
 
       try {
-        const mRes = await fetch("/api/admin/maintenance");
+        const mRes = await fetch(`/api/admin/maintenance?t=${Date.now()}`, {
+          cache: "no-store",
+        });
         const mData = await mRes.json();
         if (mData.success && mData.data) {
           setMaintenanceActive(mData.data.maintenance_active === "true");
@@ -458,7 +481,8 @@ export default function AdminDashboardPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      isFetchingRef.current = false;
+      if (!silent) setLoading(false);
     }
   };
 
@@ -613,7 +637,27 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     fetchAdminData();
+
+    // Auto-sync interval polling every 8s while standby on admin dashboard
+    const interval = setInterval(() => {
+      fetchAdminData(true);
+    }, 8000);
+
+    const handleFocus = () => {
+      fetchAdminData(true);
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
+
+  // Sinkronisasi data seketika saat admin beralih antar tab (misal dari Overview ke Review Submissions)
+  useEffect(() => {
+    fetchAdminData(true);
+  }, [activeTab]);
 
   // Calculate Royalty with percentage deduction
   const updateRoyaltyCalc = (newGross: number, newCutPercent: number) => {
