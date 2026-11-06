@@ -84,7 +84,9 @@ export async function POST(req: Request) {
     try {
       revalidatePath("/");
       revalidatePath("/dashboard");
+      revalidatePath("/dashboard", "layout");
       revalidatePath("/maintenance");
+      revalidatePath("/register");
     } catch {}
 
     const updatedData = await getMaintenanceData();
