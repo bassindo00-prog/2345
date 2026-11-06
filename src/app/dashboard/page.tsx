@@ -253,8 +253,8 @@ export default function UserDashboardPage() {
   );
 
   // Settings Form State
-  const [settingsName, setSettingsName] = useState("Abdul");
-  const [settingsEmail, setSettingsEmail] = useState("abdul@breakout.id");
+  const [settingsName, setSettingsName] = useState("");
+  const [settingsEmail, setSettingsEmail] = useState("");
   const [settingsAvatar, setSettingsAvatar] = useState(
     "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
   );
@@ -661,8 +661,8 @@ export default function UserDashboardPage() {
       const data = await res.json();
       if (data.user) {
         setUser(data.user);
-        setSettingsName(data.user.name || "Abdul");
-        setSettingsEmail(data.user.email || "abdul@breakout.id");
+        setSettingsName(data.user.name || "");
+        setSettingsEmail(data.user.email || "");
         if (data.user.avatar) setSettingsAvatar(data.user.avatar);
         setAccountHolder((prev) => prev || data.user.name || "");
       }
@@ -1423,8 +1423,8 @@ export default function UserDashboardPage() {
                     className="w-9 h-9 rounded-full object-cover border border-white/40"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-white truncate">{user?.name || "Abdul"}</p>
-                    <p className="text-[10px] text-white/70 truncate">{user?.email || "abdul@breakout.id"}</p>
+                    <p className="text-xs font-semibold text-white truncate">{user?.name || "Musisi"}</p>
+                    <p className="text-[10px] text-white/70 truncate">{user?.email || ""}</p>
                   </div>
                 </div>
 
@@ -1547,7 +1547,7 @@ export default function UserDashboardPage() {
               <div className="flex flex-wrap items-center justify-between gap-4 animate-card-enter">
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-semibold text-white">
-                    Welcome Back, {user?.name || "Abdul"}!
+                    Welcome Back, {user?.name || "Musisi"}!
                   </h1>
                   <p className="text-xs text-white/80 mt-1">
                     information designed to accurate insights
@@ -3899,7 +3899,7 @@ export default function UserDashboardPage() {
               <div className="flex flex-wrap items-center justify-between gap-4 animate-card-enter">
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-semibold text-white">
-                    Welcome Back, {user?.name || "Abdul"}!
+                    Welcome Back, {user?.name || "Musisi"}!
                   </h1>
                   <p className="text-xs text-white/80 mt-1">
                     information designed to accurate insights

@@ -1336,7 +1336,7 @@ export default function AdminDashboardPage() {
                   <p className="text-xs text-white/75">
                     Artis Submitter:{" "}
                     <span className="font-semibold text-white">
-                      {selectedRelease.artist || selectedRelease.user?.name || "Abdul"}
+                      {selectedRelease.artist || selectedRelease.user?.name || "-"}
                     </span>
                   </p>
 
@@ -1357,12 +1357,16 @@ export default function AdminDashboardPage() {
 
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        if (!selectedRelease.audioFile) {
+                          showNotice("File audio belum tersedia untuk rilis ini.");
+                          return;
+                        }
                         downloadAsset(
-                          selectedRelease.audioFile || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+                          selectedRelease.audioFile,
                           `${selectedRelease.title}-master.mp3`
-                        )
-                      }
+                        );
+                      }}
                       className="px-3.5 py-1.5 rounded-xl bg-[#312042] hover:bg-[#422c58] text-[#c8f560] border border-[#c8f560]/50 text-xs font-semibold flex items-center gap-1.5 shadow"
                     >
                       <Download className="w-3.5 h-3.5" />
@@ -1397,36 +1401,36 @@ export default function AdminDashboardPage() {
                 </div>
                 <div>
                   <span className="text-white/60 block text-[11px]">Genre:</span>
-                  <span className="font-semibold text-white">{selectedRelease.genre}</span>
+                  <span className="font-semibold text-white">{selectedRelease.genre || "-"}</span>
                 </div>
                 <div>
                   <span className="text-white/60 block text-[11px]">Composer (Pencipta):</span>
                   <span className="font-semibold text-white">
-                    {selectedRelease.composer || "Abdul • BREAKOUT"}
+                    {selectedRelease.composer || "-"}
                   </span>
                 </div>
                 <div>
                   <span className="text-white/60 block text-[11px]">Producer (Produser):</span>
                   <span className="font-semibold text-white">
-                    {selectedRelease.producer || "Luxoa Studio"}
+                    {selectedRelease.producer || "-"}
                   </span>
                 </div>
                 <div>
                   <span className="text-white/60 block text-[11px]">Potongan TikTok & Reels:</span>
                   <span className="font-semibold text-[#c8f560]">
-                    {selectedRelease.tiktokClip || "00:45 - 01:15 (30s)"}
+                    {selectedRelease.tiktokClip || "-"}
                   </span>
                 </div>
                 <div>
                   <span className="text-white/60 block text-[11px]">Tanggal Rilis:</span>
                   <span className="font-semibold text-white">
-                    {selectedRelease.releaseDate}
+                    {selectedRelease.releaseDate || "-"}
                   </span>
                 </div>
                 <div>
                   <span className="text-white/60 block text-[11px]">Durasi Track:</span>
                   <span className="font-semibold text-white">
-                    {selectedRelease.duration || "3:42"}
+                    {selectedRelease.duration || "-"}
                   </span>
                 </div>
                 <div className="sm:col-span-2">
