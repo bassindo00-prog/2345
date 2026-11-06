@@ -80,11 +80,29 @@ export default async function UserDashboardPage() {
     totalStreams += rowStreams;
   });
 
+  const MONTH_NAMES = [
+    "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+    "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
+  ];
+  const monthlyApprovedPayouts = MONTH_NAMES.map((monthName, idx) => {
+    const totalMonth = withdrawRequests
+      .filter((w) => {
+        if (w.status !== 'PAID') return false;
+        const d = new Date(w.createdAt);
+        return d.getMonth() === idx;
+      })
+      .reduce((sum, w) => sum + (w.amount || 0), 0);
+    return { month: monthName, amount: totalMonth };
+  });
+
   const data = {
     totalReleases,
     pendingReleases,
     totalRevenue,
-    availableBalance,
+    availableBalance: Math.max(0, availableBalance),
+    totalWithdrawn,
+    pendingWithdrawal,
+    monthlyApprovedPayouts,
     totalStreams,
     recentWithdrawals: withdrawRequests.slice(0, 3) // get 3 most recent
   };

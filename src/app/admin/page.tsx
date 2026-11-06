@@ -21,8 +21,31 @@ export default async function AdminOverviewPage() {
   });
   const pendingWithdrawals = pendingWithdrawalsData._sum.amount || 0;
 
+  const paidWithdrawalsData = await prisma.withdrawRequest.aggregate({
+    _sum: { amount: true },
+    where: { status: 'PAID' }
+  });
+  const totalClearedPayout = paidWithdrawalsData._sum.amount || 0;
+  const saldoEndap = Math.max(0, totalRevenue - totalClearedPayout - pendingWithdrawals);
+
+  const allPaidWithdrawals = await prisma.withdrawRequest.findMany({
+    where: { status: 'PAID' },
+    select: { amount: true, createdAt: true }
+  });
+
+  const MONTH_NAMES = [
+    "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+    "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
+  ];
+  const monthlyApprovedPayouts = MONTH_NAMES.map((m, idx) => {
+    const total = allPaidWithdrawals
+      .filter((w) => new Date(w.createdAt).getMonth() === idx)
+      .reduce((sum, w) => sum + (w.amount || 0), 0);
+    return { month: m, amount: total };
+  });
+
   const recentWithdrawals = await prisma.withdrawRequest.findMany({
-    take: 3,
+    take: 4,
     orderBy: { createdAt: 'desc' },
     include: { user: true }
   });
@@ -40,7 +63,10 @@ export default async function AdminOverviewPage() {
     totalReleases,
     pendingReleases,
     totalRevenue,
+    saldoEndap,
+    totalClearedPayout,
     pendingWithdrawals,
+    monthlyApprovedPayouts,
     recentWithdrawals,
     recentArtists: recentArtists.map(a => ({ name: a.name || 'Unknown', image: a.image }))
   };

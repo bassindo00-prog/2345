@@ -2,8 +2,33 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { ArrowUpRight, ArrowDownRight, Search, Plus, MoreHorizontal, Users, Music, Settings, DollarSign } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
+  Users,
+  Music,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  ArrowRight,
+  TrendingUp,
+  Globe,
+  BookOpen,
+  CloudLightning,
+  Sparkles,
+} from "lucide-react";
+
+type MonthlyPayout = {
+  month: string;
+  amount: number;
+};
 
 type OverviewData = {
   totalArtists: number;
@@ -11,293 +36,499 @@ type OverviewData = {
   totalReleases: number;
   pendingReleases: number;
   totalRevenue: number;
+  saldoEndap?: number;
+  totalClearedPayout?: number;
   pendingWithdrawals: number;
+  monthlyApprovedPayouts?: MonthlyPayout[];
   recentWithdrawals: any[];
   recentArtists: any[];
 };
 
 export function AdminOverviewClient({ data }: { data: OverviewData }) {
-    const [currency, setCurrency] = useState<"IDR" | "USD">("IDR");
+  const [currency, setCurrency] = useState<"IDR" | "USD">("IDR");
   const exchangeRate = 16200;
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number = 0) => {
     if (currency === "USD") {
-      return '$' + (amount / exchangeRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return (
+        "$" +
+        (amount / exchangeRate).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      );
     }
-    if (amount >= 1000000) return 'Rp ' + (amount / 1000000).toFixed(1) + 'M';
-    if (amount >= 1000) return 'Rp ' + (amount / 1000).toFixed(1) + 'K';
-    return 'Rp ' + amount.toLocaleString('id-ID');
+    return "Rp " + Math.round(amount).toLocaleString("id-ID");
   };
 
-  const revenueData = [
-    { month: 'MAY', value: 1200 },
-    { month: 'JUN', value: 2100 },
-    { month: 'JUL', value: 4500, selected: true },
-    { month: 'AUG', value: 3100 },
-    { month: 'SEP', value: 2800 },
-  ];
+  const chartData =
+    data.monthlyApprovedPayouts && data.monthlyApprovedPayouts.length > 0
+      ? data.monthlyApprovedPayouts
+      : [
+          { month: "Jan", amount: 0 },
+          { month: "Feb", amount: 0 },
+          { month: "Mar", amount: 0 },
+          { month: "Apr", amount: 0 },
+          { month: "Mei", amount: 0 },
+          { month: "Jun", amount: 0 },
+          { month: "Jul", amount: 0 },
+          { month: "Agu", amount: 0 },
+          { month: "Sep", amount: 0 },
+          { month: "Okt", amount: 0 },
+          { month: "Nov", amount: data.totalClearedPayout || 0 },
+          { month: "Des", amount: 0 },
+        ];
 
-  const healthData = [
-    { name: '1', value: 40 },
-    { name: '2', value: 30 },
-    { name: '3', value: 50 },
-    { name: '4', value: 45 },
-    { name: '5', value: 70 },
-    { name: '6', value: 85 },
-  ];
+  const currentMonthIdx = new Date().getMonth();
+  const displayedSaldoEndap =
+    data.saldoEndap !== undefined
+      ? data.saldoEndap
+      : Math.max(
+          0,
+          data.totalRevenue -
+            (data.totalClearedPayout || 0) -
+            (data.pendingWithdrawals || 0)
+        );
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto pb-10">
-      <div className="flex flex-col lg:flex-row gap-6">
-        
-        {/* Left Column */}
-        <div className="w-full lg:w-2/3 flex flex-col gap-6">
-          
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-medium text-slate-800">BreakoutFlow</h1>
-              <p className="text-slate-500 text-sm">Start managing your platform</p>
+    <div className="w-full pb-14 space-y-6 animate-fade-in text-white">
+      {/* Top Banner / Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-white/10">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              Welcome Back, Admin!
+            </h1>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#c8f560] text-[#1a1024] text-[10px] font-black uppercase tracking-wider">
+              Super Admin
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-white/70 mt-1">
+            Executive label distribution & royalty settlement control center
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Currency Toggle */}
+          <div className="flex bg-black/40 backdrop-blur-md rounded-2xl p-1 border border-white/15">
+            <button
+              onClick={() => setCurrency("IDR")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                currency === "IDR"
+                  ? "bg-[#c8f560] text-[#1a1024] shadow-sm"
+                  : "text-white/70 hover:text-white"
+              }`}
+            >
+              IDR
+            </button>
+            <button
+              onClick={() => setCurrency("USD")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
+                currency === "USD"
+                  ? "bg-[#c8f560] text-[#1a1024] shadow-sm"
+                  : "text-white/70 hover:text-white"
+              }`}
+            >
+              USD
+            </button>
+          </div>
+
+          <Link
+            href="/admin/withdrawals"
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#c8f560] hover:bg-[#d6ff73] text-[#1a1024] font-bold text-xs shadow-lg shadow-[#c8f560]/20 transition-all active:scale-95"
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>ACC Penarikan Dana</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Main Grid: Card 1 (VISA) & Card 2 (Monthly ACC Chart) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Card 1: Luxury VISA Card for Total Royalty Musisi */}
+        <div className="lg:col-span-5 rounded-3xl p-6 sm:p-7 relative overflow-hidden text-white shadow-2xl border border-white/20 bg-gradient-to-br from-[#4d3765] via-[#3c2952] to-[#251736] flex flex-col justify-between min-h-[290px]">
+          {/* Ambient Glow */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-[#c8f560]/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[11px] font-bold tracking-widest uppercase text-white/80">
+                TOTAL ROYALTY MUSISI (SALDO ENDAP)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#c8f560] animate-pulse" />
+                <span className="text-xs font-black tracking-wider text-[#c8f560]">
+                  VISA INFINITE
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-4 text-sm font-medium text-slate-700 bg-white/40 px-4 py-2 rounded-full backdrop-blur-md">
-              **** 4168 &nbsp;&nbsp;&nbsp; 01/29
+
+            <div className="flex items-center gap-4 my-3">
+              {/* Gold Chip */}
+              <div className="w-11 h-8 rounded-lg bg-gradient-to-br from-[#f3db8b] via-[#d4af37] to-[#aa8018] border border-[#ffecb3]/80 shadow-md flex items-center justify-center shrink-0">
+                <div className="w-6 h-4 border border-black/30 rounded-[2px]" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-[#c8f560] tracking-tight truncate">
+                {formatCurrency(displayedSaldoEndap)}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-white/70 mt-2">
+              <span className="font-mono tracking-widest text-[11px]">
+                4532 •••• •••• 9924
+              </span>
+              <span className="text-[11px] font-medium text-white/90">
+                {data.totalArtists} Musisi Aktif • Saldo Endap
+              </span>
             </div>
           </div>
 
-          {/* Total Balance Card (Interconnected Circles) */}
-          <div className="fundflow-glass rounded-[2rem] p-8 relative overflow-hidden">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <p className="text-slate-600 font-medium mb-1">Total platform revenue</p>
-                <h2 className="text-4xl md:text-5xl font-semibold text-slate-800 mt-2 pt-1">{formatCurrency(data.totalRevenue)}</h2>
+          <div className="pt-4 border-t border-white/15 mt-5">
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="p-2.5 rounded-2xl bg-black/30 border border-white/10">
+                <p className="text-[10px] text-white/60 font-medium">Cleared Payout (ACC)</p>
+                <p className="text-xs sm:text-sm font-bold text-white mt-0.5 truncate">
+                  {formatCurrency(data.totalClearedPayout || 0)}
+                </p>
               </div>
-              <div className="flex bg-white/50 backdrop-blur-md rounded-full p-1 border border-white/60 shadow-sm">
-                <button onClick={() => setCurrency('IDR')} className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${currency === 'IDR' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>IDR</button>
-                <button onClick={() => setCurrency('USD')} className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${currency === 'USD' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>USD</button>
-              </div>
-            </div>
-            
-            <div className="flex flex-col md:flex-row items-center justify-between relative z-10 mt-12 mb-4 gap-8 md:gap-0">
-              <div className="flex items-center">
-                {/* Circle 1 */}
-                <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full bg-white/80 backdrop-blur-lg flex flex-col items-center justify-center border border-white shadow-sm z-20 relative">
-                  <span className="text-[11px] sm:text-sm md:text-lg font-bold">{formatCurrency(data.totalRevenue - data.pendingWithdrawals)}</span>
-                  <span className="text-[9px] sm:text-xs text-slate-500 font-medium">Available</span>
-                </div>
-                {/* Circle 2 (Main) */}
-                <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex flex-col items-center justify-center shadow-lg z-30 -ml-4 sm:-ml-6 md:-ml-10 relative">
-                  <span className="text-[13px] sm:text-base md:text-xl font-bold text-white">{formatCurrency(data.totalRevenue)}</span>
-                  <span className="text-[10px] sm:text-xs text-white/80 font-medium">Total</span>
-                </div>
-                {/* Circle 3 */}
-                <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full bg-white/80 backdrop-blur-lg flex flex-col items-center justify-center border border-white shadow-sm z-20 -ml-4 sm:-ml-6 md:-ml-10 relative">
-                  <span className="text-[11px] sm:text-sm md:text-lg font-bold text-slate-800">{formatCurrency(data.pendingWithdrawals)}</span>
-                  <span className="text-[9px] sm:text-xs text-slate-500 font-medium">Pending WD</span>
-                </div>
-              </div>
-              
-              <div className="flex flex-row md:flex-col gap-3 w-full md:w-auto justify-center flex-wrap">
-                <Link href="/admin/releases" className="px-6 py-3 rounded-full bg-white/60 backdrop-blur border border-white text-slate-800 font-medium shadow-sm hover:bg-white transition text-sm text-center">
-                  Review Releases
-                </Link>
-                <Link href="/admin/withdrawals" className="px-6 py-3 rounded-full bg-slate-900 text-white font-medium shadow-lg hover:bg-slate-800 transition text-sm text-center">
-                  Process Withdrawals
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Expense Statistic */}
-            <div className="fundflow-glass rounded-[2rem] p-6 flex flex-col">
-              <div className="flex justify-between items-center mb-6">
-                <p className="text-slate-600 font-medium">Platform Growth</p>
-                <span className="bg-white/60 px-3 py-1 rounded-full text-xs font-semibold text-slate-700 border border-white">Monthly</span>
-              </div>
-              <div className="h-40 w-full mt-auto relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} dy={10} />
-                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none' }} />
-                    <Bar dataKey="value" radius={[8, 8, 8, 8]} barSize={36}>
-                      {revenueData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.selected ? 'url(#barGrad)' : 'rgba(255,255,255,0.6)'} />
-                      ))}
-                    </Bar>
-                    <defs>
-                      <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" />
-                        <stop offset="100%" stopColor="#8b5cf6" />
-                      </linearGradient>
-                    </defs>
-                  </BarChart>
-                </ResponsiveContainer>
-                {/* Floating tooltip simulation for the selected bar */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg">
-                  $45k
-                </div>
+              <div className="p-2.5 rounded-2xl bg-black/30 border border-white/10">
+                <p className="text-[10px] text-[#fde08d] font-medium">Antrean Withdraw</p>
+                <p className="text-xs sm:text-sm font-bold text-[#fde08d] mt-0.5 truncate">
+                  {formatCurrency(data.pendingWithdrawals || 0)}
+                </p>
               </div>
             </div>
 
-            {/* Financial Health */}
-            <div className="bg-gradient-to-br from-blue-400 to-blue-600 rounded-[2rem] p-6 text-white flex flex-col relative overflow-hidden shadow-lg">
-              <div className="absolute top-0 right-0 w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 bg-white/20 rounded-full blur-2xl -translate-y-10 translate-x-10"></div>
-              <div className="flex justify-between items-center mb-4 relative z-10">
-                <p className="font-medium text-white/90">Artist Approval Rate</p>
-                <div className="bg-white/20 p-1.5 rounded-full backdrop-blur-md">
-                  <ArrowUpRight className="w-4 h-4 text-white" />
-                </div>
-              </div>
-              <div className="relative z-10">
-                <h3 className="text-4xl font-semibold mb-1">85%</h3>
-                <p className="text-white/70 text-xs">since last month</p>
-              </div>
-              <div className="h-24 w-full mt-auto relative z-10 -mx-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={healthData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorHealth" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ffffff" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#ffffff" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="value" stroke="#ffffff" strokeWidth={2} fillOpacity={1} fill="url(#colorHealth)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          {/* Upcoming Payments (Pending Actions) */}
-          <div className="fundflow-glass rounded-[2rem] p-6 mb-4">
-            <div className="flex justify-between items-center mb-6">
-              <p className="text-slate-800 font-medium">Pending Actions</p>
-              <button className="bg-slate-900 text-white text-xs font-semibold px-4 py-1.5 rounded-full hover:bg-slate-800 transition">View All</button>
-            </div>
-            <div className="flex flex-row md:flex-col gap-3 w-full md:w-auto justify-center flex-wrap">
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-white/40 border border-white/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><Users className="w-4 h-4" /></div>
-                  <span className="font-medium text-slate-700 text-sm">Artist Registrations</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="bg-blue-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full">Today</span>
-                  <span className="text-slate-500 text-sm w-24">Approvals</span>
-                  <span className="font-semibold text-slate-800">{data.pendingArtists}</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-white/20 hover:bg-white/40 transition border border-transparent hover:border-white/50 cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600"><Music className="w-4 h-4" /></div>
-                  <span className="font-medium text-slate-700 text-sm">Release Reviews</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-slate-400 text-xs w-12">Jun 23</span>
-                  <span className="text-slate-500 text-sm w-24">Review</span>
-                  <span className="font-semibold text-slate-800">{data.pendingReleases}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-2xl bg-white/20 hover:bg-white/40 transition border border-transparent hover:border-white/50 cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600"><Settings className="w-4 h-4" /></div>
-                  <span className="font-medium text-slate-700 text-sm">Pending Withdrawals</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-slate-400 text-xs w-12">Jul 15</span>
-                  <span className="text-slate-500 text-sm w-24">Finance</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(data.pendingWithdrawals)}</span>
-                </div>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-white/60">
+                Breakout Label • Executive
+              </span>
+              <Link
+                href="/admin/withdrawals"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#c8f560] hover:bg-[#d4ff6b] text-[#1a1024] font-bold text-xs shadow transition active:scale-95"
+              >
+                <span>Kelola Antrean</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
           </div>
         </div>
 
-        {/* Right Column */}
-        <div className="w-full lg:w-1/3 flex flex-col gap-6">
-          
-          <div className="flex justify-between items-center h-[72px]">
-            <h2 className="text-xl font-medium text-slate-800">Recent Updates</h2>
-            <div className="flex items-center gap-2">
-              <button className="w-8 h-8 rounded-full bg-white/50 backdrop-blur flex items-center justify-center text-slate-600 hover:bg-white border border-white/60 transition"><Search className="w-4 h-4" /></button>
-              <button className="bg-slate-900 text-white text-xs font-semibold px-4 py-2 rounded-full hover:bg-slate-800 transition">View All</button>
+        {/* Card 2: Grafik Bulanan Royalti Yang Udah Di-ACC */}
+        <div className="lg:col-span-7 rounded-3xl p-6 relative overflow-hidden text-white shadow-2xl border border-white/15 bg-gradient-to-br from-[#3b274e] via-[#2f1f40] to-[#1e132b] flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white">
+                  Grafik Bulanan Royalti (Yang Sudah Di-ACC)
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-[#c8f560]/20 text-[#c8f560] text-[10px] font-bold border border-[#c8f560]/40">
+                  Sinkron
+                </span>
+              </div>
+              <p className="text-xs text-white/60 mt-0.5">
+                Total pencairan dana royalti seluruh musisi yang disetujui (ACC)
+              </p>
             </div>
+            <span className="text-xs font-bold text-[#c8f560] bg-black/30 px-3 py-1 rounded-xl border border-white/10">
+              12 Bulan
+            </span>
           </div>
 
-          <div className="flex-1 fundflow-glass rounded-[2rem] p-6 flex flex-col gap-4">
-            <p className="text-slate-400 text-xs font-medium mb-2">Latest registrations</p>
-            
-            {data.recentArtists.map((artist, i) => (
-              <div key={i} className="flex justify-between items-center group">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden"><img src={artist.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${artist.name}`} className="w-full h-full object-cover" /></div>
-                  <span className="text-slate-700 font-medium text-sm group-hover:text-blue-600 transition">{artist.name}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-slate-400 text-xs">Today</span>
-                  <span className="bg-blue-100 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">New</span>
-                </div>
-              </div>
-            ))}
-
-            <div className="w-full h-px bg-white/40 my-2"></div>
-            
-            <p className="text-slate-400 text-xs font-medium mb-2">Recent Withdrawals</p>
-            {data.recentWithdrawals.map((wd, i) => (
-              <div key={i} className="flex justify-between items-center group">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600"><DollarSign className="w-4 h-4" /></div>
-                  <span className="text-slate-700 font-medium text-sm truncate w-24 group-hover:text-blue-600 transition">{wd.user.name}</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-slate-400 text-xs">Jun 14</span>
-                  <span className="text-slate-800 font-semibold text-sm">{formatCurrency(wd.amount)}</span>
-                </div>
-              </div>
-            ))}
-            
-            <div className="mt-auto pt-6 border-t border-white/40">
-              <h4 className="text-slate-800 font-medium mb-1">How to reduce expenses by 25%?</h4>
-              <p className="text-slate-500 text-xs mb-2">View these useful tips to save your money.</p>
-              <a href="#" className="text-blue-600 text-xs font-semibold hover:underline">Learn more</a>
-            </div>
+          <div className="h-56 w-full mt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartData}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <XAxis
+                  dataKey="month"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600 }}
+                  dy={6}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "rgba(255,255,255,0.5)", fontSize: 10 }}
+                  tickFormatter={(val) =>
+                    val >= 1000000
+                      ? `${(val / 1000000).toFixed(1)}M`
+                      : val >= 1000
+                      ? `${(val / 1000).toFixed(0)}K`
+                      : val
+                  }
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const item = payload[0].payload;
+                      return (
+                        <div className="bg-[#1f142b] border border-[#c8f560]/60 p-2.5 rounded-xl shadow-xl text-xs">
+                          <p className="font-bold text-white mb-0.5">
+                            Bulan {item.month}
+                          </p>
+                          <p className="font-extrabold text-[#c8f560]">
+                            {formatCurrency(item.amount)}
+                          </p>
+                          <p className="text-[10px] text-white/60">
+                            Total ACC Payout
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar dataKey="amount" radius={[6, 6, 0, 0]} barSize={26}>
+                  {chartData.map((entry, index) => (
+                    <Cell
+                      key={`admin-bar-${index}`}
+                      fill={
+                        index === currentMonthIdx || entry.amount > 0
+                          ? "#c8f560"
+                          : "rgba(255,255,255,0.2)"
+                      }
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
 
-          <div className="fundflow-glass rounded-[2rem] p-6">
-            <div className="flex justify-between items-center mb-6">
-              <p className="text-slate-800 font-medium">Quick action</p>
-              <div className="flex gap-4 text-xs font-medium">
-                <span className="text-blue-600">All</span>
-                <span className="text-slate-400">Artists</span>
-              </div>
+          <div className="flex items-center justify-between text-xs text-white/60 pt-3 border-t border-white/10 mt-2">
+            <span>
+              Total Cleared Payout:{" "}
+              <strong className="text-white">
+                {formatCurrency(data.totalClearedPayout || 0)}
+              </strong>
+            </span>
+            <span className="flex items-center gap-1 text-[#c8f560]">
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Otomatis Sinkron Setiap ACC</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: Status & Quick Actions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Review Rilisan */}
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-[#3b274e] to-[#251736] border border-white/15 shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-xs text-white/60 font-medium">Review Rilisan</p>
+            <h4 className="text-2xl font-black text-white mt-1">
+              {data.pendingReleases}
+            </h4>
+            <Link
+              href="/admin/releases"
+              className="text-[10px] text-[#c8f560] font-semibold mt-1 hover:underline inline-flex items-center gap-1"
+            >
+              <span>Tinjau Submisi</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-cyan-400/15 border border-cyan-400/30 flex items-center justify-center text-cyan-400">
+            <Music className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Verifikasi Identitas */}
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-[#3b274e] to-[#251736] border border-white/15 shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-xs text-white/60 font-medium">Verifikasi Identitas</p>
+            <h4 className="text-2xl font-black text-white mt-1">
+              {data.pendingArtists}
+            </h4>
+            <Link
+              href="/admin/registrations"
+              className="text-[10px] text-[#fde08d] font-semibold mt-1 hover:underline inline-flex items-center gap-1"
+            >
+              <span>Verifikasi KTP & Akun</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-[#fde08d]/15 border border-[#fde08d]/30 flex items-center justify-center text-[#fde08d]">
+            <CheckCircle className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Website CMS */}
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-[#3b274e] to-[#251736] border border-white/15 shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-xs text-white/60 font-medium">Website CMS</p>
+            <h4 className="text-base font-bold text-white mt-1">Landing Page</h4>
+            <Link
+              href="/admin/website-cms"
+              className="text-[10px] text-[#c8f560] font-semibold mt-1 hover:underline inline-flex items-center gap-1"
+            >
+              <span>Kelola Tampilan Beranda</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-400/15 border border-emerald-400/30 flex items-center justify-center text-emerald-300">
+            <Globe className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Katalog Publisher & Gerbang R2 */}
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-[#3b274e] to-[#251736] border border-white/15 shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-xs text-white/60 font-medium">Publisher & R2</p>
+            <h4 className="text-sm font-bold text-white mt-1">Katalog & Cloud</h4>
+            <div className="flex gap-2 mt-2">
+              <Link
+                href="/admin/publisher-catalog"
+                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-semibold text-[#c8f560] transition border border-white/10"
+              >
+                Publisher
+              </Link>
+              <Link
+                href="/admin/r2-gate"
+                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-semibold text-white transition border border-white/10"
+              >
+                R2 Gate
+              </Link>
             </div>
-            
-            <div className="flex justify-between mb-8">
-              <button className="w-12 h-12 rounded-full border border-dashed border-slate-400 flex flex-col items-center justify-center text-slate-500 hover:border-blue-500 hover:text-blue-500 transition gap-1">
-                <Plus className="w-5 h-5" />
-              </button>
-              {data.recentArtists.slice(0,3).map((artist, i) => (
-                <div key={i} className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 rounded-full bg-gray-200 border-2 border-white shadow-sm overflow-hidden">
-                     <img src={artist.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${artist.name}`} className="w-full h-full object-cover" />
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-purple-400/15 border border-purple-400/30 flex items-center justify-center text-purple-300">
+            <BookOpen className="w-6 h-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: Musisi Baru & Antrean Penarikan */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Antrean Penarikan Terakhir */}
+        <div className="rounded-3xl p-6 bg-gradient-to-br from-[#3b274e] via-[#2f1f40] to-[#1e132b] border border-white/15 shadow-xl">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
+            <div>
+              <h3 className="text-base font-bold text-white">
+                Antrean & Riwayat Penarikan
+              </h3>
+              <p className="text-xs text-white/60">
+                Pengajuan pencairan royalti musisi
+              </p>
+            </div>
+            <Link
+              href="/admin/withdrawals"
+              className="text-xs font-semibold text-[#c8f560] hover:underline flex items-center gap-1"
+            >
+              <span>Semua Antrean</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {data.recentWithdrawals && data.recentWithdrawals.length > 0 ? (
+            <div className="divide-y divide-white/10">
+              {data.recentWithdrawals.map((wd: any, i: number) => (
+                <div
+                  key={wd.id || i}
+                  className="py-3 flex items-center justify-between hover:bg-white/5 px-2 rounded-xl transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
+                        wd.status === "PAID"
+                          ? "bg-[#c8f560]/20 text-[#c8f560]"
+                          : "bg-[#fde08d]/20 text-[#fde08d]"
+                      }`}
+                    >
+                      <DollarSign className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-semibold text-white">
+                        {wd.user?.name || "Musisi"}
+                      </p>
+                      <p className="text-[10px] text-white/50">
+                        {wd.method || "Bank Transfer"} •{" "}
+                        {new Date(wd.createdAt).toLocaleDateString("id-ID")}
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-medium text-slate-600 truncate w-12 text-center">{artist.name.split(' ')[0]}</span>
+
+                  <div className="text-right">
+                    <p className="text-xs sm:text-sm font-bold text-white">
+                      {formatCurrency(wd.amount)}
+                    </p>
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                        wd.status === "PAID"
+                          ? "bg-[#c8f560] text-[#1a1024]"
+                          : "bg-[#fde08d] text-[#1a1024]"
+                      }`}
+                    >
+                      {wd.status === "PAID" ? "Approved" : "Pending"}
+                    </span>
+                  </div>
                 </div>
               ))}
-              <button className="w-12 h-12 rounded-full bg-white/50 border border-white flex items-center justify-center shadow-sm">
-                <MoreHorizontal className="w-5 h-5 text-slate-600" />
-              </button>
             </div>
-            
-            <div className="flex justify-between items-end">
-              <h3 className="text-3xl font-semibold text-slate-800">Payouts</h3>
-              <button className="bg-slate-900 text-white font-medium px-6 py-2.5 rounded-full hover:bg-slate-800 transition shadow-lg">Process</button>
+          ) : (
+            <div className="py-6 text-center text-white/50 text-xs">
+              Belum ada antrean penarikan dana.
             </div>
+          )}
+        </div>
+
+        {/* Musisi Terdaftar Baru */}
+        <div className="rounded-3xl p-6 bg-gradient-to-br from-[#3b274e] via-[#2f1f40] to-[#1e132b] border border-white/15 shadow-xl">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
+            <div>
+              <h3 className="text-base font-bold text-white">Musisi Terdaftar</h3>
+              <p className="text-xs text-white/60">
+                Pendaftaran musisi dan artis terbaru
+              </p>
+            </div>
+            <Link
+              href="/admin/all-artists"
+              className="text-xs font-semibold text-[#c8f560] hover:underline flex items-center gap-1"
+            >
+              <span>Daftar Artis</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
+          {data.recentArtists && data.recentArtists.length > 0 ? (
+            <div className="divide-y divide-white/10">
+              {data.recentArtists.map((artist: any, i: number) => (
+                <div
+                  key={i}
+                  className="py-3 flex items-center justify-between hover:bg-white/5 px-2 rounded-xl transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-black/40 border border-white/20 overflow-hidden flex items-center justify-center">
+                      <img
+                        src={
+                          artist.image ||
+                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${artist.name}`
+                        }
+                        alt={artist.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-semibold text-white">
+                        {artist.name}
+                      </p>
+                      <p className="text-[10px] text-white/50">Akun Musisi Aktif</p>
+                    </div>
+                  </div>
+
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-white/80 text-[10px] font-semibold border border-white/10">
+                    Artis
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-6 text-center text-white/50 text-xs">
+              Belum ada musisi terdaftar.
+            </div>
+          )}
         </div>
-        
       </div>
     </div>
   );

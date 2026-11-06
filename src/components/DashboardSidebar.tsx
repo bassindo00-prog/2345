@@ -57,14 +57,15 @@ export function DashboardSidebar({
   return (
     <>
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 fundflow-glass border-b border-white/20 flex items-center justify-between px-4 z-40">
-        <div className="flex items-center gap-2">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#2a1b38]/90 backdrop-blur-xl border-b border-white/15 flex items-center justify-between px-4 z-40">
+        <div className="flex items-center gap-2.5">
           <img src={brandLogo} alt="Breakout Logo" className="w-8 h-8 object-contain" />
-          <span className="font-bold tracking-tighter text-gray-900 drop-shadow-sm">BREAKOUT.ID</span>
+          <span className="font-extrabold tracking-wider text-white text-base">BREAKOUT</span>
+          <span className="px-2 py-0.5 rounded-full bg-[#c8f560] text-[#1a1024] text-[10px] font-bold">ARTIST</span>
         </div>
         <button 
           onClick={() => setIsOpen(true)}
-          className="p-2 text-gray-600 hover:text-gray-900 focus:outline-none"
+          className="p-2 text-white/80 hover:text-white focus:outline-none"
         >
           <Menu className="w-6 h-6" />
         </button>
@@ -73,32 +74,35 @@ export function DashboardSidebar({
       {/* Mobile Overlay */}
       {isOpen && (
         <div 
-          className="md:hidden fixed inset-0 bg-black/20 z-40 backdrop-blur-sm"
+          className="md:hidden fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside 
-        className={`w-64 fundflow-glass flex flex-col h-full fixed top-0 left-0 z-50 transition-transform duration-300 ease-in-out border-r border-white/50
+        className={`w-64 bg-[#231730]/95 backdrop-blur-2xl flex flex-col h-full fixed top-0 left-0 z-50 transition-transform duration-300 ease-in-out border-r border-white/15 shadow-2xl
           ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >
-        <div className="h-24 flex items-center justify-between px-8">
-          <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setIsOpen(false)}>
+        <div className="h-24 flex items-center justify-between px-6 border-b border-white/10">
+          <Link href="/dashboard" className="flex items-center gap-2.5" onClick={() => setIsOpen(false)}>
             <img src={brandLogo} alt="Breakout Logo" className="w-8 h-8 object-contain" />
-            <span className="font-bold text-xl tracking-tighter text-gray-900">BREAKOUT</span>
+            <div className="flex flex-col">
+              <span className="font-black text-lg tracking-wider text-white">BREAKOUT</span>
+              <span className="text-[10px] text-[#c8f560] font-semibold tracking-widest uppercase">Artist Suite</span>
+            </div>
           </Link>
           <button 
-            className="md:hidden text-gray-500 hover:text-gray-900"
+            className="md:hidden text-white/60 hover:text-white"
             onClick={() => setIsOpen(false)}
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-2">
-          {filteredLinks.map((link, index) => {
+        <div className="flex-1 overflow-y-auto py-5 px-3 flex flex-col gap-1.5 scrollbar-thin">
+          {filteredLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
 
@@ -107,28 +111,28 @@ export function DashboardSidebar({
                 key={link.name}
                 href={link.href}
                 onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 font-medium text-sm rounded-2xl transition-all duration-200 ${
+                className={`flex items-center gap-3 px-3.5 py-2.5 font-medium text-xs rounded-xl transition-all duration-200 ${
                   isActive 
-                    ? "bg-white/60 text-blue-700 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-white/80" 
-                    : "text-gray-500 hover:text-gray-900 hover:bg-white/30"
+                    ? "bg-[#c8f560] text-[#1a1024] font-bold shadow-lg shadow-[#c8f560]/20" 
+                    : "text-white/70 hover:text-white hover:bg-white/10"
                 }`}
               >
-                <div className={`${isActive ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-400'} p-1.5 rounded-xl transition-colors`}>
+                <div className={`${isActive ? 'text-[#1a1024]' : 'text-[#c8f560]'} p-1 rounded-lg`}>
                   <Icon className="w-4 h-4" />
                 </div>
-                {link.name}
+                <span>{link.name}</span>
               </Link>
             );
           })}
         </div>
 
-        <div className="p-6 border-t border-white/20 flex justify-center">
+        <div className="p-4 border-t border-white/10 flex justify-center">
           <button 
             onClick={() => signOut({ callbackUrl: "/" })}
-            className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-white/50 text-gray-700 font-semibold hover:bg-white border border-white/60 transition w-full shadow-[0_4px_15px_rgba(0,0,0,0.02)]"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 text-white text-xs font-semibold hover:bg-red-500/20 hover:text-red-300 border border-white/15 transition w-full shadow-sm"
           >
             <LogOut className="w-4 h-4" />
-            Log Out
+            <span>Keluar Akun</span>
           </button>
         </div>
       </aside>
