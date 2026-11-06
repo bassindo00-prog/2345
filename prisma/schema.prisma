@@ -450,3 +450,21 @@ model Catalog {
   updatedAt   DateTime @updatedAt
 }
 
+model LandingContent {
+  id               String   @id @default("default")
+  platformsJson    String?  @db.Text
+  releasesJson     String?  @db.Text
+  featuresJson     String?  @db.Text
+  faqsJson         String?  @db.Text
+  testimonialsJson String?  @db.Text
+  artistsJson      String?  @db.Text
+  contactJson      String?  @db.Text
+  heroSubtitle     String?
+  heroTitle1       String?
+  heroTitle2       String?
+  heroBgImage      String?
+  heroBackImage    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+

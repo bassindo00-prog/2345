@@ -21,9 +21,15 @@ export default async function Page() {
   let initialData: LandingPageData = DEFAULT_LANDING_DATA;
 
   try {
-    const content = await prisma.landingContent.findUnique({
-      where: { id: "default" },
-    });
+    let content: any = null;
+    try {
+      content = await prisma.landingContent.findUnique({
+        where: { id: "default" },
+      });
+    } catch {
+      const rows: any = await prisma.$queryRawUnsafe(`SELECT * FROM "LandingContent" WHERE "id" = 'default' LIMIT 1`).catch(() => []);
+      if (Array.isArray(rows) && rows.length > 0) content = rows[0];
+    }
 
     if (content) {
       let platforms = DEFAULT_PLATFORMS;
@@ -92,6 +98,11 @@ export default async function Page() {
         testimonials,
         roster,
         contact,
+        heroSubtitle: content.heroSubtitle || undefined,
+        heroTitle1: content.heroTitle1 || undefined,
+        heroTitle2: content.heroTitle2 || undefined,
+        heroBgImage: content.heroBgImage || undefined,
+        heroBackImage: content.heroBackImage || undefined,
       };
     }
   } catch (err) {

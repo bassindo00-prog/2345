@@ -329,97 +329,40 @@ export default function UserDashboardPage() {
     showNotice(`✓ Cover Artwork "${file.name}" dipilih.`);
   };
 
-  // Robust Chunked Uploader to Cloudflare R2 (Bypasses Vercel 4.5MB 413 error and R2 CORS)
+  // Robust Direct & Fast Uploader to Cloudflare R2
   const uploadFileWithFallback = async (
     file: File,
     fileType: "audio" | "cover",
     onProgress?: (msg: string) => void
   ) => {
     const sizeMB = (file.size / (1024 * 1024)).toFixed(2) + " MB";
-    const CHUNK_SIZE = 3 * 1024 * 1024; // 3 MB per slice (strictly < 4.5MB Vercel limit)
+    onProgress?.(
+      `Mengunggah ${fileType === "audio" ? "Master Audio" : "Cover Artwork"}: ${file.name} (${sizeMB})...`
+    );
 
-    // Strategy A: If file is larger than 3.5 MB, slice into 3MB chunks
-    // Every chunk is only 3MB, so Vercel NEVER throws FUNCTION_PAYLOAD_TOO_LARGE!
-    if (file.size > 3.5 * 1024 * 1024) {
-      const uploadId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      const totalParts = Math.ceil(file.size / CHUNK_SIZE);
-
-      for (let i = 0; i < totalParts; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(file.size, start + CHUNK_SIZE);
-        const chunkBlob = file.slice(start, end);
-        const percent = Math.round(((i + 1) / totalParts) * 100);
-
-        onProgress?.(
-          `Mengunggah ${fileType === "audio" ? "Master Audio" : "File"} Part ${i + 1}/${totalParts} (${percent}%)...`
-        );
-
-        const formData = new FormData();
-        formData.append("file", chunkBlob, file.name);
-        formData.append("uploadId", uploadId);
-        formData.append("partIndex", String(i));
-        formData.append("fileType", fileType);
-
-        const chunkRes = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        const chunkData = await safeParseJson(chunkRes);
-        if (!chunkRes.ok || !chunkData.ok) {
-          throw new Error(
-            chunkData.error || `Gagal mengunggah part ${i + 1} (${chunkRes.status})`
-          );
-        }
-      }
-
-      onProgress?.("Menggabungkan file dan memvalidasi di Cloudflare R2...");
-      const assembleRes = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "assemble_chunks",
-          uploadId,
-          totalParts,
-          fileName: file.name,
-          contentType: file.type || (fileType === "audio" ? "audio/mpeg" : "image/jpeg"),
-          fileType,
-        }),
-      });
-
-      const assembleData = await safeParseJson(assembleRes);
-      if (!assembleRes.ok || !assembleData.ok || !assembleData.key) {
-        throw new Error(assembleData.error || "Gagal menggabungkan chunk audio di R2.");
-      }
-
-      return {
-        key: assembleData.key,
-        publicUrl: `/api/storage/${assembleData.key}`,
-      };
-    }
-
-    // Strategy B: For small files (<= 3.5 MB, e.g. Cover Art), upload in single request
-    onProgress?.(`Mengunggah ${file.name} (${sizeMB})...`);
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("type", fileType);
+    formData.append("uploadType", fileType);
     formData.append("fileType", fileType);
 
-    const singleRes = await fetch("/api/upload", {
+    const res = await fetch("/api/upload", {
       method: "POST",
       body: formData,
     });
 
-    const singleData = await safeParseJson(singleRes);
-    if (!singleRes.ok || !singleData.ok || !singleData.key) {
-      const errMsg = singleData.error || `Server upload error (HTTP ${singleRes.status}): ${singleRes.statusText}`;
+    const data = await safeParseJson(res);
+    if (!res.ok || (!data.ok && !data.success) || (!data.key && !data.url)) {
+      const errMsg =
+        data?.error || `Upload gagal (HTTP ${res.status}): ${res.statusText}`;
       throw new Error(
         `Upload gagal (${fileType === "audio" ? "Master Audio" : "Cover Artwork"}): ${errMsg}`
       );
     }
 
     return {
-      key: singleData.key,
-      publicUrl: `/api/storage/${singleData.key}`,
+      key: data.key || data.url,
+      publicUrl: data.url || `/api/storage/${data.key}`,
     };
   };
 

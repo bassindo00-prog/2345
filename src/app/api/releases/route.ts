@@ -90,6 +90,119 @@ export async function GET(req: Request) {
   }
 }
 
+export async function POST(req: Request) {
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const {
+      title,
+      artist,
+      featuring,
+      composer,
+      producer,
+      tiktokClip,
+      genre,
+      releaseDate,
+      upc,
+      isrc,
+      coverUrl,
+      audioFile,
+      platforms,
+    } = body;
+
+    if (!title) {
+      return NextResponse.json({ ok: false, error: "Judul lagu wajib diisi" }, { status: 400 });
+    }
+
+    // Find or create artist profile for current user
+    let userArtist = await prisma.artist.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!userArtist) {
+      userArtist = await prisma.artist.create({
+        data: {
+          userId,
+          name: artist || session.user.name || "Artist",
+          stageName: artist || session.user.name || "Artist",
+        },
+      });
+    }
+
+    let parsedReleaseDate = new Date();
+    if (releaseDate && typeof releaseDate === "string") {
+      const parts = releaseDate.split("-");
+      if (parts.length === 3 && parts[2].length === 4) {
+        parsedReleaseDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+      } else {
+        parsedReleaseDate = new Date(releaseDate);
+      }
+    }
+    if (isNaN(parsedReleaseDate.getTime())) {
+      parsedReleaseDate = new Date();
+    }
+
+    const newRelease = await prisma.release.create({
+      data: {
+        artistId: userArtist.id,
+        title,
+        primaryArtist: artist || userArtist.stageName || "Artist",
+        genre: genre || "Pop",
+        language: "Indonesian",
+        coverArtworkUrl: coverUrl || "/logo.png",
+        releaseDate: parsedReleaseDate,
+        status: "PENDING",
+        upc: upc || null,
+        tracks: {
+          create: [
+            {
+              title,
+              audioUrl: audioFile || "",
+              featuredArtist: featuring || null,
+              composer: composer || null,
+              producer: producer || null,
+              isrc: isrc || null,
+              upc: upc || null,
+              tiktokClipStart: tiktokClip || null,
+            },
+          ],
+        },
+      },
+      include: { tracks: true, artist: true },
+    });
+
+    // Notify Telegram if configured
+    try {
+      const { sendTelegramReleaseNotification } = await import("@/lib/telegramBot");
+      await sendTelegramReleaseNotification({
+        title,
+        artist: artist || userArtist.stageName,
+        genre: genre || "Pop",
+        audioUrl: audioFile,
+        releaseDate: parsedReleaseDate.toISOString(),
+        userName: session.user.name || session.user.email,
+        platforms: platforms || "All DSP Platforms",
+      });
+    } catch (teleErr) {
+      console.warn("Telegram notification warning:", teleErr);
+    }
+
+    return NextResponse.json({ ok: true, success: true, release: newRelease });
+  } catch (error: any) {
+    console.error("POST release error:", error);
+    return NextResponse.json(
+      { ok: false, error: error.message || "Failed to create release" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();

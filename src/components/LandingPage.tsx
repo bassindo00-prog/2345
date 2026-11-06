@@ -1060,13 +1060,15 @@ export default function BreakoutApp({
     const LIFE = 1100;
     let reqId: number;
 
+    const heroBackUrl =
+      normalizeImageUrl(data?.heroBackImage) ||
+      "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152354_98c21034-6558-4210-a810-8232cf9d2557.png";
     const back = new window.Image();
     back.crossOrigin = "anonymous";
     back.onload = () => {
       backReady = true;
     };
-    back.src =
-      "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152354_98c21034-6558-4210-a810-8232cf9d2557.png";
+    back.src = heroBackUrl;
 
     function checkFront() {
       if (front && front.complete && front.naturalWidth) {
@@ -1250,7 +1252,7 @@ export default function BreakoutApp({
       hero.removeEventListener("pointerleave", handlePointerLeave);
       hero.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, []);
+  }, [data?.heroBgImage, data?.heroBackImage]);
 
   // --- Coverflow & Observer Logic for New Releases ---
   useEffect(() => {
@@ -1486,25 +1488,28 @@ export default function BreakoutApp({
       >
         <div className="marquees" aria-hidden="true">
           <div className="row ghost">
-            <span>BREAKOUT.ID</span>
-            <span>BREAKOUT.ID</span>
-            <span>BREAKOUT.ID</span>
-            <span>BREAKOUT.ID</span>
+            <span>{data?.heroTitle1 || "BREAKOUT.ID"}</span>
+            <span>{data?.heroTitle1 || "BREAKOUT.ID"}</span>
+            <span>{data?.heroTitle1 || "BREAKOUT.ID"}</span>
+            <span>{data?.heroTitle1 || "BREAKOUT.ID"}</span>
           </div>
           <div className="row solid">
-            <span>MUSIC DISTRIBUTION FOR EVERYONE</span>
-            <span>MUSIC DISTRIBUTION FOR EVERYONE</span>
-            <span>MUSIC DISTRIBUTION FOR EVERYONE</span>
-            <span>MUSIC DISTRIBUTION FOR EVERYONE</span>
+            <span>{data?.heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE"}</span>
+            <span>{data?.heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE"}</span>
+            <span>{data?.heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE"}</span>
+            <span>{data?.heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE"}</span>
           </div>
         </div>
         <div className="figure" id="figure" ref={figureRef}>
           <img
             id="front"
             ref={frontRef}
-            alt="Young woman in a white ribbed top"
+            alt="Hero Figure"
             crossOrigin="anonymous"
-            src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152350_4fd91a2b-94c2-4b86-834f-3b7f9a716d5b.png"
+            src={
+              normalizeImageUrl(data?.heroBgImage) ||
+              "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152350_4fd91a2b-94c2-4b86-834f-3b7f9a716d5b.png"
+            }
           />
           <canvas id="reveal" ref={revealRef} aria-hidden="true" />
         </div>

@@ -75,8 +75,17 @@ export async function POST(req: NextRequest) {
     }
 
     const file = formData.get("file") as File;
-    const uploadType = formData.get("type") as string;
+    let uploadType = (formData.get("type") || formData.get("uploadType") || formData.get("fileType")) as string;
     const artistId = formData.get("artistId") as string;
+    
+    // Auto-detect uploadType if missing
+    if (!uploadType && file) {
+      if (file.type?.startsWith("audio/") || file.name?.match(/\.(mp3|wav|flac|m4a|aac|ogg)$/i)) {
+        uploadType = "audio";
+      } else if (file.type?.startsWith("image/") || file.name?.match(/\.(jpg|jpeg|png|webp)$/i)) {
+        uploadType = "cover";
+      }
+    }
     
     logUploadEvent(`[${requestId}] FORM FIELDS EXTRACTED`, {
       hasFile: !!file,
@@ -318,6 +327,7 @@ export async function POST(req: NextRequest) {
 
     // Return success response
     const responseData = {
+      ok: true,
       success: true,
       url: publicUrl,
       key: key,

@@ -20,11 +20,47 @@ function cleanUrl(url: any): string {
   return url.replace(/https?:\/\/storage\.vpsmurah\.co\.id/g, "/api/storage");
 }
 
+async function ensureTable() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "LandingContent" (
+        "id" TEXT PRIMARY KEY,
+        "platformsJson" TEXT,
+        "releasesJson" TEXT,
+        "featuresJson" TEXT,
+        "faqsJson" TEXT,
+        "testimonialsJson" TEXT,
+        "artistsJson" TEXT,
+        "contactJson" TEXT,
+        "heroSubtitle" TEXT,
+        "heroTitle1" TEXT,
+        "heroTitle2" TEXT,
+        "heroBgImage" TEXT,
+        "heroBackImage" TEXT,
+        "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "LandingContent" ADD COLUMN IF NOT EXISTS "heroBackImage" TEXT;
+    `).catch(() => {});
+  } catch (e) {
+    console.warn("ensureTable error:", e);
+  }
+}
+
 export async function GET() {
   try {
-    const content = await prisma.landingContent.findUnique({
-      where: { id: "default" },
-    });
+    await ensureTable();
+    let content: any = null;
+    try {
+      content = await prisma.landingContent.findUnique({
+        where: { id: "default" },
+      });
+    } catch {
+      const rows: any = await prisma.$queryRawUnsafe(`SELECT * FROM "LandingContent" WHERE "id" = 'default' LIMIT 1`).catch(() => []);
+      if (Array.isArray(rows) && rows.length > 0) content = rows[0];
+    }
 
     if (!content) {
       return NextResponse.json({
@@ -89,7 +125,7 @@ export async function GET() {
         if (Array.isArray(arr) && arr.length > 0) {
           testimonials = arr.map((t: any, idx: number) => ({
             id: t.id || idx + 1,
-            text: t.text || t.quote || "Great service!",
+            text: t.text || t.quote || "Platform musik terbaik.",
             author: t.author || t.name || "Artist",
             avatar: cleanUrl(t.avatar || t.imageUrl || t.photo || DEFAULT_TESTIMONIALS_LIST[idx % DEFAULT_TESTIMONIALS_LIST.length].avatar),
           }));
@@ -138,11 +174,11 @@ export async function GET() {
         testimonials,
         roster,
         contact,
-        // Legacy fields preserved
-        heroSubtitle: content.heroSubtitle,
-        heroTitle1: content.heroTitle1,
-        heroTitle2: content.heroTitle2,
-        heroBgImage: cleanUrl(content.heroBgImage),
+        heroSubtitle: content.heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE",
+        heroTitle1: content.heroTitle1 || "BREAKOUT.ID",
+        heroTitle2: content.heroTitle2 || "ID",
+        heroBgImage: cleanUrl(content.heroBgImage) || "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152350_4fd91a2b-94c2-4b86-834f-3b7f9a716d5b.png",
+        heroBackImage: cleanUrl(content.heroBackImage) || "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152354_98c21034-6558-4210-a810-8232cf9d2557.png",
       },
     });
   } catch (error) {
@@ -156,6 +192,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    await ensureTable();
     const body = await req.json();
 
     const platforms = Array.isArray(body.platforms) ? body.platforms : DEFAULT_PLATFORMS;
@@ -203,36 +240,85 @@ export async function POST(req: Request) {
       placeholder: body.contact?.placeholder || DEFAULT_CONTACT_DATA.placeholder,
     };
 
-    const updated = await prisma.landingContent.upsert({
-      where: { id: "default" },
-      create: {
-        id: "default",
-        platformsJson: JSON.stringify(platforms),
-        releasesJson: JSON.stringify(releases),
-        featuresJson: JSON.stringify(features),
-        faqsJson: JSON.stringify(faqs),
-        testimonialsJson: JSON.stringify(testimonials),
-        artistsJson: JSON.stringify(roster),
-        contactJson: JSON.stringify(contact),
-        heroSubtitle: body.heroSubtitle || "Global Reach By BREAKOUT.ID",
-        heroTitle1: body.heroTitle1 || "BREAKOUT",
-        heroTitle2: body.heroTitle2 || "ID",
-        heroBgImage: cleanUrl(body.heroBgImage || "/6293920186406475229_121.jpg"),
-      },
-      update: {
-        platformsJson: JSON.stringify(platforms),
-        releasesJson: JSON.stringify(releases),
-        featuresJson: JSON.stringify(features),
-        faqsJson: JSON.stringify(faqs),
-        testimonialsJson: JSON.stringify(testimonials),
-        artistsJson: JSON.stringify(roster),
-        contactJson: JSON.stringify(contact),
-        heroSubtitle: body.heroSubtitle,
-        heroTitle1: body.heroTitle1,
-        heroTitle2: body.heroTitle2,
-        heroBgImage: cleanUrl(body.heroBgImage),
-      },
-    });
+    const heroSubtitle = body.heroSubtitle || undefined;
+    const heroTitle1 = body.heroTitle1 || undefined;
+    const heroTitle2 = body.heroTitle2 || undefined;
+    const heroBgImage = body.heroBgImage ? cleanUrl(body.heroBgImage) : undefined;
+    const heroBackImage = body.heroBackImage ? cleanUrl(body.heroBackImage) : undefined;
+
+    let updated: any;
+    try {
+      updated = await prisma.landingContent.upsert({
+        where: { id: "default" },
+        create: {
+          id: "default",
+          platformsJson: JSON.stringify(platforms),
+          releasesJson: JSON.stringify(releases),
+          featuresJson: JSON.stringify(features),
+          faqsJson: JSON.stringify(faqs),
+          testimonialsJson: JSON.stringify(testimonials),
+          artistsJson: JSON.stringify(roster),
+          contactJson: JSON.stringify(contact),
+          heroSubtitle: heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE",
+          heroTitle1: heroTitle1 || "BREAKOUT.ID",
+          heroTitle2: heroTitle2 || "ID",
+          heroBgImage: heroBgImage || "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152350_4fd91a2b-94c2-4b86-834f-3b7f9a716d5b.png",
+          heroBackImage: heroBackImage || "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152354_98c21034-6558-4210-a810-8232cf9d2557.png",
+        },
+        update: {
+          platformsJson: JSON.stringify(platforms),
+          releasesJson: JSON.stringify(releases),
+          featuresJson: JSON.stringify(features),
+          faqsJson: JSON.stringify(faqs),
+          testimonialsJson: JSON.stringify(testimonials),
+          artistsJson: JSON.stringify(roster),
+          contactJson: JSON.stringify(contact),
+          ...(heroSubtitle !== undefined && { heroSubtitle }),
+          ...(heroTitle1 !== undefined && { heroTitle1 }),
+          ...(heroTitle2 !== undefined && { heroTitle2 }),
+          ...(heroBgImage !== undefined && { heroBgImage }),
+          ...(heroBackImage !== undefined && { heroBackImage }),
+        },
+      });
+    } catch {
+      await prisma.$executeRawUnsafe(
+        `
+        INSERT INTO "LandingContent" (
+          "id", "platformsJson", "releasesJson", "featuresJson", "faqsJson",
+          "testimonialsJson", "artistsJson", "contactJson",
+          "heroSubtitle", "heroTitle1", "heroTitle2", "heroBgImage", "heroBackImage", "updatedAt"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+        ON CONFLICT ("id") DO UPDATE SET
+          "platformsJson" = EXCLUDED."platformsJson",
+          "releasesJson" = EXCLUDED."releasesJson",
+          "featuresJson" = EXCLUDED."featuresJson",
+          "faqsJson" = EXCLUDED."faqsJson",
+          "testimonialsJson" = EXCLUDED."testimonialsJson",
+          "artistsJson" = EXCLUDED."artistsJson",
+          "contactJson" = EXCLUDED."contactJson",
+          "heroSubtitle" = COALESCE(EXCLUDED."heroSubtitle", "LandingContent"."heroSubtitle"),
+          "heroTitle1" = COALESCE(EXCLUDED."heroTitle1", "LandingContent"."heroTitle1"),
+          "heroTitle2" = COALESCE(EXCLUDED."heroTitle2", "LandingContent"."heroTitle2"),
+          "heroBgImage" = COALESCE(EXCLUDED."heroBgImage", "LandingContent"."heroBgImage"),
+          "heroBackImage" = COALESCE(EXCLUDED."heroBackImage", "LandingContent"."heroBackImage"),
+          "updatedAt" = NOW()
+        `,
+        "default",
+        JSON.stringify(platforms),
+        JSON.stringify(releases),
+        JSON.stringify(features),
+        JSON.stringify(faqs),
+        JSON.stringify(testimonials),
+        JSON.stringify(roster),
+        JSON.stringify(contact),
+        heroSubtitle || null,
+        heroTitle1 || null,
+        heroTitle2 || null,
+        heroBgImage || null,
+        heroBackImage || null
+      );
+      updated = { ok: true };
+    }
 
     return NextResponse.json({
       ok: true,
