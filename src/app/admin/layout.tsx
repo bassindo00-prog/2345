@@ -1,11 +1,5 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { AdminSidebar } from "@/components/AdminSidebar";
-
-import { PrismaClient } from "@prisma/client";
-import { resolveMediaUrl } from "@/lib/r2";
-
-const prisma = new PrismaClient();
 
 export default async function AdminLayout({
   children,
@@ -19,27 +13,13 @@ export default async function AdminLayout({
   }
 
   // @ts-ignore
-  if (session.user.role !== 'ADMIN') {
+  if (session.user.role !== "ADMIN") {
     redirect("/dashboard");
   }
 
-  const artists = await prisma.artist.findMany({
-    select: { id: true, stageName: true }
-  });
-
-  const brandSetting = await prisma.settings.findUnique({
-    where: { key: 'brand_logo' }
-  });
-  const brandLogo = resolveMediaUrl(brandSetting?.value) || "/logo.png";
-
   return (
-    <div className="min-h-screen fundflow-bg text-gray-900 flex">
-      <AdminSidebar artists={artists} brandLogo={brandLogo} />
-      <div className="flex-1 md:ml-64 p-2 pt-20 md:p-8 md:pt-8 overflow-y-auto min-h-screen w-full relative z-10">
-        <div className="max-w-[1600px] w-full mx-auto">
-          {children}
-        </div>
-      </div>
+    <div className="min-h-screen w-full overflow-x-hidden theme-bg-purple text-white">
+      {children}
     </div>
   );
 }

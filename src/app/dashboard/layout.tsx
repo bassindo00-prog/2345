@@ -1,12 +1,7 @@
-import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { PrismaClient } from "@prisma/client";
-import { resolveMediaUrl } from "@/lib/r2";
 import { isMaintenanceActive } from "@/lib/maintenance";
 import { MaintenancePoller } from "@/components/MaintenancePoller";
-
-const prisma = new PrismaClient();
 
 export default async function DashboardLayout({
   children,
@@ -20,7 +15,7 @@ export default async function DashboardLayout({
   }
 
   // @ts-ignore
-  if (session.user.role === 'ADMIN') {
+  if (session.user.role === "ADMIN") {
     redirect("/admin");
   }
 
@@ -30,33 +25,10 @@ export default async function DashboardLayout({
     redirect("/maintenance");
   }
 
-  const brandSetting = await prisma.settings.findUnique({
-    where: { key: 'brand_logo' }
-  });
-  const brandLogo = resolveMediaUrl(brandSetting?.value) || "/logo.png";
-
-  const rphSetting = await prisma.settings.findUnique({ where: { key: 'enable_catalog_rph' } });
-  const khanaSetting = await prisma.settings.findUnique({ where: { key: 'enable_catalog_khana' } });
-  const haloSetting = await prisma.settings.findUnique({ where: { key: 'enable_catalog_halo' } });
-
-  const enableRph = rphSetting?.value !== "false";
-  const enableKhana = khanaSetting?.value !== "false";
-  const enableHalo = haloSetting?.value !== "false";
-
   return (
-    <div className="min-h-screen fundflow-bg text-gray-900 flex">
+    <div className="min-h-screen w-full overflow-x-hidden theme-bg-purple text-white">
       <MaintenancePoller />
-      <DashboardSidebar 
-        brandLogo={brandLogo} 
-        enableRph={enableRph} 
-        enableKhana={enableKhana} 
-        enableHalo={enableHalo} 
-      />
-      <div className="flex-1 md:ml-64 p-2 pt-20 md:p-8 overflow-y-auto min-h-screen w-full relative z-10">
-        <div className="max-w-[1600px] w-full mx-auto">
-          {children}
-        </div>
-      </div>
+      {children}
     </div>
   );
 }

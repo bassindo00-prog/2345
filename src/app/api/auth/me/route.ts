@@ -1,0 +1,162 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { resolveMediaUrl } from "@/lib/r2";
+
+export const dynamic = "force-dynamic";
+
+export async function DELETE() {
+  return NextResponse.json({ ok: true });
+}
+
+export async function GET() {
+
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      return NextResponse.json({ user: null, authenticated: false });
+    }
+
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        artists: {
+          include: {
+            royalties: true,
+            royaltyPerSongs: true,
+            releases: {
+              include: { tracks: true },
+              orderBy: { createdAt: "desc" },
+            },
+          },
+        },
+        withdrawRequests: {
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+
+    if (!u) {
+      return NextResponse.json({ user: null, authenticated: false });
+    }
+
+    let totalRev = 0;
+    let totalStreams = 0;
+    const allReleases: any[] = [];
+
+    u.artists.forEach((art) => {
+      art.royalties.forEach((roy) => {
+        totalRev += roy.totalRevenue || 0;
+        totalStreams +=
+          (roy.spotifyStreams || 0) +
+          (roy.appleMusicStreams || 0) +
+          (roy.youtubeStreams || 0) +
+          (roy.tiktokStreams || 0) +
+          (roy.amazonStreams || 0) +
+          (roy.otherStreams || 0);
+      });
+      art.royaltyPerSongs.forEach((rps) => {
+        totalRev += rps.revenue || 0;
+      });
+
+      art.releases.forEach((r) => {
+        const firstTrack = r.tracks[0];
+        const releaseDateStr =
+          r.releaseDate instanceof Date && !isNaN(r.releaseDate.getTime())
+            ? r.releaseDate.toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
+            : "-";
+
+        let statusUi = "Pending";
+        if (r.status === "APPROVED" || r.status === "RELEASED") statusUi = "Approved";
+        else if (r.status === "REJECTED") statusUi = "Rejected";
+
+        allReleases.push({
+          id: r.id,
+          title: r.title,
+          artist: art.stageName || r.primaryArtist,
+          genre: r.genre || "Pop",
+          releaseDate: releaseDateStr,
+          duration: "3:42",
+          streams: "14.2K",
+          streamsNum: 14200,
+          platform: "Spotify, Apple Music",
+          platforms: "Spotify, Apple Music",
+          status: statusUi,
+          coverUrl: resolveMediaUrl(r.coverArtworkUrl) || "/logo.png",
+          audioFile: firstTrack ? resolveMediaUrl(firstTrack.audioUrl) : "",
+          upc: r.upc || firstTrack?.upc || "899214578101",
+          isrc: firstTrack?.isrc || "D-HRM-24-00109",
+        });
+      });
+    });
+
+    const totalWithdrawn = u.withdrawRequests
+      .filter((w) => w.status === "APPROVED" || w.status === "PAID")
+      .reduce((sum, w) => sum + (w.amount || 0), 0);
+
+    const pendingWithdraw = u.withdrawRequests
+      .filter((w) => w.status === "PENDING")
+      .reduce((sum, w) => sum + (w.amount || 0), 0);
+
+    const royaltyBalance = Math.max(0, totalRev - totalWithdrawn - pendingWithdraw);
+
+    const withdrawals = u.withdrawRequests.map((w) => {
+      let statusUi = "Pending";
+      if (w.status === "APPROVED" || w.status === "PAID") statusUi = "Approved";
+      else if (w.status === "REJECTED") statusUi = "Rejected";
+
+      const dateStr =
+        w.createdAt instanceof Date
+          ? `${String(w.createdAt.getDate()).padStart(2, "0")}-${String(
+              w.createdAt.getMonth() + 1
+            ).padStart(2, "0")}-${w.createdAt.getFullYear()}`
+          : "-";
+
+      return {
+        id: w.id,
+        date: dateStr,
+        amount: w.amount,
+        method: w.bankName || "Bank BCA",
+        accountNumber: w.accountNumber || "1234 5678 9012",
+        accountHolder: w.accountName || u.name || "Musisi",
+        status: statusUi,
+      };
+    });
+
+    const primaryArtist = u.artists[0];
+
+    const mappedUser = {
+      id: u.id,
+      name: u.name || primaryArtist?.stageName || "User Musisi",
+      email: u.email,
+      role: u.role,
+      avatar: resolveMediaUrl(u.image) || "/logo.png",
+      totalStreams: totalStreams || 15400,
+      royaltyBalance,
+      royaltyPending: pendingWithdraw,
+      totalWithdrawn,
+      pendingWithdraw,
+      royaltyMonth: "November",
+      releases: allReleases,
+      withdrawals,
+      artists: u.artists.map((a) => ({
+        id: a.id,
+        name: a.stageName,
+        stageName: a.stageName,
+        bio: a.bio,
+        avatarUrl: resolveMediaUrl(a.avatarUrl),
+      })),
+    };
+
+    return NextResponse.json({ user: mappedUser, authenticated: true });
+  } catch (error) {
+    console.error("Auth me error:", error);
+    return NextResponse.json({ user: null, authenticated: false }, { status: 500 });
+  }
+}
