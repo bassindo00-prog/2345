@@ -42,12 +42,27 @@ import {
   Activity,
   Palette,
   Calendar,
+  Construction,
+  AlertTriangle,
+  Power,
 } from "lucide-react";
 import VisaWithdrawalCardModal from "@/components/VisaWithdrawalCardModal";
 import VisaMetricCard from "@/components/VisaMetricCard";
 import AdminLandingCMS from "@/components/AdminLandingCMS";
 import Pagination from "@/components/Pagination";
 import { THEMES, type ThemeId } from "@/lib/theme";
+
+const toLocalDatetimeString = (isoString?: string | null) => {
+  if (!isoString) return "";
+  try {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return "";
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+  } catch {
+    return "";
+  }
+};
 
 const Youtube = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -82,6 +97,7 @@ export default function AdminDashboardPage() {
     | "users"
     | "inbox"
     | "royalty-input"
+    | "maintenance"
     | "settings"
   >("overview");
   const [period, setPeriod] = useState<"Daily" | "Weekly" | "Monthly">("Daily");
@@ -172,6 +188,20 @@ export default function AdminDashboardPage() {
   const [instantBankPayout, setInstantBankPayout] = useState(true);
   const [strictCopyrightCheck, setStrictCopyrightCheck] = useState(true);
 
+  // Maintenance State
+  const [maintenanceActive, setMaintenanceActive] = useState(false);
+  const [maintenanceTitle, setMaintenanceTitle] = useState("Mohon Maaf");
+  const [maintenanceMessage, setMaintenanceMessage] = useState(
+    "Maaf, hari ini operasional BREAKOUT.ID sedang libur. Silakan kembali lagi sesuai jadwal yang telah ditentukan."
+  );
+  const [maintenanceStart, setMaintenanceStart] = useState("");
+  const [maintenanceEnd, setMaintenanceEnd] = useState("");
+  const [maintenanceType, setMaintenanceType] = useState("system");
+  const [maintenanceBgType, setMaintenanceBgType] = useState("gradient");
+  const [maintenanceBgVideo, setMaintenanceBgVideo] = useState("");
+  const [maintenanceSaving, setMaintenanceSaving] = useState(false);
+  const [maintenanceBrandLogo, setMaintenanceBrandLogo] = useState("/logo.png");
+
   const [animProgress, setAnimProgress] = useState(0);
   const [barsReady, setBarsReady] = useState(false);
   const [animKey, setAnimKey] = useState(0);
@@ -252,11 +282,95 @@ export default function AdminDashboardPage() {
       const msgRes = await fetch("/api/messages?admin=true");
       const msgData = await msgRes.json();
       if (msgData.messages) setMessages(msgData.messages);
+
+      try {
+        const mRes = await fetch("/api/admin/maintenance");
+        const mData = await mRes.json();
+        if (mData.success && mData.data) {
+          setMaintenanceActive(mData.data.maintenance_active === "true");
+          setMaintenanceTitle(mData.data.maintenance_title || "Mohon Maaf");
+          setMaintenanceMessage(
+            mData.data.maintenance_message ||
+              "Maaf, hari ini operasional BREAKOUT.ID sedang libur. Silakan kembali lagi sesuai jadwal yang telah ditentukan."
+          );
+          setMaintenanceStart(toLocalDatetimeString(mData.data.maintenance_start));
+          setMaintenanceEnd(toLocalDatetimeString(mData.data.maintenance_end));
+          setMaintenanceType(mData.data.maintenance_type || "system");
+          setMaintenanceBgType(mData.data.maintenance_bg_type || "gradient");
+          setMaintenanceBgVideo(mData.data.maintenance_bg_video || "");
+          if (mData.brandLogo) setMaintenanceBrandLogo(mData.brandLogo);
+        }
+      } catch (errM) {
+        console.warn("Failed to fetch maintenance settings:", errM);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveMaintenance = async (overrideActive?: boolean) => {
+    setMaintenanceSaving(true);
+    const newActive = overrideActive !== undefined ? overrideActive : maintenanceActive;
+    try {
+      const res = await fetch("/api/admin/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          active: newActive,
+          title: maintenanceTitle,
+          message: maintenanceMessage,
+          start: maintenanceStart ? new Date(maintenanceStart).toISOString() : "",
+          end: maintenanceEnd ? new Date(maintenanceEnd).toISOString() : "",
+          type: maintenanceType,
+          bg_type: maintenanceBgType,
+          bg_video: maintenanceBgVideo,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (overrideActive !== undefined) {
+          setMaintenanceActive(overrideActive);
+        }
+        showNotice(data.message || "Pengaturan maintenance berhasil disimpan!");
+      } else {
+        showNotice(`❌ Gagal: ${data.error || "Terjadi kesalahan"}`);
+      }
+    } catch (e: any) {
+      showNotice(`❌ Gagal menyimpan: ${e.message}`);
+    } finally {
+      setMaintenanceSaving(false);
+    }
+  };
+
+  const applyMaintenancePreset = (preset: "libur" | "upgrade" | "rutin" | "nasional") => {
+    if (preset === "libur") {
+      setMaintenanceType("operasional");
+      setMaintenanceTitle("Libur Operasional BREAKOUT.ID");
+      setMaintenanceMessage(
+        "Maaf, hari ini operasional BREAKOUT.ID sedang libur. Silakan kembali lagi sesuai jadwal yang telah ditentukan."
+      );
+    } else if (preset === "upgrade") {
+      setMaintenanceType("server");
+      setMaintenanceTitle("Upgrade Server & Infrastruktur");
+      setMaintenanceMessage(
+        "Sistem sedang melakukan peningkatan kapasitas server dan database rilis. Dashboard akan segera kembali online."
+      );
+    } else if (preset === "rutin") {
+      setMaintenanceType("system");
+      setMaintenanceTitle("Pemeliharaan Sistem Rutin");
+      setMaintenanceMessage(
+        "Kami sedang melakukan pemeliharaan sistem berkala demi menjaga keamanan data dan kenyamanan pengalaman distribusi musik Anda."
+      );
+    } else if (preset === "nasional") {
+      setMaintenanceType("nasional");
+      setMaintenanceTitle("Libur Nasional");
+      setMaintenanceMessage(
+        "Memperingati Hari Libur Nasional, layanan rilis dan review ditunda sementara dan akan diproses pada jam kerja berikutnya."
+      );
+    }
+    showNotice(`Preset template diterapkan ke form! Klik 'Simpan' untuk mengaktifkan.`);
   };
 
   useEffect(() => {
@@ -1437,6 +1551,7 @@ export default function AdminDashboardPage() {
                     { id: "withdrawals", label: "Payouts & VISA ACC", icon: Wallet },
                     { id: "inbox", label: "Inbox & Broadcast", icon: Mail },
                     { id: "users", label: "Daftar Artis & Akun", icon: Users },
+                    { id: "maintenance", label: "Mode Maintenance User", icon: Construction, badge: maintenanceActive ? "AKTIF" : undefined },
                     { id: "settings", label: "Pengaturan Sistem", icon: Settings },
                   ].map((item) => {
                     const Icon = item.icon;
@@ -1460,6 +1575,11 @@ export default function AdminDashboardPage() {
                           </span>
                           <span className="truncate">{item.label}</span>
                         </div>
+                        {item.badge && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-400 text-[#312042] text-[10px] font-extrabold uppercase animate-pulse">
+                            {item.badge}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -1503,10 +1623,31 @@ export default function AdminDashboardPage() {
                       ADMIN
                     </span>
                   </span>
+                  {maintenanceActive && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("maintenance")}
+                      className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 hover:bg-amber-300 text-[#312042] text-[10px] font-extrabold uppercase tracking-wider shadow animate-pulse cursor-pointer transition-all"
+                      title="Mode Maintenance Musisi Aktif! Klik untuk kelola"
+                    >
+                      <Construction className="w-3.5 h-3.5" />
+                      <span>Maintenance User Aktif</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Mobile Right Quick Actions */}
                 <div className="flex sm:hidden items-center gap-1.5">
+                  {maintenanceActive && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("maintenance")}
+                      className="p-1.5 rounded-full bg-amber-400 text-[#312042] animate-pulse"
+                      title="Maintenance Aktif"
+                    >
+                      <Construction className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={fetchAdminData}
@@ -1562,16 +1703,64 @@ export default function AdminDashboardPage() {
               </p>
             </div>
 
-            {pendingReleases.length > 0 && (
-              <button
-                onClick={() => setActiveTab("releases")}
-                className="px-5 py-2.5 rounded-full bg-[#fde08d] text-[#312042] text-xs font-bold flex items-center gap-2 shadow-md hover:bg-[#fff2a8] transition-all"
-              >
-                <Clock className="w-4 h-4" />
-                <span>Review Queue ({pendingReleases.length})</span>
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {maintenanceActive && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("maintenance")}
+                  className="px-4 py-2 rounded-full bg-amber-400 text-[#312042] text-xs font-bold flex items-center gap-2 shadow-md hover:bg-amber-300 transition-all cursor-pointer animate-pulse"
+                >
+                  <Construction className="w-4 h-4" />
+                  <span>Maintenance User: AKTIF</span>
+                </button>
+              )}
+              {pendingReleases.length > 0 && (
+                <button
+                  onClick={() => setActiveTab("releases")}
+                  className="px-5 py-2.5 rounded-full bg-[#fde08d] text-[#312042] text-xs font-bold flex items-center gap-2 shadow-md hover:bg-[#fff2a8] transition-all"
+                >
+                  <Clock className="w-4 h-4" />
+                  <span>Review Queue ({pendingReleases.length})</span>
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* ATTENTION BANNER IF MAINTENANCE IS ACTIVE */}
+          {maintenanceActive && activeTab === "overview" && (
+            <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-card-enter">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400 text-[#312042] flex items-center justify-center font-bold shrink-0">
+                  <Construction className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-amber-200 flex items-center gap-2">
+                    <span>Mode Maintenance User Sedang Aktif!</span>
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                  </h4>
+                  <p className="text-xs text-white/80 mt-0.5">
+                    Semua musisi yang membuka <code className="bg-black/20 px-1 py-0.5 rounded">/dashboard</code> diarahkan ke halaman pemeliharaan.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleSaveMaintenance(false)}
+                  className="px-4 py-2 rounded-xl bg-white hover:bg-white/90 text-[#312042] text-xs font-bold transition-all shadow cursor-pointer"
+                >
+                  Matikan Maintenance
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("maintenance")}
+                  className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-[#312042] text-xs font-bold transition-all shadow cursor-pointer"
+                >
+                  Kelola Pengaturan
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* LIVE ANIMATED CHARTS ROW FOR ADMIN */}
           <div
@@ -4077,6 +4266,422 @@ export default function AdminDashboardPage() {
           )}
 
           {/* =========================================================
+              ADMIN VIEW: MODE MAINTENANCE USER (Maintenance Screen Controls)
+             ========================================================= */}
+          {activeTab === "maintenance" && (
+            <div className="space-y-6 animate-card-enter">
+              {/* Header Card */}
+              <div className={`${ROYALTY_CARD} flex flex-wrap items-center justify-between gap-4`}>
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold ${
+                      maintenanceActive
+                        ? "bg-amber-400 text-[#312042] animate-pulse shadow-lg"
+                        : "bg-white/15 text-[#c8f560]"
+                    }`}
+                  >
+                    <Construction className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
+                      <span>Mode Maintenance User</span>
+                      <span
+                        className={`text-[10px] uppercase font-extrabold px-2.5 py-0.5 rounded-full ${
+                          maintenanceActive
+                            ? "bg-amber-400 text-[#312042] ring-2 ring-amber-300/50"
+                            : "bg-[#c8f560]/20 text-[#c8f560] border border-[#c8f560]/30"
+                        }`}
+                      >
+                        {maintenanceActive ? "SEDANG AKTIF" : "NONAKTIF (NORMAL)"}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-white/70 mt-0.5">
+                      Alihkan pengunjung & musisi di <code className="bg-black/20 px-1 py-0.5 rounded text-white">/dashboard</code> dan <code className="bg-black/20 px-1 py-0.5 rounded text-white">/register</code> ke halaman pemeliharaan saat libur atau update sistem.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <a
+                    href="/maintenance"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-medium text-xs transition-colors flex items-center gap-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-[#c8f560]" />
+                    <span>Lihat Halaman /maintenance</span>
+                  </a>
+                  <button
+                    type="button"
+                    disabled={maintenanceSaving}
+                    onClick={() => handleSaveMaintenance(!maintenanceActive)}
+                    className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer ${
+                      maintenanceActive
+                        ? "bg-red-500 hover:bg-red-600 text-white"
+                        : "bg-[#c8f560] hover:bg-[#b8e450] text-[#312042]"
+                    }`}
+                  >
+                    <Power className="w-4 h-4" />
+                    <span>{maintenanceActive ? "Matikan Maintenance" : "Aktifkan Maintenance"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Master Status & Presets */}
+              <div className={`${ROYALTY_CARD} space-y-4`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                        maintenanceActive ? "bg-amber-400 text-[#312042]" : "bg-emerald-500/20 text-emerald-300"
+                      }`}
+                    >
+                      {maintenanceActive ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-white">
+                        {maintenanceActive
+                          ? "Status: Musisi DIKUNCI / DIALIHKAN ke Halaman Pemeliharaan"
+                          : "Status: Musisi DAPAT MENGAKSES Dashboard Secara Normal"}
+                      </h4>
+                      <p className="text-xs text-white/70">
+                        {maintenanceActive
+                          ? "Semua rute musisi (/dashboard, /register) dicegat otomatis oleh middleware. Admin tetap bisa login & kelola sistem."
+                          : "Tidak ada pengalihan yang berjalan. Musisi dapat login, rilis lagu, dan melakukan payout."}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={maintenanceSaving}
+                    onClick={() => handleSaveMaintenance(!maintenanceActive)}
+                    className={`shrink-0 px-6 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer shadow ${
+                      maintenanceActive
+                        ? "bg-red-500 hover:bg-red-600 text-white"
+                        : "bg-[#c8f560] hover:bg-[#b8e450] text-[#312042]"
+                    }`}
+                  >
+                    {maintenanceSaving
+                      ? "Menyimpan..."
+                      : maintenanceActive
+                      ? "Matikan Maintenance Sekarang"
+                      : "Aktifkan Maintenance Sekarang"}
+                  </button>
+                </div>
+
+                {/* Quick Presets */}
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-white/70 block mb-2">
+                    Template & Preset Cepat (Klik untuk isi formulir otomatis):
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { id: "libur", label: "Libur Operasional", desc: "Breakout libur operasional", icon: "☕" },
+                      { id: "upgrade", label: "Upgrade Server", desc: "Peningkatan server & DB", icon: "⚡" },
+                      { id: "rutin", label: "Maintenance Rutin", desc: "Pemeliharaan terjadwal", icon: "🔧" },
+                      { id: "nasional", label: "Libur Nasional", desc: "Hari libur resmi nasional", icon: "🇮🇩" },
+                    ].map((pst) => (
+                      <button
+                        key={pst.id}
+                        type="button"
+                        onClick={() => applyMaintenancePreset(pst.id as any)}
+                        className="p-3 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-left transition-all cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">{pst.icon}</span>
+                          <span className="font-bold text-xs text-white group-hover:text-[#c8f560] transition-colors">{pst.label}</span>
+                        </div>
+                        <p className="text-[10px] text-white/60 mt-1 truncate">{pst.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Form & Live Preview Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Form Inputs (7 cols) */}
+                <div className={`lg:col-span-7 ${ROYALTY_CARD} space-y-4`}>
+                  <h3 className="font-bold text-sm text-white flex items-center gap-2 pb-3 border-b border-white/15">
+                    <Sliders className="w-4 h-4 text-[#c8f560]" />
+                    <span>Konfigurasi Pesan & Jadwal Pemeliharaan</span>
+                  </h3>
+
+                  {/* Switch Active */}
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/10">
+                    <div>
+                      <p className="text-xs font-bold text-white">Status Aktif Mode Maintenance</p>
+                      <p className="text-[11px] text-white/65">Centang untuk aktifkan pemblokiran dashboard musisi</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={maintenanceActive}
+                        onChange={(e) => setMaintenanceActive(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#c8f560]"></div>
+                    </label>
+                  </div>
+
+                  {/* Jenis Maintenance & Background */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-white/70">
+                        Jenis Maintenance
+                      </label>
+                      <select
+                        value={maintenanceType}
+                        onChange={(e) => setMaintenanceType(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#312042] border border-white/15 text-white text-xs font-medium focus:border-[#c8f560] outline-none"
+                      >
+                        <option value="system">Maintenance Sistem</option>
+                        <option value="operasional">Libur Operasional</option>
+                        <option value="nasional">Libur Nasional</option>
+                        <option value="server">Upgrade Server</option>
+                        <option value="kustom">Pesan Kustom</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-white/70">
+                        Tampilan Background
+                      </label>
+                      <select
+                        value={maintenanceBgType}
+                        onChange={(e) => setMaintenanceBgType(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#312042] border border-white/15 text-white text-xs font-medium focus:border-[#c8f560] outline-none"
+                      >
+                        <option value="gradient">Gradient Neon (Standar)</option>
+                        <option value="solid">Gelap Polos (Pure Dark)</option>
+                        <option value="video">Video Background</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {maintenanceBgType === "video" && (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-white/70">
+                        URL Video Background (MP4 / YouTube)
+                      </label>
+                      <input
+                        type="text"
+                        value={maintenanceBgVideo}
+                        onChange={(e) => setMaintenanceBgVideo(e.target.value)}
+                        placeholder="https://example.com/video.mp4"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#312042] border border-white/15 text-white text-xs font-medium focus:border-[#c8f560] outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Judul Maintenance */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-white/70">
+                      Judul Header Pemeliharaan
+                    </label>
+                    <input
+                      type="text"
+                      value={maintenanceTitle}
+                      onChange={(e) => setMaintenanceTitle(e.target.value)}
+                      placeholder="Contoh: Mohon Maaf, Layanan Sedang Libur"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#312042] border border-white/15 text-white text-xs font-medium focus:border-[#c8f560] outline-none"
+                    />
+                  </div>
+
+                  {/* Pesan Maintenance */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-white/70">
+                        Pesan Lengkap untuk Musisi
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMaintenanceMessage(
+                            "Maaf, hari ini operasional BREAKOUT.ID sedang libur. Silakan kembali lagi sesuai jadwal yang telah ditentukan."
+                          )
+                        }
+                        className="text-[10px] text-[#c8f560] hover:underline"
+                      >
+                        Reset Pesan Standar
+                      </button>
+                    </div>
+                    <textarea
+                      rows={4}
+                      value={maintenanceMessage}
+                      onChange={(e) => setMaintenanceMessage(e.target.value)}
+                      placeholder="Tuliskan keterangan detail untuk musisi yang membuka web..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#312042] border border-white/15 text-white text-xs font-medium focus:border-[#c8f560] outline-none resize-none"
+                    />
+                  </div>
+
+                  {/* Jadwal Mulai & Selesai */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-white/70 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> Tanggal & Jam Mulai
+                        </label>
+                        {maintenanceStart && (
+                          <button
+                            type="button"
+                            onClick={() => setMaintenanceStart("")}
+                            className="text-[10px] text-white/60 hover:text-white"
+                          >
+                            Hapus
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="datetime-local"
+                        value={maintenanceStart}
+                        onChange={(e) => setMaintenanceStart(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-[#312042] border border-white/15 text-white text-xs outline-none focus:border-[#c8f560]"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-white/70 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" /> Tanggal & Jam Selesai
+                        </label>
+                        {maintenanceEnd && (
+                          <button
+                            type="button"
+                            onClick={() => setMaintenanceEnd("")}
+                            className="text-[10px] text-white/60 hover:text-white"
+                          >
+                            Hapus
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="datetime-local"
+                        value={maintenanceEnd}
+                        onChange={(e) => setMaintenanceEnd(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-[#312042] border border-white/15 text-white text-xs outline-none focus:border-[#c8f560]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="pt-3">
+                    <button
+                      type="button"
+                      disabled={maintenanceSaving}
+                      onClick={() => handleSaveMaintenance()}
+                      className="w-full py-3 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                    >
+                      {maintenanceSaving ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Menyimpan ke Server...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Simpan Pengaturan Maintenance</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live Preview (5 cols) */}
+                <div className={`lg:col-span-5 ${ROYALTY_CARD} flex flex-col justify-between space-y-4`}>
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-white/15 mb-4">
+                      <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-[#c8f560]" />
+                        <span>Pratinjau Layar Musisi (/maintenance)</span>
+                      </h3>
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-white/10 text-white/80">
+                        Live Mockup
+                      </span>
+                    </div>
+
+                    {/* Mock Screen Frame */}
+                    <div className="rounded-2xl bg-gradient-to-br from-[#1e142e] via-[#2d1b46] to-[#120a20] p-6 border border-white/15 shadow-2xl relative overflow-hidden text-center">
+                      <div className="absolute top-2 right-2 flex items-center gap-1 opacity-60">
+                        <span className="w-2 h-2 rounded-full bg-red-400" />
+                        <span className="w-2 h-2 rounded-full bg-yellow-400" />
+                        <span className="w-2 h-2 rounded-full bg-green-400" />
+                      </div>
+
+                      {/* Mock Logo */}
+                      <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center p-2 shadow-inner">
+                        <img
+                          src={maintenanceBrandLogo || "/logo.png"}
+                          alt="Logo"
+                          className="max-h-full max-w-full object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
+                        />
+                      </div>
+
+                      {/* Mock Tag */}
+                      <span className="inline-block px-3 py-1 rounded-full bg-[#fde08d]/20 border border-[#fde08d]/40 text-[#fde08d] text-[10px] font-extrabold uppercase tracking-wider mb-2">
+                        {maintenanceType === "operasional"
+                          ? "Libur Operasional"
+                          : maintenanceType === "server"
+                          ? "Upgrade Server"
+                          : maintenanceType === "nasional"
+                          ? "Libur Nasional"
+                          : "Pemeliharaan Sistem"}
+                      </span>
+
+                      {/* Mock Title */}
+                      <h4 className="text-lg font-bold text-white mb-2 tracking-tight">
+                        {maintenanceTitle || "Mohon Maaf"}
+                      </h4>
+
+                      {/* Mock Message */}
+                      <p className="text-xs text-white/80 line-clamp-4 leading-relaxed mb-4 px-2">
+                        {maintenanceMessage || "Maaf, hari ini operasional BREAKOUT.ID sedang libur."}
+                      </p>
+
+                      {/* Mock Schedule Pill */}
+                      {(maintenanceStart || maintenanceEnd) && (
+                        <div className="p-2.5 rounded-xl bg-white/10 border border-white/10 text-[10px] text-white/90 space-y-1 mb-4 text-left">
+                          {maintenanceStart && (
+                            <p>
+                              <strong>Mulai:</strong> {new Date(maintenanceStart).toLocaleString("id-ID")}
+                            </p>
+                          )}
+                          {maintenanceEnd && (
+                            <p>
+                              <strong>Estimasi Selesai:</strong> {new Date(maintenanceEnd).toLocaleString("id-ID")}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="pt-2">
+                        <div className="inline-block px-4 py-2 rounded-xl bg-white/15 text-white/70 text-[11px] font-medium border border-white/10">
+                          Hubungi Admin / Support
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-white/10">
+                    <a
+                      href="/maintenance"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-[#c8f560]" />
+                      <span>Buka Layar /maintenance Asli (Tab Baru)</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================
               ADMIN VIEW 5: PENGATURAN SISTEM ADMIN (Gear Icon)
              ========================================================= */}
           {activeTab === "settings" && (
@@ -4142,6 +4747,59 @@ export default function AdminDashboardPage() {
                       </button>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Kontrol Cepat Mode Maintenance User */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white/10 border border-white/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold shrink-0 ${
+                      maintenanceActive ? "bg-amber-400 text-[#312042] animate-pulse" : "bg-white/15 text-[#c8f560]"
+                    }`}
+                  >
+                    <Construction className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-sm text-white flex items-center gap-2">
+                      <span>Mode Maintenance User (Alihkan Musisi)</span>
+                      <span
+                        className={`text-[9px] uppercase font-extrabold px-2 py-0.5 rounded-full ${
+                          maintenanceActive
+                            ? "bg-amber-400 text-[#312042]"
+                            : "bg-[#c8f560]/20 text-[#c8f560]"
+                        }`}
+                      >
+                        {maintenanceActive ? "AKTIF" : "NONAKTIF"}
+                      </span>
+                    </h4>
+                    <p className="text-white/70 text-xs mt-0.5">
+                      {maintenanceActive
+                        ? "Musisi dialihkan ke /maintenance. Akses dashboard ditutup sementara."
+                        : "Sistem normal. Musisi dapat mengakses dashboard tanpa batasan."}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSaveMaintenance(!maintenanceActive)}
+                    className={`px-4 py-2 rounded-xl font-bold text-xs transition-all shadow cursor-pointer ${
+                      maintenanceActive
+                        ? "bg-red-500 hover:bg-red-600 text-white"
+                        : "bg-[#312042] text-[#c8f560] border border-[#c8f560]/40 hover:bg-[#432d5b]"
+                    }`}
+                  >
+                    {maintenanceActive ? "Matikan Mode Maintenance" : "Aktifkan Mode Maintenance"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("maintenance")}
+                    className="px-4 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-xs transition-all shadow cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Konfigurasi Lengkap</span>
+                  </button>
                 </div>
               </div>
 
