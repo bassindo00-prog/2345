@@ -437,3 +437,16 @@ model RoyaltyPerSong {
   updatedAt   DateTime @updatedAt
 }
 
+model Catalog {
+  id          String   @id @default(cuid())
+  songId      String   @unique
+  title       String
+  artist      String
+  publisher   String
+  status      String   @default("Aktif") // "Aktif" | "Nonaktif" | "Review"
+  youtubeLink String?
+  driveLink   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+

@@ -198,6 +198,12 @@ export default function UserDashboardPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [catalogs, setCatalogs] = useState<CatalogItem[]>([]);
   const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogPublisherFilter, setCatalogPublisherFilter] = useState("ALL");
+  const [catalogSource, setCatalogSource] = useState<"master" | "damarlangit">("master");
+  const [damarSongs, setDamarSongs] = useState<any[]>([]);
+  const [damarTotal, setDamarTotal] = useState(0);
+  const [damarLoading, setDamarLoading] = useState(false);
+  const [damarPage, setDamarPage] = useState(1);
   const [copiedSongId, setCopiedSongId] = useState("");
   const [pageReleases, setPageReleases] = useState(1);
   const [pageCatalog, setPageCatalog] = useState(1);
@@ -613,10 +619,15 @@ export default function UserDashboardPage() {
       }
 
       // Fetch Music Catalog
-      const catRes = await fetch("/api/catalog");
-      const catData = await catRes.json();
-      if (catData.items) {
-        setCatalogs(catData.items);
+      try {
+        const catRes = await fetch("/api/catalog");
+        const catData = await catRes.json();
+        const catList = catData.items || catData.catalogs || [];
+        if (Array.isArray(catList)) {
+          setCatalogs(catList);
+        }
+      } catch (errCat) {
+        console.warn("Failed to fetch catalog:", errCat);
       }
 
       // Fetch User Artists (Profil Artis Terdaftar)
@@ -634,6 +645,36 @@ export default function UserDashboardPage() {
       setLoading(false);
     }
   };
+
+  const fetchDamarCatalog = async (page = 1, search = "") => {
+    setDamarLoading(true);
+    try {
+      const q = new URLSearchParams({
+        page: page.toString(),
+        per_page: "12",
+        search: search.trim(),
+      });
+      const res = await fetch(`/api/damarlangit?${q.toString()}`);
+      const json = await res.json();
+      if (json && json.data) {
+        setDamarSongs(json.data);
+        if (json.meta) setDamarTotal(json.meta.total || 0);
+      }
+    } catch (e) {
+      console.error("Damarlangit fetch error:", e);
+    } finally {
+      setDamarLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "catalog" && catalogSource === "damarlangit") {
+      const t = setTimeout(() => {
+        fetchDamarCatalog(damarPage, catalogSearch);
+      }, 350);
+      return () => clearTimeout(t);
+    }
+  }, [activeTab, catalogSource, damarPage, catalogSearch]);
 
   const handleCreateArtist = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -4117,7 +4158,7 @@ export default function UserDashboardPage() {
           )}
 
           {/* =========================================================
-              VIEW: OFFICIAL MUSIC CATALOG & MASTER LINKS
+              VIEW: OFFICIAL MUSIC CATALOG & PUBLISHER MASTER LINKS
              ========================================================= */}
           {activeTab === "catalog" && (
             <div className="space-y-6 animate-card-enter">
@@ -4135,296 +4176,513 @@ export default function UserDashboardPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="px-3.5 py-1.5 rounded-full bg-white/15 border border-white/20 text-xs font-semibold text-white">
-                    Total: <strong className="text-[#c8f560]">{catalogs.length} Lagu Terdaftar</strong>
-                  </span>
+                {/* Source Switcher Pills */}
+                <div className="flex items-center gap-2 bg-black/25 p-1 rounded-2xl border border-white/15">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCatalogSource("master");
+                      setPageCatalog(1);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      catalogSource === "master"
+                        ? "bg-[#c8f560] text-[#312042] shadow"
+                        : "text-white/80 hover:text-white"
+                    }`}
+                  >
+                    Katalog Master & Drive ({catalogs.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCatalogSource("damarlangit");
+                      setDamarPage(1);
+                      if (damarSongs.length === 0) fetchDamarCatalog(1, catalogSearch);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      catalogSource === "damarlangit"
+                        ? "bg-[#c8f560] text-[#312042] shadow"
+                        : "text-white/80 hover:text-white"
+                    }`}
+                  >
+                    <span>Publisher Damarlangit</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px]">
+                      {damarTotal > 0 ? `${damarTotal.toLocaleString("id-ID")}` : "8.400+"}
+                    </span>
+                  </button>
                 </div>
               </div>
 
               {/* Search & Filter Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md">
-                <div className="relative flex-1 min-w-[240px]">
-                  <Search className="w-4 h-4 text-white/50 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={catalogSearch}
-                    onChange={(e) => {
-                      setCatalogSearch(e.target.value);
-                      setPageCatalog(1);
-                    }}
-                    placeholder="Cari berdasarkan Song ID, Judul Lagu, Vokal / Artis, atau Publisher..."
-                    className="w-full pl-10 pr-4 py-2 rounded-xl bg-white/15 border border-white/25 text-white text-xs placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
-                  />
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md">
+                  <div className="relative flex-1 min-w-[240px]">
+                    <Search className="w-4 h-4 text-white/50 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={catalogSearch}
+                      onChange={(e) => {
+                        setCatalogSearch(e.target.value);
+                        setPageCatalog(1);
+                        setDamarPage(1);
+                      }}
+                      placeholder={
+                        catalogSource === "master"
+                          ? "Cari berdasarkan Song ID, Judul Lagu, Vokal / Artis, atau Publisher..."
+                          : "Cari lagu Damarlangit (Judul lagu, artis, pencipta/komposer)..."
+                      }
+                      className="w-full pl-10 pr-4 py-2 rounded-xl bg-white/15 border border-white/25 text-white text-xs placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                    />
+                  </div>
+                  {catalogSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCatalogSearch("");
+                        setPageCatalog(1);
+                        setDamarPage(1);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20"
+                    >
+                      Reset Filter
+                    </button>
+                  )}
                 </div>
-                {catalogSearch && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCatalogSearch("");
-                      setPageCatalog(1);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20"
-                  >
-                    Reset Filter
-                  </button>
+
+                {/* Publisher Quick Filters (For Master Catalog) */}
+                {catalogSource === "master" && (
+                  <div className="flex flex-wrap items-center gap-2 px-1">
+                    <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider mr-1">
+                      Publisher:
+                    </span>
+                    {["ALL", ...Array.from(new Set(catalogs.map((c) => c.publisher))).filter(Boolean)].map((pub) => {
+                      const isSel = catalogPublisherFilter === pub;
+                      return (
+                        <button
+                          key={pub}
+                          type="button"
+                          onClick={() => {
+                            setCatalogPublisherFilter(pub);
+                            setPageCatalog(1);
+                          }}
+                          className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                            isSel
+                              ? "bg-[#c8f560] text-[#312042] shadow scale-102"
+                              : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white border border-white/10"
+                          }`}
+                        >
+                          {pub === "ALL" ? "Semua Publisher" : pub}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
 
-              {/* Catalog Container */}
-              <div className={`${ROYALTY_CARD} p-3 sm:p-5 border border-white/20`}>
-                {(() => {
-                  const filteredCatalogs = catalogs.filter(
-                    (item) =>
-                      !catalogSearch ||
-                      item.songId?.toLowerCase().includes(catalogSearch.toLowerCase()) ||
-                      item.title?.toLowerCase().includes(catalogSearch.toLowerCase()) ||
-                      item.artist?.toLowerCase().includes(catalogSearch.toLowerCase()) ||
-                      item.publisher?.toLowerCase().includes(catalogSearch.toLowerCase())
-                  );
-                  const paginatedCatalogs = filteredCatalogs.slice((pageCatalog - 1) * 5, pageCatalog * 5);
+              {/* VIEW 1: MASTER CATALOG WITH YT & DRIVE LINKS */}
+              {catalogSource === "master" && (
+                <div className={`${ROYALTY_CARD} p-3 sm:p-5 border border-white/20`}>
+                  {(() => {
+                    const filteredCatalogs = catalogs.filter((item) => {
+                      const matchSearch =
+                        !catalogSearch ||
+                        item.songId?.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+                        item.title?.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+                        item.artist?.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+                        item.publisher?.toLowerCase().includes(catalogSearch.toLowerCase());
+                      const matchPub =
+                        catalogPublisherFilter === "ALL" ||
+                        item.publisher?.toLowerCase() === catalogPublisherFilter.toLowerCase();
+                      return matchSearch && matchPub;
+                    });
+                    const paginatedCatalogs = filteredCatalogs.slice((pageCatalog - 1) * 6, pageCatalog * 6);
 
-                  return (
-                    <>
-                      {/* Mobile Catalog Card List (< md) */}
-                      <div className="md:hidden space-y-3">
-                        {catalogs.length === 0 ? (
-                          <div className="py-10 text-center text-white/60 text-xs">
-                            <ListMusic className="w-8 h-8 mx-auto text-white/20 mb-2" />
-                            <p className="font-semibold text-white/80">Katalog Musik Masih Kosong</p>
-                            <p className="text-white/50 text-[11px] mt-1">Lagu resmi yang diupload oleh label/admin akan tercantum di sini.</p>
-                          </div>
-                        ) : filteredCatalogs.length === 0 ? (
-                          <div className="py-8 text-center text-white/60 text-xs">
-                            Tidak ada lagu di katalog yang sesuai dengan pencarian Anda.
-                          </div>
+                    return (
+                      <>
+                        {/* Mobile Catalog Card List (< md) */}
+                        <div className="md:hidden space-y-3">
+                          {catalogs.length === 0 ? (
+                            <div className="py-10 text-center text-white/60 text-xs">
+                              <ListMusic className="w-8 h-8 mx-auto text-white/20 mb-2" />
+                              <p className="font-semibold text-white/80">Katalog Musik Masih Kosong</p>
+                              <p className="text-white/50 text-[11px] mt-1">Lagu resmi yang diupload oleh label/admin akan tercantum di sini.</p>
+                            </div>
+                          ) : filteredCatalogs.length === 0 ? (
+                            <div className="py-8 text-center text-white/60 text-xs">
+                              Tidak ada lagu di katalog yang sesuai dengan pencarian Anda.
+                            </div>
+                          ) : (
+                            paginatedCatalogs.map((item) => (
+                              <div
+                                key={item.id}
+                                className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5 text-xs"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/25 border border-white/15">
+                                    <span className="text-[#c8f560] font-mono font-bold text-[11px]">{item.songId}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopySongId(item.songId)}
+                                      title="Salin Song ID"
+                                      className="text-white/60 hover:text-white"
+                                    >
+                                      {copiedSongId === item.songId ? (
+                                        <Check className="w-3 h-3 text-[#c8f560]" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                  </div>
+
+                                  {item.status.toLowerCase() === "aktif" ? (
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#c8f560] text-[#312042] font-bold text-[10px]">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-[#312042] animate-pulse" />
+                                      Aktif
+                                    </span>
+                                  ) : item.status.toLowerCase() === "review" ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#fde08d] text-[#312042] font-bold text-[10px]">
+                                      Review
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 text-white font-medium text-[10px]">
+                                      Nonaktif
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-lg bg-white/15 flex items-center justify-center text-[#c8f560] shrink-0">
+                                      <Music className="w-3 h-3" />
+                                    </div>
+                                    <h4 className="font-bold text-white text-xs truncate">{item.title}</h4>
+                                  </div>
+                                  <p className="text-white/80 text-[11px] truncate mt-1">
+                                    Vokal / Artis: <strong className="text-white">{item.artist}</strong>
+                                  </p>
+                                  <p className="text-white/60 text-[10px] truncate mt-0.5">
+                                    Publisher: <span className="text-white/85">{item.publisher}</span>
+                                  </p>
+                                </div>
+
+                                {(item.youtubeLink || item.driveLink) && (
+                                  <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                                    {item.youtubeLink && (
+                                      <a
+                                        href={item.youtubeLink}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex-1 py-1 px-2 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                                      >
+                                        <Youtube className="w-3 h-3" />
+                                        <span>YouTube</span>
+                                      </a>
+                                    )}
+                                    {item.driveLink && (
+                                      <a
+                                        href={item.driveLink}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="flex-1 py-1 px-2 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                                      >
+                                        <HardDrive className="w-3 h-3" />
+                                        <span>Drive</span>
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Desktop Catalog Table (md:block) */}
+                        <div className="hidden md:block overflow-x-auto">
+                          <table className="w-full text-left text-xs text-white">
+                            <thead className="bg-[#312042]/60 border-b border-white/15 text-[11px] uppercase tracking-wider text-white/75">
+                              <tr>
+                                <th className="py-3.5 px-4 font-semibold">SONG ID</th>
+                                <th className="py-3.5 px-4 font-semibold">JUDUL LAGU</th>
+                                <th className="py-3.5 px-4 font-semibold">VOKAL / ARTIS</th>
+                                <th className="py-3.5 px-4 font-semibold">PUBLISHER</th>
+                                <th className="py-3.5 px-4 font-semibold">STATUS / AKTIF</th>
+                                <th className="py-3.5 px-4 font-semibold text-center">LINK (YT & DRIVE)</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/10">
+                              {catalogs.length === 0 ? (
+                                <tr>
+                                  <td colSpan={6} className="py-14 text-center text-white/60 text-xs">
+                                    <ListMusic className="w-10 h-10 mx-auto text-white/20 mb-2" />
+                                    <p className="font-semibold text-sm text-white/80">Katalog Musik Masih Kosong</p>
+                                    <p className="text-white/50 text-[11px] mt-1">Lagu resmi yang diupload oleh label/admin akan tercantum di sini.</p>
+                                  </td>
+                                </tr>
+                              ) : filteredCatalogs.length === 0 ? (
+                                <tr>
+                                  <td colSpan={6} className="py-12 text-center text-white/60 text-xs">
+                                    Tidak ada lagu di katalog yang sesuai dengan pencarian Anda.
+                                  </td>
+                                </tr>
+                              ) : (
+                                paginatedCatalogs.map((item) => (
+                                  <tr key={item.id} className="hover:bg-white/5 transition-colors">
+                                    {/* SONG ID */}
+                                    <td className="py-3.5 px-4 font-mono font-bold whitespace-nowrap">
+                                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/25 border border-white/15">
+                                        <span className="text-[#c8f560]">{item.songId}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopySongId(item.songId)}
+                                          title="Salin Song ID"
+                                          className="text-white/60 hover:text-white"
+                                        >
+                                          {copiedSongId === item.songId ? (
+                                            <Check className="w-3 h-3 text-[#c8f560]" />
+                                          ) : (
+                                            <Copy className="w-3 h-3" />
+                                          )}
+                                        </button>
+                                      </div>
+                                    </td>
+
+                                    {/* JUDUL LAGU */}
+                                    <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center text-[#c8f560] shrink-0">
+                                          <Music className="w-3.5 h-3.5" />
+                                        </div>
+                                        <span>{item.title}</span>
+                                      </div>
+                                    </td>
+
+                                    {/* VOKAL / ARTIS */}
+                                    <td className="py-3.5 px-4 text-white/90 whitespace-nowrap">
+                                      {item.artist}
+                                    </td>
+
+                                    {/* PUBLISHER */}
+                                    <td className="py-3.5 px-4 text-white/80 whitespace-nowrap">
+                                      <span className="px-2.5 py-1 rounded-md bg-white/10 border border-white/10 font-medium">
+                                        {item.publisher}
+                                      </span>
+                                    </td>
+
+                                    {/* STATUS / AKTIF */}
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      {item.status.toLowerCase() === "aktif" ? (
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#c8f560] text-[#312042] font-bold text-[10px]">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-[#312042] animate-pulse" />
+                                          Aktif
+                                        </span>
+                                      ) : item.status.toLowerCase() === "review" ? (
+                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#fde08d] text-[#312042] font-bold text-[10px]">
+                                          Review
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/20 text-white font-medium text-[10px]">
+                                          Nonaktif
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* LINK YT / DRIVE */}
+                                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                      <div className="flex items-center justify-center gap-2">
+                                        {item.youtubeLink ? (
+                                          <a
+                                            href={item.youtubeLink}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            title="Buka Link YouTube"
+                                            className="px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
+                                          >
+                                            <Youtube className="w-3.5 h-3.5" />
+                                            <span>YouTube</span>
+                                          </a>
+                                        ) : (
+                                          <span className="text-[10px] text-white/40">-</span>
+                                        )}
+
+                                        {item.driveLink ? (
+                                          <a
+                                            href={item.driveLink}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            title="Buka Master di Google Drive"
+                                            className="px-2.5 py-1 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
+                                          >
+                                            <HardDrive className="w-3.5 h-3.5" />
+                                            <span>Drive</span>
+                                          </a>
+                                        ) : (
+                                          <span className="text-[10px] text-white/40">-</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Pagination */}
+                        <Pagination
+                          currentPage={pageCatalog}
+                          totalItems={filteredCatalogs.length}
+                          pageSize={6}
+                          onPageChange={setPageCatalog}
+                        />
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* VIEW 2: DAMARLANGIT LIVE CATALOG (8,421 Songs) */}
+              {catalogSource === "damarlangit" && (
+                <div className={`${ROYALTY_CARD} p-3 sm:p-5 border border-white/20 space-y-4`}>
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/15">
+                    <div>
+                      <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#c8f560] animate-pulse" />
+                        <span>Katalog Publik PT. Damarlangit Khatulistiwa</span>
+                      </h3>
+                      <p className="text-white/70 text-xs mt-0.5">
+                        Terkoneksi langsung ke upstream publisher dengan lebih dari {damarTotal > 0 ? damarTotal.toLocaleString("id-ID") : "8.400"} lagu terdaftar
+                      </p>
+                    </div>
+                    {damarLoading && (
+                      <span className="text-xs text-[#c8f560] font-bold flex items-center gap-1.5 animate-pulse">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Sinkronisasi Upstream...</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Desktop Table for Damarlangit */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-white">
+                      <thead className="bg-[#312042]/60 border-b border-white/15 text-[11px] uppercase tracking-wider text-white/75">
+                        <tr>
+                          <th className="py-3 px-4 font-semibold">KODE</th>
+                          <th className="py-3 px-4 font-semibold">JUDUL LAGU</th>
+                          <th className="py-3 px-4 font-semibold">PERFORMER / ARTIS</th>
+                          <th className="py-3 px-4 font-semibold">KOMPOSER / PENCIPTA</th>
+                          <th className="py-3 px-4 font-semibold">HAK CIPTA / KONTROL</th>
+                          <th className="py-3 px-4 font-semibold text-center">LINK YOUTUBE</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/10">
+                        {damarLoading && damarSongs.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-14 text-center text-white/60 text-xs">
+                              <RefreshCw className="w-8 h-8 mx-auto text-[#c8f560] animate-spin mb-2" />
+                              <p className="font-semibold text-white">Memuat Katalog Damarlangit...</p>
+                            </td>
+                          </tr>
+                        ) : damarSongs.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-12 text-center text-white/60 text-xs">
+                              Tidak ada lagu yang ditemukan di katalog Damarlangit.
+                            </td>
+                          </tr>
                         ) : (
-                          paginatedCatalogs.map((item) => (
-                            <div
-                              key={item.id}
-                              className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5 text-xs"
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/25 border border-white/15">
-                                  <span className="text-[#c8f560] font-mono font-bold text-[11px]">{item.songId}</span>
+                          damarSongs.map((song: any) => (
+                            <tr key={song.kd_katalog} className="hover:bg-white/5 transition-colors">
+                              <td className="py-3 px-4 font-mono font-bold text-[#c8f560] whitespace-nowrap">
+                                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/25 border border-white/10">
+                                  <span>DK-{song.kd_katalog}</span>
                                   <button
                                     type="button"
-                                    onClick={() => handleCopySongId(item.songId)}
-                                    title="Salin Song ID"
+                                    onClick={() => handleCopySongId(`DK-${song.kd_katalog}`)}
+                                    title="Salin Kode Katalog"
                                     className="text-white/60 hover:text-white"
                                   >
-                                    {copiedSongId === item.songId ? (
+                                    {copiedSongId === `DK-${song.kd_katalog}` ? (
                                       <Check className="w-3 h-3 text-[#c8f560]" />
                                     ) : (
                                       <Copy className="w-3 h-3" />
                                     )}
                                   </button>
                                 </div>
+                              </td>
 
-                                {item.status.toLowerCase() === "aktif" ? (
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#c8f560] text-[#312042] font-bold text-[10px]">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#312042] animate-pulse" />
-                                    Aktif
-                                  </span>
-                                ) : item.status.toLowerCase() === "review" ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#fde08d] text-[#312042] font-bold text-[10px]">
-                                    Review
-                                  </span>
+                              <td className="py-3 px-4 font-bold text-white whitespace-nowrap">
+                                {song.judul_lagu || "-"}
+                              </td>
+
+                              <td className="py-3 px-4 text-white/90 whitespace-nowrap">
+                                {song.performer || "-"}
+                              </td>
+
+                              <td className="py-3 px-4 text-white/80 whitespace-nowrap">
+                                {song.composer || "-"}
+                              </td>
+
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <span className="px-2 py-0.5 rounded-md bg-white/10 text-white/80 font-medium text-[11px]">
+                                  {song.song_control || "100%"} • {song.member_name || "Damarlangit"}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                {song.link ? (
+                                  <a
+                                    href={song.link}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] shadow transition-all hover:scale-105"
+                                  >
+                                    <Youtube className="w-3.5 h-3.5" />
+                                    <span>Tonton YouTube</span>
+                                  </a>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 text-white font-medium text-[10px]">
-                                    Nonaktif
-                                  </span>
+                                  <span className="text-[10px] text-white/40">-</span>
                                 )}
-                              </div>
-
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-6 h-6 rounded-lg bg-white/15 flex items-center justify-center text-[#c8f560] shrink-0">
-                                    <Music className="w-3 h-3" />
-                                  </div>
-                                  <h4 className="font-bold text-white text-xs truncate">{item.title}</h4>
-                                </div>
-                                <p className="text-white/80 text-[11px] truncate mt-1">
-                                  Vokal / Artis: <strong className="text-white">{item.artist}</strong>
-                                </p>
-                                <p className="text-white/60 text-[10px] truncate mt-0.5">
-                                  Publisher: <span className="text-white/85">{item.publisher}</span>
-                                </p>
-                              </div>
-
-                              {(item.youtubeLink || item.driveLink) && (
-                                <div className="flex items-center gap-2 pt-2 border-t border-white/10">
-                                  {item.youtubeLink && (
-                                    <a
-                                      href={item.youtubeLink}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="flex-1 py-1 px-2 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
-                                    >
-                                      <Youtube className="w-3 h-3" />
-                                      <span>YouTube</span>
-                                    </a>
-                                  )}
-                                  {item.driveLink && (
-                                    <a
-                                      href={item.driveLink}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="flex-1 py-1 px-2 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
-                                    >
-                                      <HardDrive className="w-3 h-3" />
-                                      <span>Drive</span>
-                                    </a>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                              </td>
+                            </tr>
                           ))
                         )}
-                      </div>
+                      </tbody>
+                    </table>
+                  </div>
 
-                      {/* Desktop Catalog Table (md:block) */}
-                      <div className="hidden md:block overflow-x-auto">
-                        <table className="w-full text-left text-xs text-white">
-                          <thead className="bg-[#312042]/60 border-b border-white/15 text-[11px] uppercase tracking-wider text-white/75">
-                            <tr>
-                              <th className="py-3.5 px-4 font-semibold">SONG ID</th>
-                              <th className="py-3.5 px-4 font-semibold">JUDUL LAGU</th>
-                              <th className="py-3.5 px-4 font-semibold">VOKAL / ARTIS</th>
-                              <th className="py-3.5 px-4 font-semibold">PUBLISHER</th>
-                              <th className="py-3.5 px-4 font-semibold">STATUS / AKTIF</th>
-                              <th className="py-3.5 px-4 font-semibold text-center">LINK (YT & DRIVE)</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/10">
-                            {catalogs.length === 0 ? (
-                              <tr>
-                                <td colSpan={6} className="py-14 text-center text-white/60 text-xs">
-                                  <ListMusic className="w-10 h-10 mx-auto text-white/20 mb-2" />
-                                  <p className="font-semibold text-sm text-white/80">Katalog Musik Masih Kosong</p>
-                                  <p className="text-white/50 text-[11px] mt-1">Lagu resmi yang diupload oleh label/admin akan tercantum di sini.</p>
-                                </td>
-                              </tr>
-                            ) : filteredCatalogs.length === 0 ? (
-                              <tr>
-                                <td colSpan={6} className="py-12 text-center text-white/60 text-xs">
-                                  Tidak ada lagu di katalog yang sesuai dengan pencarian Anda.
-                                </td>
-                              </tr>
-                            ) : (
-                              paginatedCatalogs.map((item) => (
-                                <tr key={item.id} className="hover:bg-white/5 transition-colors">
-                                  {/* SONG ID */}
-                                  <td className="py-3.5 px-4 font-mono font-bold whitespace-nowrap">
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/25 border border-white/15">
-                                      <span className="text-[#c8f560]">{item.songId}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleCopySongId(item.songId)}
-                                        title="Salin Song ID"
-                                        className="text-white/60 hover:text-white"
-                                      >
-                                        {copiedSongId === item.songId ? (
-                                          <Check className="w-3 h-3 text-[#c8f560]" />
-                                        ) : (
-                                          <Copy className="w-3 h-3" />
-                                        )}
-                                      </button>
-                                    </div>
-                                  </td>
-
-                                  {/* JUDUL LAGU */}
-                                  <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center text-[#c8f560] shrink-0">
-                                        <Music className="w-3.5 h-3.5" />
-                                      </div>
-                                      <span>{item.title}</span>
-                                    </div>
-                                  </td>
-
-                                  {/* VOKAL / ARTIS */}
-                                  <td className="py-3.5 px-4 text-white/90 whitespace-nowrap">
-                                    {item.artist}
-                                  </td>
-
-                                  {/* PUBLISHER */}
-                                  <td className="py-3.5 px-4 text-white/80 whitespace-nowrap">
-                                    <span className="px-2.5 py-1 rounded-md bg-white/10 border border-white/10 font-medium">
-                                      {item.publisher}
-                                    </span>
-                                  </td>
-
-                                  {/* STATUS / AKTIF */}
-                                  <td className="py-3.5 px-4 whitespace-nowrap">
-                                    {item.status.toLowerCase() === "aktif" ? (
-                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#c8f560] text-[#312042] font-bold text-[10px]">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-[#312042] animate-pulse" />
-                                        Aktif
-                                      </span>
-                                    ) : item.status.toLowerCase() === "review" ? (
-                                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#fde08d] text-[#312042] font-bold text-[10px]">
-                                        Review
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/20 text-white font-medium text-[10px]">
-                                        Nonaktif
-                                      </span>
-                                    )}
-                                  </td>
-
-                                  {/* LINK YT / DRIVE */}
-                                  <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                                    <div className="flex items-center justify-center gap-2">
-                                      {item.youtubeLink ? (
-                                        <a
-                                          href={item.youtubeLink}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          title="Buka Link YouTube"
-                                          className="px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
-                                        >
-                                          <Youtube className="w-3.5 h-3.5" />
-                                          <span>YouTube</span>
-                                        </a>
-                                      ) : (
-                                        <span className="text-[10px] text-white/40">-</span>
-                                      )}
-
-                                      {item.driveLink ? (
-                                        <a
-                                          href={item.driveLink}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          title="Buka Master di Google Drive"
-                                          className="px-2.5 py-1 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
-                                        >
-                                          <HardDrive className="w-3.5 h-3.5" />
-                                          <span>Drive</span>
-                                        </a>
-                                      ) : (
-                                        <span className="text-[10px] text-white/40">-</span>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination (5 per halaman) */}
-                      <Pagination
-                        currentPage={pageCatalog}
-                        totalItems={filteredCatalogs.length}
-                        pageSize={5}
-                        onPageChange={setPageCatalog}
-                      />
-                    </>
-                  );
-                })()}
-              </div>
+                  {/* Damarlangit Pagination */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/10 text-xs">
+                    <span className="text-white/70">
+                      Halaman <strong className="text-white">{damarPage}</strong> (Menampilkan 12 lagu per halaman)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={damarPage <= 1 || damarLoading}
+                        onClick={() => {
+                          const prev = Math.max(1, damarPage - 1);
+                          setDamarPage(prev);
+                          fetchDamarCatalog(prev, catalogSearch);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 disabled:opacity-40 text-white font-semibold transition-all cursor-pointer"
+                      >
+                        ← Sebelumnya
+                      </button>
+                      <button
+                        type="button"
+                        disabled={damarLoading}
+                        onClick={() => {
+                          const next = damarPage + 1;
+                          setDamarPage(next);
+                          fetchDamarCatalog(next, catalogSearch);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] disabled:opacity-40 text-[#312042] font-bold transition-all cursor-pointer"
+                      >
+                        Berikutnya →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
