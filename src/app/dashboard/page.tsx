@@ -702,6 +702,29 @@ export default function UserDashboardPage() {
   const artistModalOpenRef = useRef(artistModalOpen);
   const isPopstateNavigationRef = useRef(false);
   const isFetchingUserRef = useRef(false);
+  const mainScrollRef = useRef<HTMLElement | null>(null);
+  const uploadTopRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToUploadTop = () => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    if (uploadTopRef.current) {
+      uploadTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "upload") {
+      const timer = setTimeout(() => {
+        scrollToUploadTop();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [uploadStep, activeTab]);
 
   useEffect(() => {
     activeTabRef.current = activeTab;
@@ -1763,7 +1786,7 @@ export default function UserDashboardPage() {
           </header>
 
           {/* MAIN SCROLLABLE BODY — Hanya bagian konten ini yang bergulir */}
-          <main className="flex-1 w-full overflow-y-auto overflow-x-hidden p-5 sm:p-7 md:p-8">
+          <main ref={mainScrollRef} className="flex-1 w-full overflow-y-auto overflow-x-hidden p-5 sm:p-7 md:p-8">
 
           {/* =========================================================
               VIEW 1: DASHBOARD OVERVIEW — ALL CARDS MATCH ROYALTY GROWTH
@@ -2859,7 +2882,7 @@ export default function UserDashboardPage() {
               VIEW 3: NEW RELEASE — SUBMIT TRACK & ALBUM (4-BAR FLOW)
              ========================================================= */}
           {activeTab === "upload" && (
-            <div key={`upload-${animKey}`} className="space-y-6">
+            <div ref={uploadTopRef} key={`upload-${animKey}`} className="space-y-6">
               {/* Header Title */}
               <div className="animate-card-enter">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -2875,108 +2898,6 @@ export default function UserDashboardPage() {
                     </p>
                   </div>
                 </div>
-              </div>
-
-              {/* 4-BAR STEPPER NAVIGATION WIZARD */}
-              <div
-                className="bg-[#8a88b5]/70 border border-white/20 rounded-2xl p-2 sm:p-2.5 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-white shadow-md animate-card-enter"
-                style={{ animationDelay: "60ms" }}
-              >
-                {/* Bar 1: Info Rilis */}
-                <button
-                  type="button"
-                  onClick={() => setUploadStep(1)}
-                  className={`p-2.5 rounded-xl flex items-center gap-2.5 transition-all text-left ${
-                    uploadStep === 1
-                      ? "bg-[#312042] text-[#c8f560] shadow-md border border-[#c8f560]/60 ring-1 ring-[#c8f560]/40"
-                      : "bg-white/10 text-white/90 hover:bg-white/20"
-                  }`}
-                >
-                  <span
-                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                      uploadStep === 1 ? "bg-[#c8f560] text-[#312042]" : "bg-white/20 text-white"
-                    }`}
-                  >
-                    1
-                  </span>
-                  <div className="min-w-0">
-                    <div className="font-bold truncate">Bar 1: Info Rilis</div>
-                    <div className="text-[10px] opacity-75 truncate">
-                      {releaseType === "ALBUM" ? "Album / EP" : "Single"} • Format
-                    </div>
-                  </div>
-                </button>
-
-                {/* Bar 2: Track & Audio */}
-                <button
-                  type="button"
-                  onClick={() => setUploadStep(2)}
-                  className={`p-2.5 rounded-xl flex items-center gap-2.5 transition-all text-left ${
-                    uploadStep === 2
-                      ? "bg-[#312042] text-[#c8f560] shadow-md border border-[#c8f560]/60 ring-1 ring-[#c8f560]/40"
-                      : "bg-white/10 text-white/90 hover:bg-white/20"
-                  }`}
-                >
-                  <span
-                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                      uploadStep === 2 ? "bg-[#c8f560] text-[#312042]" : "bg-white/20 text-white"
-                    }`}
-                  >
-                    2
-                  </span>
-                  <div className="min-w-0">
-                    <div className="font-bold truncate">Bar 2: Track & Audio</div>
-                    <div className="text-[10px] opacity-75 truncate">
-                      {releaseType === "ALBUM" ? `${albumTracks.length} Track Lagu` : "1 Master Audio"}
-                    </div>
-                  </div>
-                </button>
-
-                {/* Bar 3: Cover & DSP */}
-                <button
-                  type="button"
-                  onClick={() => setUploadStep(3)}
-                  className={`p-2.5 rounded-xl flex items-center gap-2.5 transition-all text-left ${
-                    uploadStep === 3
-                      ? "bg-[#312042] text-[#c8f560] shadow-md border border-[#c8f560]/60 ring-1 ring-[#c8f560]/40"
-                      : "bg-white/10 text-white/90 hover:bg-white/20"
-                  }`}
-                >
-                  <span
-                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                      uploadStep === 3 ? "bg-[#c8f560] text-[#312042]" : "bg-white/20 text-white"
-                    }`}
-                  >
-                    3
-                  </span>
-                  <div className="min-w-0">
-                    <div className="font-bold truncate">Bar 3: Cover & DSP</div>
-                    <div className="text-[10px] opacity-75 truncate">Artwork & Platform</div>
-                  </div>
-                </button>
-
-                {/* Bar 4: Review & Kirim */}
-                <button
-                  type="button"
-                  onClick={() => setUploadStep(4)}
-                  className={`p-2.5 rounded-xl flex items-center gap-2.5 transition-all text-left ${
-                    uploadStep === 4
-                      ? "bg-[#312042] text-[#c8f560] shadow-md border border-[#c8f560]/60 ring-1 ring-[#c8f560]/40"
-                      : "bg-white/10 text-white/90 hover:bg-white/20"
-                  }`}
-                >
-                  <span
-                    className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                      uploadStep === 4 ? "bg-[#c8f560] text-[#312042]" : "bg-white/20 text-white"
-                    }`}
-                  >
-                    4
-                  </span>
-                  <div className="min-w-0">
-                    <div className="font-bold truncate">Bar 4: Review & Kirim</div>
-                    <div className="text-[10px] opacity-75 truncate">Ringkasan & Submit</div>
-                  </div>
-                </button>
               </div>
 
               {/* =========================================================
@@ -3266,8 +3187,9 @@ export default function UserDashboardPage() {
                           return;
                         }
                         setUploadStep(2);
+                        scrollToUploadTop();
                       }}
-                      className="px-6 py-3 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-2 hover:bg-[#b5e050] transition-all shadow-lg"
+                      className="px-6 py-3 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-2 hover:bg-[#b5e050] transition-all shadow-lg cursor-pointer"
                     >
                       <span>Lanjut ke Bar 2: Track & Audio</span>
                       <ArrowRight className="w-4 h-4" />
@@ -3654,8 +3576,11 @@ export default function UserDashboardPage() {
                   <div className="flex items-center justify-between pt-4 border-t border-white/10">
                     <button
                       type="button"
-                      onClick={() => setUploadStep(1)}
-                      className="px-5 py-2.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
+                      onClick={() => {
+                        setUploadStep(1);
+                        scrollToUploadTop();
+                      }}
+                      className="px-5 py-2.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       <span>Kembali ke Bar 1</span>
@@ -3676,8 +3601,9 @@ export default function UserDashboardPage() {
                           }
                         }
                         setUploadStep(3);
+                        scrollToUploadTop();
                       }}
-                      className="px-6 py-3 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-2 hover:bg-[#b5e050] transition-all shadow-lg"
+                      className="px-6 py-3 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-2 hover:bg-[#b5e050] transition-all shadow-lg cursor-pointer"
                     >
                       <span>Lanjut ke Bar 3: Cover & DSP</span>
                       <ArrowRight className="w-4 h-4" />
@@ -3753,8 +3679,11 @@ export default function UserDashboardPage() {
                     <div className="pt-4 border-t border-white/10 mt-6 text-left">
                       <button
                         type="button"
-                        onClick={() => setUploadStep(2)}
-                        className="px-4 py-2 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
+                        onClick={() => {
+                          setUploadStep(2);
+                          scrollToUploadTop();
+                        }}
+                        className="px-4 py-2 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
                       >
                         <ChevronLeft className="w-4 h-4" />
                         <span>Kembali ke Bar 2</span>
@@ -3840,8 +3769,11 @@ export default function UserDashboardPage() {
                     <div className="pt-4 border-t border-white/10 mt-5 flex items-center justify-end">
                       <button
                         type="button"
-                        onClick={() => setUploadStep(4)}
-                        className="px-6 py-3 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-2 hover:bg-[#b5e050] transition-all shadow-lg"
+                        onClick={() => {
+                          setUploadStep(4);
+                          scrollToUploadTop();
+                        }}
+                        className="px-6 py-3 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center gap-2 hover:bg-[#b5e050] transition-all shadow-lg cursor-pointer"
                       >
                         <span>Lanjut ke Bar 4: Review & Kirim</span>
                         <ArrowRight className="w-4 h-4" />
@@ -3976,8 +3908,11 @@ export default function UserDashboardPage() {
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-white/10">
                     <button
                       type="button"
-                      onClick={() => setUploadStep(3)}
-                      className="w-full sm:w-auto px-6 py-3 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+                      onClick={() => {
+                        setUploadStep(3);
+                        scrollToUploadTop();
+                      }}
+                      className="w-full sm:w-auto px-6 py-3 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
                     >
                       <ChevronLeft className="w-4 h-4" />
                       <span>Kembali ke Bar 3</span>
