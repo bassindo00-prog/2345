@@ -557,5 +557,23 @@ input[type=range]::-webkit-slider-thumb {
   background: radial-gradient(circle at 50% 20%, #423206 0%, #211903 60%, #0a0801 100%) !important;
 }
 
+/* ============================================================================
+   MOBILE ZOOM PREVENTIONS (iOS Safari & Android)
+   ============================================================================ */
+html, body {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* iOS Safari auto-zooms whenever an input has font-size < 16px */
+@media screen and (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+
 
 

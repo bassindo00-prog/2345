@@ -677,6 +677,24 @@ export default function UserDashboardPage() {
     }
   }, [activeTab, catalogSource, damarPage, catalogSearch]);
 
+  const handleUseCatalogSong = (song: {
+    title?: string;
+    artist?: string;
+    publisher?: string;
+    songId?: string;
+    composer?: string;
+  }) => {
+    if (song.title) setTrackTitle(song.title);
+    if (song.artist) {
+      setTrackPrimaryArtist(song.artist);
+      setTrackComposer(song.composer || song.artist);
+    }
+    setActiveTab("upload");
+    showNotice(
+      `Lagu "${song.title || "Pilihan"}" (${song.publisher || "Publisher"}) dipilih! Silakan lanjutkan isi data rilis cover Anda.`
+    );
+  };
+
   const handleCreateArtist = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newArtistName.trim()) {
@@ -4197,49 +4215,210 @@ export default function UserDashboardPage() {
                     <span className="p-2 rounded-xl bg-[#c8f560] text-[#312042] shadow-md">
                       <ListMusic className="w-5 h-5" />
                     </span>
-                    <span>Official Music Catalog & Publishing</span>
+                    <span>Official Music Catalog & Publisher Directory</span>
                   </h2>
-                  <p className="text-xs text-white/75 mt-1">
-                    Daftar resmi SONG ID, Judul Lagu, Vokal/Artis, Publisher Hak Cipta, Status Aktif, dan Tautan Master YouTube / Google Drive
+                  <p className="text-xs text-white/75 mt-1 max-w-2xl leading-relaxed">
+                    Pilih publisher resmi di bawah ini (RPH, Halo Entertainment, Khana Music, Damarlangit, Sony Music, Universal, Warner Chappell, dll) untuk melihat katalog lagu, mendengarkan referensi YouTube, mengunduh master di Google Drive, dan 1-klik mengajukan rilis cover.
                   </p>
                 </div>
 
-                {/* Source Switcher Pills */}
-                <div className="flex items-center gap-2 bg-black/25 p-1 rounded-2xl border border-white/15">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCatalogSource("master");
-                      setPageCatalog(1);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      catalogSource === "master"
-                        ? "bg-[#c8f560] text-[#312042] shadow"
-                        : "text-white/80 hover:text-white"
-                    }`}
-                  >
-                    Katalog Master & Drive ({catalogs.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCatalogSource("damarlangit");
-                      setDamarPage(1);
-                      if (damarSongs.length === 0) fetchDamarCatalog(1, catalogSearch);
-                    }}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      catalogSource === "damarlangit"
-                        ? "bg-[#c8f560] text-[#312042] shadow"
-                        : "text-white/80 hover:text-white"
-                    }`}
-                  >
-                    <span>Publisher Damarlangit</span>
-                    <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px]">
-                      {damarTotal > 0 ? `${damarTotal.toLocaleString("id-ID")}` : "8.400+"}
-                    </span>
-                  </button>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1.5 rounded-xl bg-black/25 border border-white/15 text-xs text-white/90">
+                    Total: <strong className="text-[#c8f560] font-bold">{catalogs.length} Lagu Master</strong>
+                  </span>
+                  <span className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-white/90">
+                    Upstream: <strong className="text-[#c8f560] font-bold">{damarTotal > 0 ? damarTotal.toLocaleString("id-ID") : "8.400+"} Lagu</strong>
+                  </span>
                 </div>
               </div>
+
+              {/* ─── PILIH NAMA-NAMA PUBLISHER (Interactive Publisher Grid Cards) ─── */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-[#c8f560]" />
+                    <span>Daftar Publisher Resmi (Pilih Publisher):</span>
+                  </span>
+                  <span className="text-[11px] text-white/60">
+                    Klik nama publisher untuk melihat katalog eksklusifnya
+                  </span>
+                </div>
+
+                {(() => {
+                  const defaultPublishers = [
+                    {
+                      name: "ALL",
+                      displayName: "Semua Publisher",
+                      tag: "Katalog Master Global",
+                      desc: "Seluruh lagu dari semua publisher",
+                    },
+                    {
+                      name: "RPH Music Publishing",
+                      displayName: "RPH Music Publishing",
+                      tag: "Religi Pop Hits & Pop",
+                      desc: "Chrisye, Opick, Desta, Ungu Religi",
+                    },
+                    {
+                      name: "Halo Entertainment Indonesia",
+                      displayName: "Halo Entertainment Indonesia",
+                      tag: "Pop, Dangdut & Hits",
+                      desc: "Virgoun, Anji, Ungu & Artis HEI",
+                    },
+                    {
+                      name: "Khana Music Publishing",
+                      displayName: "Khana Music Publishing",
+                      tag: "Hits Melly Goeslaw & OST",
+                      desc: "Melly Goeslaw, BCL, Pop Hits",
+                    },
+                    {
+                      name: "PT. Damarlangit Khatulistiwa",
+                      displayName: "PT. Damarlangit Khatulistiwa",
+                      tag: "8.400+ Lagu & Master Drive",
+                      desc: "Upstream database publik & master",
+                    },
+                    {
+                      name: "BREAKOUT Publishing / Sony Music",
+                      displayName: "BREAKOUT / Sony Music",
+                      tag: "Label In-House & Sony",
+                      desc: "Farel Project, Avelin, The Overground",
+                    },
+                    {
+                      name: "Universal Music Publishing Indonesia",
+                      displayName: "Universal Music Indonesia",
+                      tag: "Top Hits Indonesia",
+                      desc: "Tiara Andini, Lyodra, Mahalini",
+                    },
+                    {
+                      name: "Warner Chappell Music Indonesia",
+                      displayName: "Warner Chappell Indonesia",
+                      tag: "Indie Pop & Folk",
+                      desc: "Fiersa Besari, Banda Neira, Bagas Ran",
+                    },
+                  ];
+
+                  const dbPubs = Array.from(new Set(catalogs.map((c) => c.publisher))).filter(Boolean);
+                  const extraPubs = dbPubs
+                    .filter((p) => !defaultPublishers.some((dp) => dp.name.toLowerCase() === p.toLowerCase()))
+                    .map((p) => ({
+                      name: p,
+                      displayName: p,
+                      tag: "Publisher Terdaftar",
+                      desc: `Katalog resmi dari ${p}`,
+                    }));
+
+                  const allPubList = [...defaultPublishers, ...extraPubs];
+
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2.5">
+                      {allPubList.map((pub) => {
+                        const isSelected =
+                          pub.name === "ALL"
+                            ? catalogPublisherFilter === "ALL" && catalogSource !== "damarlangit"
+                            : catalogPublisherFilter.toLowerCase() === pub.name.toLowerCase();
+
+                        const count =
+                          pub.name === "ALL"
+                            ? catalogs.length
+                            : pub.name === "PT. Damarlangit Khatulistiwa"
+                            ? `${catalogs.filter((c) => c.publisher.toLowerCase().includes("damarlangit")).length} (+8.4k)`
+                            : catalogs.filter((c) => c.publisher.toLowerCase() === pub.name.toLowerCase()).length;
+
+                        return (
+                          <button
+                            key={pub.name}
+                            type="button"
+                            onClick={() => {
+                              setCatalogPublisherFilter(pub.name);
+                              setPageCatalog(1);
+                              setDamarPage(1);
+                              if (pub.name === "PT. Damarlangit Khatulistiwa") {
+                                setCatalogSource("master");
+                              } else {
+                                setCatalogSource("master");
+                              }
+                            }}
+                            className={`p-3.5 rounded-2xl text-left transition-all cursor-pointer border relative overflow-hidden group active:scale-98 ${
+                              isSelected
+                                ? "bg-[#352a4a] text-white border-[#c8f560] shadow-lg ring-1 ring-[#c8f560]/40 scale-[1.01]"
+                                : "bg-white/10 hover:bg-white/15 text-white/90 border-white/15"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-1 mb-1.5">
+                              <span
+                                className={`p-1.5 rounded-xl text-xs font-bold shrink-0 ${
+                                  isSelected ? "bg-[#c8f560] text-[#312042]" : "bg-white/10 text-white"
+                                }`}
+                              >
+                                <Building2 className="w-3.5 h-3.5" />
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  isSelected
+                                    ? "bg-[#c8f560]/20 text-[#c8f560] border border-[#c8f560]/40"
+                                    : "bg-black/25 text-white/70"
+                                }`}
+                              >
+                                {count} Lagu
+                              </span>
+                            </div>
+
+                            <p className="font-bold text-xs truncate text-white">{pub.displayName}</p>
+                            <p className="text-[10px] text-white/60 truncate mt-0.5">{pub.tag}</p>
+
+                            {isSelected && (
+                              <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#c8f560] animate-ping" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Sub-toggle khusus untuk PT. Damarlangit Khatulistiwa: Master vs 8.400+ Upstream */}
+              {catalogPublisherFilter === "PT. Damarlangit Khatulistiwa" && (
+                <div className="p-3 rounded-2xl bg-black/25 border border-white/15 flex flex-wrap items-center justify-between gap-3 animate-card-enter">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#c8f560] animate-pulse" />
+                    <span className="text-xs font-semibold text-white">
+                      Pilihan Sumber Katalog PT. Damarlangit Khatulistiwa:
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCatalogSource("master")}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        catalogSource === "master"
+                          ? "bg-[#c8f560] text-[#312042] shadow"
+                          : "bg-white/10 text-white hover:bg-white/20"
+                      }`}
+                    >
+                      Katalog Master & Google Drive ({catalogs.filter((c) => c.publisher.toLowerCase().includes("damarlangit")).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCatalogSource("damarlangit");
+                        setDamarPage(1);
+                        if (damarSongs.length === 0) fetchDamarCatalog(1, catalogSearch);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        catalogSource === "damarlangit"
+                          ? "bg-[#c8f560] text-[#312042] shadow"
+                          : "bg-white/10 text-white hover:bg-white/20"
+                      }`}
+                    >
+                      <span>Jelajahi 8.400+ Database Live Upstream</span>
+                      <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px]">
+                        {damarTotal > 0 ? `${damarTotal.toLocaleString("id-ID")}` : "8.400+"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Search & Filter Bar */}
               <div className="space-y-3">
@@ -4255,11 +4434,11 @@ export default function UserDashboardPage() {
                         setDamarPage(1);
                       }}
                       placeholder={
-                        catalogSource === "master"
-                          ? "Cari berdasarkan Song ID, Judul Lagu, Vokal / Artis, atau Publisher..."
-                          : "Cari lagu Damarlangit (Judul lagu, artis, pencipta/komposer)..."
+                        catalogSource === "damarlangit"
+                          ? "Cari lagu di upstream Damarlangit (Judul lagu, artis, pencipta/komposer)..."
+                          : `Cari di ${catalogPublisherFilter === "ALL" ? "semua publisher" : catalogPublisherFilter} (Song ID, Judul, Artis)...`
                       }
-                      className="w-full pl-10 pr-4 py-2 rounded-xl bg-white/15 border border-white/25 text-white text-xs placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/15 border border-white/25 text-white text-xs placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
                     />
                   </div>
                   {catalogSearch && (
@@ -4270,44 +4449,39 @@ export default function UserDashboardPage() {
                         setPageCatalog(1);
                         setDamarPage(1);
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20"
+                      className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20 cursor-pointer"
                     >
-                      Reset Filter
+                      Reset Pencarian
                     </button>
                   )}
                 </div>
 
-                {/* Publisher Quick Filters (For Master Catalog) */}
-                {catalogSource === "master" && (
-                  <div className="flex flex-wrap items-center gap-2 px-1">
-                    <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider mr-1">
-                      Publisher:
+                {/* Active Filter Indicator */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/70">Publisher Terpilih:</span>
+                    <span className="px-3 py-1 rounded-full bg-[#c8f560] text-[#312042] font-extrabold text-[11px] shadow-sm flex items-center gap-1.5">
+                      <Building2 className="w-3 h-3" />
+                      <span>{catalogPublisherFilter === "ALL" ? "Semua Publisher (Katalog Global)" : catalogPublisherFilter}</span>
                     </span>
-                    {["ALL", ...Array.from(new Set(catalogs.map((c) => c.publisher))).filter(Boolean)].map((pub) => {
-                      const isSel = catalogPublisherFilter === pub;
-                      return (
-                        <button
-                          key={pub}
-                          type="button"
-                          onClick={() => {
-                            setCatalogPublisherFilter(pub);
-                            setPageCatalog(1);
-                          }}
-                          className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
-                            isSel
-                              ? "bg-[#c8f560] text-[#312042] shadow scale-102"
-                              : "bg-white/10 text-white/80 hover:bg-white/20 hover:text-white border border-white/10"
-                          }`}
-                        >
-                          {pub === "ALL" ? "Semua Publisher" : pub}
-                        </button>
-                      );
-                    })}
+                    {catalogPublisherFilter !== "ALL" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCatalogPublisherFilter("ALL");
+                          setCatalogSource("master");
+                          setPageCatalog(1);
+                        }}
+                        className="text-[11px] text-white/70 hover:text-white underline cursor-pointer"
+                      >
+                        (Lihat Semua Publisher)
+                      </button>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* VIEW 1: MASTER CATALOG WITH YT & DRIVE LINKS */}
+              {/* VIEW 1: MASTER & DRIVE CATALOG WITH ACTIONS */}
               {catalogSource === "master" && (
                 <div className={`${ROYALTY_CARD} p-3 sm:p-5 border border-white/20`}>
                   {(() => {
@@ -4323,7 +4497,7 @@ export default function UserDashboardPage() {
                         item.publisher?.toLowerCase() === catalogPublisherFilter.toLowerCase();
                       return matchSearch && matchPub;
                     });
-                    const paginatedCatalogs = filteredCatalogs.slice((pageCatalog - 1) * 6, pageCatalog * 6);
+                    const paginatedCatalogs = filteredCatalogs.slice((pageCatalog - 1) * 8, pageCatalog * 8);
 
                     return (
                       <>
@@ -4337,7 +4511,7 @@ export default function UserDashboardPage() {
                             </div>
                           ) : filteredCatalogs.length === 0 ? (
                             <div className="py-8 text-center text-white/60 text-xs">
-                              Tidak ada lagu di katalog yang sesuai dengan pencarian Anda.
+                              Tidak ada lagu yang sesuai dengan pencarian atau filter publisher terpilih.
                             </div>
                           ) : (
                             paginatedCatalogs.map((item) => (
@@ -4362,20 +4536,10 @@ export default function UserDashboardPage() {
                                     </button>
                                   </div>
 
-                                  {item.status.toLowerCase() === "aktif" ? (
-                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#c8f560] text-[#312042] font-bold text-[10px]">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-[#312042] animate-pulse" />
-                                      Aktif
-                                    </span>
-                                  ) : item.status.toLowerCase() === "review" ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#fde08d] text-[#312042] font-bold text-[10px]">
-                                      Review
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 text-white font-medium text-[10px]">
-                                      Nonaktif
-                                    </span>
-                                  )}
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#c8f560] text-[#312042] font-bold text-[10px]">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#312042] animate-pulse" />
+                                    {item.status || "Aktif"}
+                                  </span>
                                 </div>
 
                                 <div>
@@ -4389,36 +4553,42 @@ export default function UserDashboardPage() {
                                     Vokal / Artis: <strong className="text-white">{item.artist}</strong>
                                   </p>
                                   <p className="text-white/60 text-[10px] truncate mt-0.5">
-                                    Publisher: <span className="text-white/85">{item.publisher}</span>
+                                    Publisher: <span className="text-[#c8f560] font-medium">{item.publisher}</span>
                                   </p>
                                 </div>
 
-                                {(item.youtubeLink || item.driveLink) && (
-                                  <div className="flex items-center gap-2 pt-2 border-t border-white/10">
-                                    {item.youtubeLink && (
-                                      <a
-                                        href={item.youtubeLink}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="flex-1 py-1 px-2 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
-                                      >
-                                        <Youtube className="w-3 h-3" />
-                                        <span>YouTube</span>
-                                      </a>
-                                    )}
-                                    {item.driveLink && (
-                                      <a
-                                        href={item.driveLink}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="flex-1 py-1 px-2 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
-                                      >
-                                        <HardDrive className="w-3 h-3" />
-                                        <span>Drive</span>
-                                      </a>
-                                    )}
-                                  </div>
-                                )}
+                                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                                  {item.youtubeLink && (
+                                    <a
+                                      href={item.youtubeLink}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex-1 py-1.5 px-2 rounded-xl bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                                    >
+                                      <Youtube className="w-3.5 h-3.5" />
+                                      <span>YouTube</span>
+                                    </a>
+                                  )}
+                                  {item.driveLink && (
+                                    <a
+                                      href={item.driveLink}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex-1 py-1.5 px-2 rounded-xl bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center gap-1 shadow"
+                                    >
+                                      <HardDrive className="w-3.5 h-3.5" />
+                                      <span>Drive</span>
+                                    </a>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUseCatalogSong(item)}
+                                    className="w-full py-1.5 px-3 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-[11px] flex items-center justify-center gap-1.5 shadow transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>Ajukan Rilis / Cover Lagu Ini</span>
+                                  </button>
+                                </div>
                               </div>
                             ))
                           )}
@@ -4432,15 +4602,16 @@ export default function UserDashboardPage() {
                                 <th className="py-3.5 px-4 font-semibold">SONG ID</th>
                                 <th className="py-3.5 px-4 font-semibold">JUDUL LAGU</th>
                                 <th className="py-3.5 px-4 font-semibold">VOKAL / ARTIS</th>
-                                <th className="py-3.5 px-4 font-semibold">PUBLISHER</th>
-                                <th className="py-3.5 px-4 font-semibold">STATUS / AKTIF</th>
-                                <th className="py-3.5 px-4 font-semibold text-center">LINK (YT & DRIVE)</th>
+                                <th className="py-3.5 px-4 font-semibold">PUBLISHER RESMI</th>
+                                <th className="py-3.5 px-4 font-semibold">STATUS</th>
+                                <th className="py-3.5 px-4 font-semibold text-center">REFERENSI MASTER</th>
+                                <th className="py-3.5 px-4 font-semibold text-right">AKSI RILIS</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-white/10">
                               {catalogs.length === 0 ? (
                                 <tr>
-                                  <td colSpan={6} className="py-14 text-center text-white/60 text-xs">
+                                  <td colSpan={7} className="py-14 text-center text-white/60 text-xs">
                                     <ListMusic className="w-10 h-10 mx-auto text-white/20 mb-2" />
                                     <p className="font-semibold text-sm text-white/80">Katalog Musik Masih Kosong</p>
                                     <p className="text-white/50 text-[11px] mt-1">Lagu resmi yang diupload oleh label/admin akan tercantum di sini.</p>
@@ -4448,8 +4619,8 @@ export default function UserDashboardPage() {
                                 </tr>
                               ) : filteredCatalogs.length === 0 ? (
                                 <tr>
-                                  <td colSpan={6} className="py-12 text-center text-white/60 text-xs">
-                                    Tidak ada lagu di katalog yang sesuai dengan pencarian Anda.
+                                  <td colSpan={7} className="py-12 text-center text-white/60 text-xs">
+                                    Tidak ada lagu di katalog yang sesuai dengan pencarian atau publisher terpilih.
                                   </td>
                                 </tr>
                               ) : (
@@ -4463,7 +4634,7 @@ export default function UserDashboardPage() {
                                           type="button"
                                           onClick={() => handleCopySongId(item.songId)}
                                           title="Salin Song ID"
-                                          className="text-white/60 hover:text-white"
+                                          className="text-white/60 hover:text-white cursor-pointer"
                                         >
                                           {copiedSongId === item.songId ? (
                                             <Check className="w-3 h-3 text-[#c8f560]" />
@@ -4490,28 +4661,18 @@ export default function UserDashboardPage() {
                                     </td>
 
                                     {/* PUBLISHER */}
-                                    <td className="py-3.5 px-4 text-white/80 whitespace-nowrap">
-                                      <span className="px-2.5 py-1 rounded-md bg-white/10 border border-white/10 font-medium">
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className="px-2.5 py-1 rounded-lg bg-white/10 border border-white/15 font-semibold text-[#c8f560] text-[11px]">
                                         {item.publisher}
                                       </span>
                                     </td>
 
-                                    {/* STATUS / AKTIF */}
+                                    {/* STATUS */}
                                     <td className="py-3.5 px-4 whitespace-nowrap">
-                                      {item.status.toLowerCase() === "aktif" ? (
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#c8f560] text-[#312042] font-bold text-[10px]">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-[#312042] animate-pulse" />
-                                          Aktif
-                                        </span>
-                                      ) : item.status.toLowerCase() === "review" ? (
-                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#fde08d] text-[#312042] font-bold text-[10px]">
-                                          Review
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/20 text-white font-medium text-[10px]">
-                                          Nonaktif
-                                        </span>
-                                      )}
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#c8f560] text-[#312042] font-bold text-[10px]">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#312042] animate-pulse" />
+                                        {item.status || "Aktif"}
+                                      </span>
                                     </td>
 
                                     {/* LINK YT / DRIVE */}
@@ -4522,7 +4683,7 @@ export default function UserDashboardPage() {
                                             href={item.youtubeLink}
                                             target="_blank"
                                             rel="noreferrer"
-                                            title="Buka Link YouTube"
+                                            title="Buka Referensi YouTube"
                                             className="px-2.5 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
                                           >
                                             <Youtube className="w-3.5 h-3.5" />
@@ -4537,7 +4698,7 @@ export default function UserDashboardPage() {
                                             href={item.driveLink}
                                             target="_blank"
                                             rel="noreferrer"
-                                            title="Buka Master di Google Drive"
+                                            title="Buka Master Google Drive"
                                             className="px-2.5 py-1 rounded-lg bg-blue-600/85 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1 shadow transition-all hover:scale-105"
                                           >
                                             <HardDrive className="w-3.5 h-3.5" />
@@ -4547,6 +4708,19 @@ export default function UserDashboardPage() {
                                           <span className="text-[10px] text-white/40">-</span>
                                         )}
                                       </div>
+                                    </td>
+
+                                    {/* AKSI RILIS COVER */}
+                                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUseCatalogSong(item)}
+                                        title="Gunakan lagu ini untuk rilis cover baru"
+                                        className="px-3 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-xs inline-flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+                                      >
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                        <span>Pakai Lagu Ini</span>
+                                      </button>
                                     </td>
                                   </tr>
                                 ))
@@ -4559,7 +4733,7 @@ export default function UserDashboardPage() {
                         <Pagination
                           currentPage={pageCatalog}
                           totalItems={filteredCatalogs.length}
-                          pageSize={6}
+                          pageSize={8}
                           onPageChange={setPageCatalog}
                         />
                       </>
@@ -4568,14 +4742,14 @@ export default function UserDashboardPage() {
                 </div>
               )}
 
-              {/* VIEW 2: DAMARLANGIT LIVE CATALOG (8,421 Songs) */}
+              {/* VIEW 2: DAMARLANGIT LIVE UPSTREAM CATALOG (8,421 Songs) */}
               {catalogSource === "damarlangit" && (
                 <div className={`${ROYALTY_CARD} p-3 sm:p-5 border border-white/20 space-y-4`}>
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/15">
                     <div>
                       <h3 className="font-bold text-sm text-white flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-[#c8f560] animate-pulse" />
-                        <span>Katalog Publik PT. Damarlangit Khatulistiwa</span>
+                        <span>Katalog Publik Upstream PT. Damarlangit Khatulistiwa</span>
                       </h3>
                       <p className="text-white/70 text-xs mt-0.5">
                         Terkoneksi langsung ke upstream publisher dengan lebih dari {damarTotal > 0 ? damarTotal.toLocaleString("id-ID") : "8.400"} lagu terdaftar
@@ -4598,21 +4772,22 @@ export default function UserDashboardPage() {
                           <th className="py-3 px-4 font-semibold">JUDUL LAGU</th>
                           <th className="py-3 px-4 font-semibold">PERFORMER / ARTIS</th>
                           <th className="py-3 px-4 font-semibold">KOMPOSER / PENCIPTA</th>
-                          <th className="py-3 px-4 font-semibold">HAK CIPTA / KONTROL</th>
-                          <th className="py-3 px-4 font-semibold text-center">LINK YOUTUBE</th>
+                          <th className="py-3 px-4 font-semibold">HAK CIPTA</th>
+                          <th className="py-3 px-4 font-semibold text-center">YOUTUBE</th>
+                          <th className="py-3 px-4 font-semibold text-right">AKSI</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/10">
                         {damarLoading && damarSongs.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="py-14 text-center text-white/60 text-xs">
+                            <td colSpan={7} className="py-14 text-center text-white/60 text-xs">
                               <RefreshCw className="w-8 h-8 mx-auto text-[#c8f560] animate-spin mb-2" />
                               <p className="font-semibold text-white">Memuat Katalog Damarlangit...</p>
                             </td>
                           </tr>
                         ) : damarSongs.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="py-12 text-center text-white/60 text-xs">
+                            <td colSpan={7} className="py-12 text-center text-white/60 text-xs">
                               Tidak ada lagu yang ditemukan di katalog Damarlangit.
                             </td>
                           </tr>
@@ -4626,7 +4801,7 @@ export default function UserDashboardPage() {
                                     type="button"
                                     onClick={() => handleCopySongId(`DK-${song.kd_katalog}`)}
                                     title="Salin Kode Katalog"
-                                    className="text-white/60 hover:text-white"
+                                    className="text-white/60 hover:text-white cursor-pointer"
                                   >
                                     {copiedSongId === `DK-${song.kd_katalog}` ? (
                                       <Check className="w-3 h-3 text-[#c8f560]" />
@@ -4664,11 +4839,30 @@ export default function UserDashboardPage() {
                                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-600/85 hover:bg-red-600 text-white font-bold text-[10px] shadow transition-all hover:scale-105"
                                   >
                                     <Youtube className="w-3.5 h-3.5" />
-                                    <span>Tonton YouTube</span>
+                                    <span>YouTube</span>
                                   </a>
                                 ) : (
                                   <span className="text-[10px] text-white/40">-</span>
                                 )}
+                              </td>
+
+                              <td className="py-3 px-4 text-right whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleUseCatalogSong({
+                                      title: song.judul_lagu,
+                                      artist: song.performer,
+                                      publisher: "PT. Damarlangit Khatulistiwa",
+                                      songId: `DK-${song.kd_katalog}`,
+                                      composer: song.composer,
+                                    })
+                                  }
+                                  className="px-2.5 py-1 rounded-lg bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-[11px] inline-flex items-center gap-1 shadow transition-all cursor-pointer"
+                                >
+                                  <Sparkles className="w-3 h-3" />
+                                  <span>Pakai</span>
+                                </button>
                               </td>
                             </tr>
                           ))

@@ -145,6 +145,7 @@ export default function AdminDashboardPage() {
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkCsvText, setBulkCsvText] = useState("");
   const [catSearch, setCatSearch] = useState("");
+  const [catPublisherFilter, setCatPublisherFilter] = useState("ALL");
 
   // Pagination State (5 items per page)
   const [pageReleases, setPageReleases] = useState(1);
@@ -3498,49 +3499,80 @@ export default function AdminDashboardPage() {
 
               {/* Table of Catalog Items in Admin */}
               <div className={`${ROYALTY_CARD} overflow-hidden p-0 border border-white/20`}>
-                <div className="p-4 border-b border-white/15 flex flex-wrap items-center justify-between gap-3 bg-[#312042]/30">
-                  <div className="relative flex-1 min-w-[220px]">
-                    <Search className="w-4 h-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      value={catSearch}
-                      onChange={(e) => {
-                        setCatSearch(e.target.value);
-                        setPageCatalog(1);
-                      }}
-                      placeholder="Cari lagu di katalog (Song ID, Judul, Artis, Publisher)..."
-                      className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-white/15 border border-white/25 text-white text-xs placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
-                    />
+                <div className="p-4 border-b border-white/15 space-y-3 bg-[#312042]/30">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="relative flex-1 min-w-[220px]">
+                      <Search className="w-4 h-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={catSearch}
+                        onChange={(e) => {
+                          setCatSearch(e.target.value);
+                          setPageCatalog(1);
+                        }}
+                        placeholder="Cari lagu di katalog (Song ID, Judul, Artis, Publisher)..."
+                        className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-white/15 border border-white/25 text-white text-xs placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                      />
+                    </div>
+                    {(() => {
+                      const filteredCatalogs = catalogs.filter(
+                        (c) =>
+                          (!catSearch ||
+                            c.songId?.toLowerCase().includes(catSearch.toLowerCase()) ||
+                            c.title?.toLowerCase().includes(catSearch.toLowerCase()) ||
+                            c.artist?.toLowerCase().includes(catSearch.toLowerCase()) ||
+                            c.publisher?.toLowerCase().includes(catSearch.toLowerCase())) &&
+                          (catPublisherFilter === "ALL" ||
+                            c.publisher?.toLowerCase() === catPublisherFilter.toLowerCase())
+                      );
+                      return (
+                        <span className="text-xs text-white/70">
+                          Menampilkan{" "}
+                          <strong className="text-white">
+                            {filteredCatalogs.length}
+                          </strong>{" "}
+                          lagu
+                        </span>
+                      );
+                    })()}
                   </div>
-                  {(() => {
-                    const filteredCatalogs = catalogs.filter(
-                      (c) =>
-                        !catSearch ||
-                        c.songId?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                        c.title?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                        c.artist?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                        c.publisher?.toLowerCase().includes(catSearch.toLowerCase())
-                    );
-                    return (
-                      <span className="text-xs text-white/70">
-                        Menampilkan{" "}
-                        <strong className="text-white">
-                          {filteredCatalogs.length}
-                        </strong>{" "}
-                        lagu
-                      </span>
-                    );
-                  })()}
+
+                  {/* Publisher Filter Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[11px] font-bold text-white/60 mr-1 uppercase">Filter Publisher:</span>
+                    {["ALL", ...Array.from(new Set(catalogs.map((c) => c.publisher))).filter(Boolean)].map((pub) => {
+                      const isSel = catPublisherFilter === pub;
+                      return (
+                        <button
+                          key={pub}
+                          type="button"
+                          onClick={() => {
+                            setCatPublisherFilter(pub);
+                            setPageCatalog(1);
+                          }}
+                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
+                            isSel
+                              ? "bg-[#c8f560] text-[#312042] font-bold shadow"
+                              : "bg-white/10 text-white/80 hover:bg-white/20"
+                          }`}
+                        >
+                          {pub === "ALL" ? "Semua Publisher" : pub}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {(() => {
                   const filteredCatalogs = catalogs.filter(
                     (c) =>
-                      !catSearch ||
-                      c.songId?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                      c.title?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                      c.artist?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                      c.publisher?.toLowerCase().includes(catSearch.toLowerCase())
+                      (!catSearch ||
+                        c.songId?.toLowerCase().includes(catSearch.toLowerCase()) ||
+                        c.title?.toLowerCase().includes(catSearch.toLowerCase()) ||
+                        c.artist?.toLowerCase().includes(catSearch.toLowerCase()) ||
+                        c.publisher?.toLowerCase().includes(catSearch.toLowerCase())) &&
+                      (catPublisherFilter === "ALL" ||
+                        c.publisher?.toLowerCase() === catPublisherFilter.toLowerCase())
                   );
                   const paginatedCatalogs = filteredCatalogs.slice((pageCatalog - 1) * 5, pageCatalog * 5);
 
