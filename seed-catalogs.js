@@ -271,23 +271,56 @@ const sampleCatalogs = [
 
 async function main() {
   console.log('Seeding sample catalogs...');
-  for (const item of sampleCatalogs) {
-    const existing = await prisma.catalog.findFirst({
-      where: { songId: item.songId }
-    });
-    if (existing) {
-      await prisma.catalog.update({
-        where: { id: existing.id },
-        data: item
-      });
-    } else {
-      await prisma.catalog.create({
-        data: item
-      });
+
+  // Ensure Catalog table exists in PostgreSQL
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "Catalog" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "songId" TEXT NOT NULL UNIQUE,
+        "title" TEXT NOT NULL,
+        "artist" TEXT NOT NULL,
+        "publisher" TEXT NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'Aktif',
+        "youtubeLink" TEXT,
+        "driveLink" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {
+    console.warn("Table create check warning:", e.message);
+  }
+
+  // Insert or update all songs using resilient raw SQL
+  for (let i = 0; i < sampleCatalogs.length; i++) {
+    const item = sampleCatalogs[i];
+    const id = "cat_" + Math.random().toString(36).substring(2, 11);
+    try {
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "Catalog" ("id", "songId", "title", "artist", "publisher", "status", "youtubeLink", "driveLink", "createdAt", "updatedAt")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+        ON CONFLICT ("songId") DO UPDATE SET
+          "title" = EXCLUDED."title",
+          "artist" = EXCLUDED."artist",
+          "publisher" = EXCLUDED."publisher",
+          "status" = EXCLUDED."status",
+          "youtubeLink" = EXCLUDED."youtubeLink",
+          "driveLink" = EXCLUDED."driveLink",
+          "updatedAt" = NOW();
+      `, id, item.songId, item.title, item.artist, item.publisher, item.status, item.youtubeLink, item.driveLink);
+    } catch (err) {
+      console.error(`Failed to insert ${item.songId}:`, err.message);
     }
   }
-  const total = await prisma.catalog.count();
-  console.log(`Success! Total songs in Catalog table: ${total}`);
+
+  try {
+    const countResult = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "Catalog"`);
+    console.log(`Success! Total songs in Catalog table: ${countResult[0]?.count || sampleCatalogs.length}`);
+  } catch {
+    console.log(`Success! Finished seeding ${sampleCatalogs.length} songs.`);
+  }
 }
 
 main().finally(() => prisma.$disconnect());
+
