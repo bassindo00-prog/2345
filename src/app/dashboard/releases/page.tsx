@@ -5,6 +5,7 @@ import Link from "next/link";
 import UserReleasesClient from "./UserReleasesClient";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function MyReleasesPage() {
   const session = await auth();

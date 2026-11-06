@@ -701,6 +701,7 @@ export default function UserDashboardPage() {
   const showReviewModalRef = useRef(showReviewModal);
   const artistModalOpenRef = useRef(artistModalOpen);
   const isPopstateNavigationRef = useRef(false);
+  const isFetchingUserRef = useRef(false);
 
   useEffect(() => {
     activeTabRef.current = activeTab;
@@ -830,11 +831,31 @@ export default function UserDashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchUserData = async () => {
+  const fetchUserData = async (silent = false) => {
+    if (isFetchingUserRef.current) return;
+    isFetchingUserRef.current = true;
+    if (!silent) setLoading(true);
     try {
-      const res = await fetch("/api/auth/me");
+      const res = await fetch(`/api/auth/me?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { Pragma: "no-cache", "Cache-Control": "no-cache" },
+      });
       const data = await res.json();
       if (data.user) {
+        // Fetch langsung dari /api/releases agar data rilisan musisi dijamin 100% mutakhir tanpa delay
+        try {
+          const relRes = await fetch(`/api/releases?t=${Date.now()}`, {
+            cache: "no-store",
+            headers: { Pragma: "no-cache", "Cache-Control": "no-cache" },
+          });
+          const relData = await relRes.json();
+          if (relData && Array.isArray(relData.releases)) {
+            data.user.releases = relData.releases;
+          }
+        } catch (eRel) {
+          console.warn("Failed to fetch fresh user releases:", eRel);
+        }
+
         setUser(data.user);
         setSettingsName(data.user.name || "");
         setSettingsEmail(data.user.email || "");
@@ -842,43 +863,52 @@ export default function UserDashboardPage() {
         setAccountHolder((prev) => prev || data.user.name || "");
       }
       // Also fetch messages for inbox
-      const msgRes = await fetch("/api/messages");
+      const msgRes = await fetch(`/api/messages?t=${Date.now()}`, {
+        cache: "no-store",
+      });
       const msgData = await msgRes.json();
       if (msgData.messages) {
         setMessages(msgData.messages);
       }
 
-      // Fetch Music Catalog
-      try {
-        const catRes = await fetch("/api/catalog?limit=1000");
-        const catData = await catRes.json();
-        const catList = catData.items || catData.catalogs || [];
-        if (Array.isArray(catList)) {
-          setCatalogs(catList);
+      if (!silent) {
+        // Fetch Music Catalog
+        try {
+          const catRes = await fetch("/api/catalog?limit=1000");
+          const catData = await catRes.json();
+          const catList = catData.items || catData.catalogs || [];
+          if (Array.isArray(catList)) {
+            setCatalogs(catList);
+          }
+          if (Array.isArray(catData.publishers)) {
+            setCatalogPublishersSummary(catData.publishers);
+          }
+          if (typeof catData.total === "number") {
+            setTotalCatalogDb(catData.total);
+          }
+        } catch (errCat) {
+          console.warn("Failed to fetch catalog:", errCat);
         }
-        if (Array.isArray(catData.publishers)) {
-          setCatalogPublishersSummary(catData.publishers);
-        }
-        if (typeof catData.total === "number") {
-          setTotalCatalogDb(catData.total);
-        }
-      } catch (errCat) {
-        console.warn("Failed to fetch catalog:", errCat);
-      }
 
-      // Fetch User Artists (Profil Artis Terdaftar)
-      const artRes = await fetch("/api/artists");
-      const artData = await artRes.json();
-      if (artData.ok && Array.isArray(artData.artists)) {
-        setUserArtists(artData.artists);
-        if (artData.artists.length > 0) {
-          setTrackArtist((prev) => prev || artData.artists[0].name);
+        // Fetch User Artists (Profil Artis Terdaftar)
+        try {
+          const artRes = await fetch("/api/artists");
+          const artData = await artRes.json();
+          if (artData.ok && Array.isArray(artData.artists)) {
+            setUserArtists(artData.artists);
+            if (artData.artists.length > 0) {
+              setTrackArtist((prev) => prev || artData.artists[0].name);
+            }
+          }
+        } catch (errArt) {
+          console.warn("Failed to fetch artists:", errArt);
         }
       }
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      isFetchingUserRef.current = false;
+      if (!silent) setLoading(false);
     }
   };
 
@@ -1125,7 +1155,27 @@ export default function UserDashboardPage() {
 
   useEffect(() => {
     fetchUserData();
+
+    // Auto-sync interval polling every 8s while standby on user dashboard
+    const interval = setInterval(() => {
+      fetchUserData(true);
+    }, 8000);
+
+    const handleFocus = () => {
+      fetchUserData(true);
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
+
+  // Sinkronisasi data seketika saat musisi beralih tab (misal ke releases / in-review)
+  useEffect(() => {
+    fetchUserData(true);
+  }, [activeTab]);
 
   const handleTogglePlatform = (plat: string) => {
     setSelectedPlatforms((prev) =>
@@ -1162,13 +1212,13 @@ export default function UserDashboardPage() {
 
       const data = await safeParseJson(res);
       if (res.ok && data.ok !== false) {
-        await fetchUserData();
+        await fetchUserData(true);
         showNotice(
           statusType === "Draft"
             ? "Track saved as draft in Prisma DB!"
             : `Track submitted! TikTok Clip (${formattedTiktokClip}) & Release Date (${formattedReleaseDate}) saved.`
         );
-        setActiveTab("releases");
+        setActiveTab("in-review");
       } else {
         throw new Error(data.error || "Gagal membuat rilis");
       }
@@ -4020,22 +4070,24 @@ export default function UserDashboardPage() {
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               setShowReviewModal(false);
-                              setActiveTab("releases");
+                              await fetchUserData(true);
+                              setActiveTab("in-review");
                             }}
-                            className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-[#c8f560] hover:bg-[#b5e050] text-[#312042] font-bold text-xs flex items-center justify-center gap-2 shadow-xl transition-all"
+                            className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-[#c8f560] hover:bg-[#b5e050] text-[#312042] font-bold text-xs flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer"
                           >
                             <ListMusic className="w-4 h-4" />
                             <span>Lihat Rilisan</span>
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               setShowReviewModal(false);
+                              await fetchUserData(true);
                               setActiveTab("overview");
                             }}
-                            className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all"
+                            className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
                           >
                             <Home className="w-4 h-4 text-[#c8f560]" />
                             <span>Klik Dashboard</span>
@@ -4412,12 +4464,24 @@ export default function UserDashboardPage() {
                             <p className="font-semibold text-sm text-white">{emptyTitle}</p>
                             <p className="text-xs text-white/60 max-w-xs mx-auto">{emptyDesc}</p>
                             {activeTab === "releases" && (
-                              <button
-                                onClick={() => setActiveTab("upload")}
-                                className="mt-2 px-4 py-1.5 rounded-full bg-[#312042] text-xs text-[#c8f560] font-semibold"
-                              >
-                                + Submit Lagu Baru
-                              </button>
+                              <div className="flex flex-col items-center gap-2 mt-2">
+                                {reviewUserReleases.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveTab("in-review")}
+                                    className="px-4 py-2 rounded-full bg-[#fde08d] text-[#312042] text-xs font-bold flex items-center gap-2 shadow transition-all cursor-pointer"
+                                  >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>Lihat {reviewUserReleases.length} Lagu Sedang Di-Review &rarr;</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setActiveTab("upload")}
+                                  className="px-4 py-1.5 rounded-full bg-[#312042] text-xs text-[#c8f560] font-semibold"
+                                >
+                                  + Submit Lagu Baru
+                                </button>
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -4499,12 +4563,24 @@ export default function UserDashboardPage() {
                               <p className="font-semibold text-base text-white">{emptyTitle}</p>
                               <p className="text-xs text-white/60 max-w-sm mx-auto">{emptyDesc}</p>
                               {activeTab === "releases" && (
-                                <button
-                                  onClick={() => setActiveTab("upload")}
-                                  className="mt-3 px-5 py-2 rounded-full bg-[#312042] text-xs text-[#c8f560] font-semibold hover:scale-105 transition-all shadow-md"
-                                >
-                                  + Submit Lagu Baru
-                                </button>
+                                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-3">
+                                  {reviewUserReleases.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setActiveTab("in-review")}
+                                      className="px-5 py-2.5 rounded-full bg-[#fde08d] hover:bg-[#ffe9a8] text-[#312042] text-xs font-bold flex items-center gap-2 shadow transition-all cursor-pointer"
+                                    >
+                                      <Clock className="w-4 h-4 text-[#312042]" />
+                                      <span>Lihat {reviewUserReleases.length} Lagu Sedang Di-Review &rarr;</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => setActiveTab("upload")}
+                                    className="px-5 py-2.5 rounded-full bg-[#312042] text-xs text-[#c8f560] font-semibold hover:scale-105 transition-all shadow-md cursor-pointer"
+                                  >
+                                    + Submit Lagu Baru
+                                  </button>
+                                </div>
                               )}
                             </div>
                           ) : (

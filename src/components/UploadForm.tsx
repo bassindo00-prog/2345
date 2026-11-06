@@ -406,14 +406,20 @@ export function UploadForm({ artists, userId }: { artists: any[]; userId: string
 
         <div className="space-y-3">
           <button
-            onClick={() => router.push("/dashboard/releases")}
+            onClick={() => {
+              router.refresh();
+              router.push("/dashboard/releases");
+            }}
             className="w-full bg-[#166534] hover:bg-[#14532d] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-900/20 text-lg"
           >
             Lihat Rilisan Saya <ArrowRight size={20} />
           </button>
           
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => {
+              router.refresh();
+              router.push("/dashboard");
+            }}
             className="w-full bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 py-4 rounded-xl font-bold flex items-center justify-center transition-all text-lg"
           >
             Kembali ke Dashboard

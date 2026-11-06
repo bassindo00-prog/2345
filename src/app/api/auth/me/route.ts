@@ -6,6 +6,7 @@ import { resolveMediaUrl } from "@/lib/r2";
 import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function DELETE() {
   const cookieStore = await cookies();
@@ -184,7 +185,16 @@ export async function GET() {
       })),
     };
 
-    return NextResponse.json({ user: mappedUser, authenticated: true });
+    return NextResponse.json(
+      { user: mappedUser, authenticated: true },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
+        },
+      }
+    );
   } catch (error) {
     console.error("Auth me error:", error);
     return NextResponse.json({ user: null, authenticated: false }, { status: 500 });

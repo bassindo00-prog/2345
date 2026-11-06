@@ -74,11 +74,64 @@ export default function UserReleasesClient({
   releases: ReleaseItem[];
   artistName?: string;
 }) {
+  const [releaseList, setReleaseList] = useState<ReleaseItem[]>(releases);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  useEffect(() => {
+    setReleaseList(releases);
+  }, [releases]);
+
+  // Real-time auto-sync: polling every 8s + focus listener
+  useEffect(() => {
+    const fetchLatest = async () => {
+      try {
+        const res = await fetch(`/api/releases?t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { Pragma: "no-cache", "Cache-Control": "no-cache" },
+        });
+        const data = await res.json();
+        if (data?.releases && Array.isArray(data.releases)) {
+          setReleaseList(
+            data.releases.map((r: any) => ({
+              id: r.id,
+              title: r.title,
+              genre: r.genre || "Pop",
+              type: r.type || "SINGLE",
+              status: r.status,
+              coverArtworkUrl: r.coverUrl || "",
+              releaseDate: r.releaseDate || new Date().toISOString(),
+              upc: r.upc || null,
+              tracks: (r.tracks || []).map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                audioUrl: t.audioUrl || t.audioFile,
+                composer: t.composer || null,
+                producer: t.producer || null,
+                lyrics: null,
+                isrc: t.isrc || null,
+                featuredArtist: t.featuring || null,
+              })),
+              artist: { name: r.artist || "Artist" },
+            }))
+          );
+        }
+      } catch (err) {
+        console.warn("User releases auto-sync error:", err);
+      }
+    };
+
+    const interval = setInterval(fetchLatest, 8000);
+    const handleFocus = () => fetchLatest();
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
 
   // Selected release for modal detail
   const [selectedRelease, setSelectedRelease] = useState<ReleaseItem | null>(null);
@@ -197,7 +250,7 @@ export default function UserReleasesClient({
     window.open(downloadApiUrl, "_blank");
   };
 
-  const filteredReleases = releases.filter((rel) => {
+  const filteredReleases = releaseList.filter((rel) => {
     const matchesSearch =
       rel.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       rel.genre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
