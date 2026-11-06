@@ -50,8 +50,8 @@ interface AdminLandingCMSProps {
 
 export default function AdminLandingCMS({ showNotice }: AdminLandingCMSProps) {
   const [activeSubTab, setActiveSubTab] = useState<
-    "hero" | "releases" | "roster" | "testimonials" | "features" | "faqs" | "platforms" | "contact"
-  >("hero");
+    "releases" | "roster" | "testimonials" | "features" | "faqs" | "platforms" | "contact"
+  >("releases");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
@@ -282,19 +282,8 @@ export default function AdminLandingCMS({ showNotice }: AdminLandingCMSProps) {
         </div>
       </div>
 
-      {/* Subtabs Bar 2 to Bar 8 */}
+      {/* Subtabs Bar 2 to Bar 8 (Bar 1 Hero Banner Permanen) */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-white/10">
-        <button
-          onClick={() => setActiveSubTab("hero")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeSubTab === "hero"
-              ? "bg-[#ff7fab] text-white shadow-md"
-              : "bg-white/10 text-white/70 hover:bg-white/15 hover:text-white"
-          }`}
-        >
-          <ImageIcon className="w-3.5 h-3.5" />
-          <span>Bar 1: Hero Banner</span>
-        </button>
 
         <button
           onClick={() => setActiveSubTab("releases")}
@@ -380,168 +369,6 @@ export default function AdminLandingCMS({ showNotice }: AdminLandingCMSProps) {
           <span>Bar 8: Kontak / CTA</span>
         </button>
       </div>
-
-      {/* =========================================================================
-          TAB 0: BAR 1 - HERO BANNER & FOTO UTAMA
-         ========================================================================= */}
-      {activeSubTab === "hero" && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-white/80">
-              Kelola foto utama (Hero Front Figure & Back Reveal), teks judul marquee pada Bar 1 Landing Page.
-            </p>
-            <button
-              onClick={handleSaveAll}
-              disabled={saving}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#ff7fab] hover:bg-[#ff6a9c] text-white font-bold text-xs shadow-md transition-all"
-            >
-              <Save className="w-4 h-4" />
-              <span>Simpan Hero Banner</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Foto Hero Depan */}
-            <div className={`${ROYALTY_CARD} space-y-4`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-sm text-white">Foto Hero Utama (Depan)</h4>
-                  <p className="text-[11px] text-white/70">Foto utama karakter/model yang tampil pertama kali di Bar 1</p>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30">
-                  Front Figure
-                </span>
-              </div>
-
-              <div className="w-full h-64 rounded-2xl overflow-hidden bg-black/40 border border-white/10 relative group flex items-center justify-center">
-                <img
-                  src={normalizeImageUrl(heroBgImage)}
-                  alt="Hero Front Preview"
-                  className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src =
-                      "https://placehold.co/400x600/141114/ffffff?text=Hero+Front";
-                  }}
-                />
-                {uploadingField === "heroBg" && (
-                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white text-xs gap-2">
-                    <div className="w-6 h-6 border-2 border-pink-400 border-t-transparent rounded-full animate-spin" />
-                    <span>Mengunggah foto...</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs text-white/70 block">URL Foto atau Unggah Langsung</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={heroBgImage}
-                    onChange={(e) => setHeroBgImage(e.target.value)}
-                    placeholder="https://... atau /api/media/..."
-                    className="flex-grow px-3 py-2 rounded-xl bg-black/30 border border-white/10 text-white text-xs"
-                  />
-                  <label className="cursor-pointer px-4 py-2 rounded-xl bg-[#ff7fab] hover:bg-[#ff6a9c] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md flex-shrink-0">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Foto</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) =>
-                        handleFileUpload(e, "heroBg", (url) => setHeroBgImage(url))
-                      }
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Foto Hero Belakang (Reveal Suit-up) */}
-            <div className={`${ROYALTY_CARD} space-y-4`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-sm text-white">Foto Efek Reveal (Belakang)</h4>
-                  <p className="text-[11px] text-white/70">Foto baju/kostum yang terungkap saat kursor atau swipe di layar</p>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                  Interactive Reveal
-                </span>
-              </div>
-
-              <div className="w-full h-64 rounded-2xl overflow-hidden bg-black/40 border border-white/10 relative group flex items-center justify-center">
-                <img
-                  src={normalizeImageUrl(heroBackImage)}
-                  alt="Hero Back Reveal Preview"
-                  className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src =
-                      "https://placehold.co/400x600/141114/ffffff?text=Hero+Reveal";
-                  }}
-                />
-                {uploadingField === "heroBack" && (
-                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white text-xs gap-2">
-                    <div className="w-6 h-6 border-2 border-pink-400 border-t-transparent rounded-full animate-spin" />
-                    <span>Mengunggah foto...</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs text-white/70 block">URL Foto atau Unggah Langsung</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={heroBackImage}
-                    onChange={(e) => setHeroBackImage(e.target.value)}
-                    placeholder="https://... atau /api/media/..."
-                    className="flex-grow px-3 py-2 rounded-xl bg-black/30 border border-white/10 text-white text-xs"
-                  />
-                  <label className="cursor-pointer px-4 py-2 rounded-xl bg-[#ff7fab] hover:bg-[#ff6a9c] text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md flex-shrink-0">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Foto</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) =>
-                        handleFileUpload(e, "heroBack", (url) => setHeroBackImage(url))
-                      }
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Marquee Teks Hero */}
-          <div className={`${ROYALTY_CARD} space-y-4`}>
-            <h4 className="font-bold text-sm text-white">Teks Marquee Background Hero</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-white/70 block mb-1">Teks Baris Atas (Ghost / Outlined)</label>
-                <input
-                  type="text"
-                  value={heroTitle1}
-                  onChange={(e) => setHeroTitle1(e.target.value)}
-                  placeholder="BREAKOUT.ID"
-                  className="w-full px-3 py-2 rounded-xl bg-black/30 border border-white/10 text-white text-xs font-bold"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-white/70 block mb-1">Teks Baris Bawah (Solid)</label>
-                <input
-                  type="text"
-                  value={heroSubtitle}
-                  onChange={(e) => setHeroSubtitle(e.target.value)}
-                  placeholder="MUSIC DISTRIBUTION FOR EVERYONE"
-                  className="w-full px-3 py-2 rounded-xl bg-black/30 border border-white/10 text-white text-xs font-bold"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* =========================================================================
           TAB 1: BAR 3 - NEW RELEASES DECK

@@ -1061,7 +1061,6 @@ export default function BreakoutApp({
     let reqId: number;
 
     const heroBackUrl =
-      normalizeImageUrl(data?.heroBackImage) ||
       "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152354_98c21034-6558-4210-a810-8232cf9d2557.png";
     const back = new window.Image();
     back.crossOrigin = "anonymous";
@@ -1488,16 +1487,16 @@ export default function BreakoutApp({
       >
         <div className="marquees" aria-hidden="true">
           <div className="row ghost">
-            <span>{data?.heroTitle1 || "BREAKOUT.ID"}</span>
-            <span>{data?.heroTitle1 || "BREAKOUT.ID"}</span>
-            <span>{data?.heroTitle1 || "BREAKOUT.ID"}</span>
-            <span>{data?.heroTitle1 || "BREAKOUT.ID"}</span>
+            <span>BREAKOUT.ID</span>
+            <span>BREAKOUT.ID</span>
+            <span>BREAKOUT.ID</span>
+            <span>BREAKOUT.ID</span>
           </div>
           <div className="row solid">
-            <span>{data?.heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE"}</span>
-            <span>{data?.heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE"}</span>
-            <span>{data?.heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE"}</span>
-            <span>{data?.heroSubtitle || "MUSIC DISTRIBUTION FOR EVERYONE"}</span>
+            <span>MUSIC DISTRIBUTION FOR EVERYONE</span>
+            <span>MUSIC DISTRIBUTION FOR EVERYONE</span>
+            <span>MUSIC DISTRIBUTION FOR EVERYONE</span>
+            <span>MUSIC DISTRIBUTION FOR EVERYONE</span>
           </div>
         </div>
         <div className="figure" id="figure" ref={figureRef}>
@@ -1506,10 +1505,7 @@ export default function BreakoutApp({
             ref={frontRef}
             alt="Hero Figure"
             crossOrigin="anonymous"
-            src={
-              normalizeImageUrl(data?.heroBgImage) ||
-              "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152350_4fd91a2b-94c2-4b86-834f-3b7f9a716d5b.png"
-            }
+            src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20261103_152350_4fd91a2b-94c2-4b86-834f-3b7f9a716d5b.png"
           />
           <canvas id="reveal" ref={revealRef} aria-hidden="true" />
         </div>
