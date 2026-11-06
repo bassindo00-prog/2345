@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
   Home,
   Disc3,
@@ -855,8 +856,17 @@ export default function AdminDashboardPage() {
   };
 
   const handleLogout = async () => {
-    await fetch("/api/auth/me", { method: "DELETE" });
-    router.push("/login");
+    try {
+      await fetch("/api/auth/me", { method: "DELETE" });
+    } catch (e) {
+      console.error("Logout API error:", e);
+    }
+    try {
+      await signOut({ callbackUrl: "/login", redirect: false });
+    } catch (e) {
+      console.error("signOut error:", e);
+    }
+    window.location.href = "/login";
   };
 
   const pendingReleases = releases.filter(
@@ -1758,6 +1768,14 @@ export default function AdminDashboardPage() {
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    title="Keluar Akun Admin"
+                    className="p-2 rounded-full bg-white/15 text-red-300 hover:bg-red-500/25 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
 
@@ -1786,6 +1804,16 @@ export default function AdminDashboardPage() {
                   className="w-10 h-10 rounded-full bg-[#8a88b5]/70 border border-white/20 flex items-center justify-center text-white hover:bg-white/25 transition-all cursor-pointer"
                 >
                   <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Keluar Akun Admin"
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-red-500/25 text-white/90 hover:text-white border border-white/15 text-xs font-semibold transition-all cursor-pointer shadow-sm active:scale-95"
+                >
+                  <LogOut className="w-4 h-4 text-red-400" />
+                  <span className="hidden md:inline">Keluar</span>
                 </button>
               </div>
             </div>

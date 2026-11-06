@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveMediaUrl } from "@/lib/r2";
@@ -6,7 +7,35 @@ import { resolveMediaUrl } from "@/lib/r2";
 export const dynamic = "force-dynamic";
 
 export async function DELETE() {
-  return NextResponse.json({ ok: true });
+  const cookieStore = await cookies();
+  const allCookies = cookieStore.getAll();
+  const res = NextResponse.json({ ok: true, message: "Logged out successfully" });
+
+  const authCookiePrefixes = [
+    "authjs",
+    "next-auth",
+    "session",
+    "token",
+    "__Secure-authjs",
+    "__Host-authjs",
+    "__Secure-next-auth"
+  ];
+
+  for (const c of allCookies) {
+    const isAuth = authCookiePrefixes.some((p) =>
+      c.name.toLowerCase().includes(p.toLowerCase())
+    );
+    if (isAuth) {
+      res.cookies.set(c.name, "", {
+        path: "/",
+        maxAge: 0,
+        expires: new Date(0),
+      });
+      res.cookies.delete(c.name);
+    }
+  }
+
+  return res;
 }
 
 export async function GET() {
