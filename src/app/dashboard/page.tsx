@@ -5127,12 +5127,15 @@ export default function UserDashboardPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1.5 rounded-xl bg-black/25 border border-white/15 text-xs text-white/90">
-                    Total: <strong className="text-[#c8f560] font-bold">{catalogs.length} Lagu Master</strong>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-3.5 py-1.5 rounded-xl bg-[#c8f560]/20 border border-[#c8f560]/40 text-xs text-white">
+                    Total Keseluruhan: <strong className="text-[#c8f560] font-black">{((totalCatalogDb || 39676) + (damarTotal > 0 ? damarTotal : 8421)).toLocaleString("id-ID")} Lagu</strong>
                   </span>
-                  <span className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs text-white/90">
-                    Upstream: <strong className="text-[#c8f560] font-bold">{damarTotal > 0 ? damarTotal.toLocaleString("id-ID") : "8.400+"} Lagu</strong>
+                  <span className="px-3 py-1.5 rounded-xl bg-black/25 border border-white/15 text-[11px] text-white/80">
+                    Database Master: <strong className="text-white font-bold">{(totalCatalogDb || 39676).toLocaleString("id-ID")}</strong>
+                  </span>
+                  <span className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/15 text-[11px] text-white/80">
+                    Damarlangit: <strong className="text-white font-bold">{damarTotal > 0 ? damarTotal.toLocaleString("id-ID") : "8.421"}</strong>
                   </span>
                 </div>
               </div>

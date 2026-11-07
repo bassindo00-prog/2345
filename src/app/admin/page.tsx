@@ -161,6 +161,7 @@ export default function AdminDashboardPage() {
   const [bulkCsvText, setBulkCsvText] = useState("");
   const [catSearch, setCatSearch] = useState("");
   const [catPublisherFilter, setCatPublisherFilter] = useState("ALL");
+  const [catTotal, setCatTotal] = useState(39676);
   const [isCatManualModalOpen, setIsCatManualModalOpen] = useState(false);
   const [isCatImportModalOpen, setIsCatImportModalOpen] = useState(false);
   const [catImporting, setCatImporting] = useState(false);
@@ -421,6 +422,9 @@ export default function AdminDashboardPage() {
         try {
           const catRes = await fetch("/api/catalog?limit=3000");
           const catData = await catRes.json();
+          if (typeof catData.total === "number") {
+            setCatTotal(catData.total);
+          }
           const catList = catData.items || catData.catalogs || [];
           if (Array.isArray(catList) && catList.length > 0) {
             setCatalogs(catList);
@@ -3941,7 +3945,7 @@ export default function AdminDashboardPage() {
 
                 <div className="flex flex-wrap items-center gap-2.5">
                   <span className="px-3.5 py-2 rounded-xl bg-[#c8f560]/20 border border-[#c8f560]/40 text-[#c8f560] text-xs font-bold">
-                    {catalogs.length} Lagu Terdaftar
+                    {(catTotal || catalogs.length).toLocaleString("id-ID")} Lagu Terdaftar
                   </span>
 
                   <button
