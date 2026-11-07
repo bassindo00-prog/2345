@@ -163,6 +163,30 @@ export default function AdminDashboardPage() {
   const [catSearch, setCatSearch] = useState("");
   const [catPublisherFilter, setCatPublisherFilter] = useState("ALL");
   const [catTotal, setCatTotal] = useState(39676);
+  const [catPublishersList, setCatPublishersList] = useState<Array<{ publisher: string; count: number }>>([
+    { publisher: "Sora Music Publisher", count: 10703 },
+    { publisher: "MAHAR PUSTAKA NUSANTARA", count: 9413 },
+    { publisher: "Delapan Belas Musik", count: 2904 },
+    { publisher: "Proaktif Digital Kreasi", count: 2619 },
+    { publisher: "ALFA PUSTAKA NADA", count: 2145 },
+    { publisher: "BREAKOUT Publishing", count: 2018 },
+    { publisher: "PT. Sony Music Publishing Indonesia", count: 2017 },
+    { publisher: "PT. Gajah Mada Publishing", count: 1910 },
+    { publisher: "RPH Music Publishing", count: 1897 },
+    { publisher: "MEGABAYZ Enterprises", count: 1484 },
+    { publisher: "PT WIRAYUDA SWARATAMA JEKA (PUSTAKA JEKA)", count: 1025 },
+    { publisher: "PT. Royal Publikasi Musikindo", count: 766 },
+    { publisher: "PT Star Cipta Musikindo", count: 245 },
+    { publisher: "PT KHANA MEDIA NUSANTARA", count: 172 },
+    { publisher: "RPH", count: 137 },
+    { publisher: "PT Pragita Prabawa Pustaka", count: 73 },
+    { publisher: "BREAK OUT MUSIC RECORD", count: 73 },
+    { publisher: "Khana Music Publishing", count: 15 },
+    { publisher: "BREAKOUT Publishing / Sony Music", count: 15 },
+    { publisher: "Warner Chappell Music Indonesia", count: 15 },
+    { publisher: "Universal Music Publishing Indonesia", count: 15 },
+    { publisher: "Halo Entertainment Indonesia", count: 15 },
+  ]);
   const [isCatManualModalOpen, setIsCatManualModalOpen] = useState(false);
   const [isCatImportModalOpen, setIsCatImportModalOpen] = useState(false);
   const [catImporting, setCatImporting] = useState(false);
@@ -436,6 +460,9 @@ export default function AdminDashboardPage() {
           const catData = await catRes.json();
           if (typeof catData.total === "number") {
             setCatTotal(catData.total);
+          }
+          if (Array.isArray(catData.publishers) && catData.publishers.length > 0) {
+            setCatPublishersList(catData.publishers);
           }
           const catList = catData.items || catData.catalogs || [];
           if (Array.isArray(catList) && catList.length > 0) {
@@ -1145,6 +1172,24 @@ export default function AdminDashboardPage() {
       showNotice(err.message || "Terjadi kesalahan saat mengupdate lagu");
     } finally {
       setSavingCatalogEdit(false);
+    }
+  };
+
+  const handleAdminSelectPublisher = async (pub: string) => {
+    setCatPublisherFilter(pub);
+    setPageCatalog(1);
+    try {
+      const url =
+        pub === "ALL"
+          ? `/api/catalog?limit=3000${catSearch ? `&search=${encodeURIComponent(catSearch)}` : ""}`
+          : `/api/catalog?publisher=${encodeURIComponent(pub)}&limit=3000${catSearch ? `&search=${encodeURIComponent(catSearch)}` : ""}`;
+      const res = await fetch(url);
+      const d = await res.json();
+      if (Array.isArray(d.items)) {
+        setCatalogs(d.items);
+      }
+    } catch (e) {
+      console.warn("Gagal filter publisher katalog di admin:", e);
     }
   };
 
@@ -4097,28 +4142,61 @@ export default function AdminDashboardPage() {
                   </div>
 
                   {/* Publisher Filter Pills */}
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[11px] font-bold text-white/60 mr-1 uppercase">Filter Publisher:</span>
-                    {["ALL", ...Array.from(new Set(catalogs.map((c) => c.publisher))).filter(Boolean)].map((pub) => {
-                      const isSel = catPublisherFilter === pub;
-                      return (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
+                        Filter Berdasarkan Publisher Resmi ({catPublishersList.length} Publisher):
+                      </span>
+                      {catPublisherFilter !== "ALL" && (
                         <button
-                          key={pub}
                           type="button"
-                          onClick={() => {
-                            setCatPublisherFilter(pub);
-                            setPageCatalog(1);
-                          }}
-                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
-                            isSel
-                              ? "bg-[#c8f560] text-[#312042] font-bold shadow"
-                              : "bg-white/10 text-white/80 hover:bg-white/20"
-                          }`}
+                          onClick={() => handleAdminSelectPublisher("ALL")}
+                          className="text-[10px] text-[#c8f560] hover:underline cursor-pointer font-bold"
                         >
-                          {pub === "ALL" ? "Semua Publisher" : pub}
+                          Reset ke Semua Publisher
                         </button>
-                      );
-                    })}
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 max-h-[140px] overflow-y-auto pr-1">
+                      <button
+                        type="button"
+                        onClick={() => handleAdminSelectPublisher("ALL")}
+                        className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                          catPublisherFilter === "ALL"
+                            ? "bg-[#c8f560] text-[#312042] shadow-md"
+                            : "bg-white/10 text-white/80 hover:bg-white/20"
+                        }`}
+                      >
+                        Semua Publisher ({(catTotal || 39676).toLocaleString("id-ID")})
+                      </button>
+
+                      {catPublishersList.map((pubItem) => {
+                        const pubName = pubItem.publisher;
+                        const isSel = catPublisherFilter.toLowerCase() === pubName.toLowerCase();
+                        return (
+                          <button
+                            key={pubName}
+                            type="button"
+                            onClick={() => handleAdminSelectPublisher(pubName)}
+                            className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isSel
+                                ? "bg-[#c8f560] text-[#312042] font-bold shadow-md scale-[1.02]"
+                                : "bg-white/10 text-white/80 hover:bg-white/20"
+                            }`}
+                          >
+                            <span>{pubName}</span>
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                                isSel ? "bg-[#312042]/20 text-[#312042]" : "bg-black/35 text-[#c8f560]"
+                              }`}
+                            >
+                              {pubItem.count.toLocaleString("id-ID")}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
