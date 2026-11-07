@@ -43,8 +43,15 @@ export async function GET(
     }
 
     if (!responseData || !responseData.Body) {
+      if (key.startsWith("covers/")) {
+        return NextResponse.redirect(new URL("/logo.png", request.url));
+      }
       return new NextResponse("File Not Found", { status: 404 });
     }
+
+    const { searchParams } = new URL(request.url);
+    const isDownload = searchParams.get("download") === "1";
+    const customFilename = searchParams.get("filename");
 
     const contentType = responseData.ContentType || "application/octet-stream";
     const contentLength = responseData.ContentLength;
@@ -58,6 +65,11 @@ export async function GET(
       "Accept-Ranges": acceptRanges,
       "Cache-Control": "public, max-age=86400, s-maxage=604800",
     };
+
+    if (isDownload) {
+      const fn = customFilename || path[path.length - 1] || "file";
+      headers["Content-Disposition"] = `attachment; filename="${encodeURIComponent(fn)}"`;
+    }
 
     if (contentLength !== undefined) {
       headers["Content-Length"] = contentLength.toString();

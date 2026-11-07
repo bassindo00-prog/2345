@@ -72,6 +72,31 @@ export async function GET() {
       }
     }
 
+    // 5. Query tracks and group by releaseId
+    let rawTracks: any[] = [];
+    try {
+      rawTracks = (await prisma.$queryRawUnsafe(
+        `SELECT * FROM "Track"`
+      )) as any[];
+    } catch (eTrk) {
+      try {
+        rawTracks = (await prisma.track.findMany()) as any[];
+      } catch (eTrk2) {
+        console.warn("Track query fallback in overview:", eTrk2);
+      }
+    }
+
+    const tracksByRelease = new Map<string, any[]>();
+    for (const t of rawTracks) {
+      const rId = t.releaseId || t.releaseid || t.release_id || "";
+      if (rId) {
+        if (!tracksByRelease.has(rId)) {
+          tracksByRelease.set(rId, []);
+        }
+        tracksByRelease.get(rId)!.push(t);
+      }
+    }
+
     // Map releases with full fallback to artistId -> Artist -> userId
     const releases = rawReleases.map((r: any) => {
       const artId = r.artistId || r.artistid || (r.artist && typeof r.artist === "object" ? r.artist.id : "");
@@ -123,6 +148,40 @@ export async function GET() {
         statusNorm = "PENDING";
       }
 
+      const relTracks = tracksByRelease.get(r.id) || r.tracks || [];
+      const firstTrack = relTracks[0] || null;
+
+      const rawAudio =
+        firstTrack?.audioUrl ||
+        firstTrack?.audiourl ||
+        firstTrack?.audioFile ||
+        firstTrack?.audiofile ||
+        r.audioFile ||
+        r.audiofile ||
+        r.audioUrl ||
+        r.audiourl ||
+        "";
+      const audioFile = resolveMediaUrl(rawAudio);
+
+      const composer = firstTrack?.composer || r.composer || "-";
+      const producer = firstTrack?.producer || r.producer || "-";
+      const featuring =
+        firstTrack?.featuredArtist ||
+        firstTrack?.featuredartist ||
+        r.featuring ||
+        r.featuredArtist ||
+        r.featuredartist ||
+        "Tidak ada (Solo)";
+      const tiktokClip =
+        firstTrack?.tiktokClipStart ||
+        firstTrack?.tiktokclipstart ||
+        r.tiktokClip ||
+        r.tiktokclip ||
+        "-";
+      const duration = r.duration || "3:42";
+      const upc = r.upc || firstTrack?.upc || "899214578101";
+      const isrc = firstTrack?.isrc || r.isrc || "ID-HRM-24-00101";
+
       return {
         id: r.id,
         title: r.title || "Untitled",
@@ -130,9 +189,19 @@ export async function GET() {
         type: r.type || "SINGLE",
         genre: r.genre || "Pop",
         status: statusNorm,
-        upc: r.upc || "",
+        upc,
+        isrc,
         rejectionReason: r.rejectionReason || r.rejectionreason || "",
-        coverUrl: resolveMediaUrl(cover),
+        coverUrl: resolveMediaUrl(cover) || "/logo.png",
+        audioFile,
+        audioUrl: audioFile,
+        composer,
+        producer,
+        publisher: r.distributor || "BREAKOUT Records",
+        distributor: r.distributor || "BREAKOUT Records",
+        featuring,
+        tiktokClip,
+        duration,
         releaseDate: releaseDateStr,
         createdAt: r.createdAt,
         userId: relUserId,
@@ -140,11 +209,15 @@ export async function GET() {
         spotifyUrl: r.spotifyUrl || r.spotifyurl || "",
         appleMusicUrl: r.appleMusicUrl || r.applemusicurl || "",
         youtubeMusicUrl: r.youtubeMusicUrl || r.youtubemusicurl || "",
-        tracks: (r.tracks || []).map((t: any) => ({
-          id: t.id,
-          title: t.title,
-          isrc: t.isrc,
-          audioUrl: resolveMediaUrl(t.audioUrl || t.audiourl),
+        tracks: relTracks.map((t: any, idx: number) => ({
+          id: t.id || `${r.id}-t${idx + 1}`,
+          title: t.title || r.title,
+          isrc: t.isrc || isrc,
+          audioUrl: resolveMediaUrl(t.audioUrl || t.audiourl || rawAudio),
+          audioFile: resolveMediaUrl(t.audioUrl || t.audiourl || rawAudio),
+          composer: t.composer || composer,
+          producer: t.producer || producer,
+          featuring: t.featuredArtist || t.featuredartist || null,
         })),
         user: {
           id: relUserId,

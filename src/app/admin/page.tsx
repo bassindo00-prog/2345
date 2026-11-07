@@ -1840,15 +1840,18 @@ export default function AdminDashboardPage() {
               <div className="flex flex-col sm:flex-row gap-5 items-start">
                 <div className="w-36 h-36 rounded-2xl overflow-hidden border border-white/25 shrink-0 bg-black/20 shadow-lg relative group">
                   <img
-                    src={selectedRelease.coverUrl}
+                    src={selectedRelease.coverUrl || "/logo.png"}
                     alt={selectedRelease.title}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = "/logo.png";
+                    }}
                     className="w-full h-full object-cover"
                   />
                   <button
                     type="button"
                     onClick={() =>
                       downloadAsset(
-                        selectedRelease.coverUrl,
+                        selectedRelease.coverUrl || "/logo.png",
                         `${selectedRelease.title}-cover.jpg`
                       )
                     }
@@ -1876,7 +1879,7 @@ export default function AdminDashboardPage() {
                       type="button"
                       onClick={() =>
                         downloadAsset(
-                          selectedRelease.coverUrl,
+                          selectedRelease.coverUrl || "/logo.png",
                           `${selectedRelease.title}-artwork.jpg`
                         )
                       }
@@ -1889,12 +1892,17 @@ export default function AdminDashboardPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (!selectedRelease.audioFile) {
-                          showNotice("File audio belum tersedia untuk rilis ini.");
+                        const audioTarget =
+                          selectedRelease.audioFile ||
+                          selectedRelease.audioUrl ||
+                          selectedRelease.tracks?.[0]?.audioUrl ||
+                          selectedRelease.tracks?.[0]?.audioFile;
+                        if (!audioTarget) {
+                          showNotice("File audio belum diunggah user untuk rilis ini.");
                           return;
                         }
                         downloadAsset(
-                          selectedRelease.audioFile,
+                          audioTarget,
                           `${selectedRelease.title}-master.mp3`
                         );
                       }}
@@ -1906,19 +1914,35 @@ export default function AdminDashboardPage() {
                   </div>
 
                   {/* Inline Audio Player for Admin Listening */}
-                  {selectedRelease.audioFile && (
-                    <div className="pt-2">
-                      <p className="text-[11px] text-white/70 mb-1 flex items-center gap-1 font-medium">
-                        <Volume2 className="w-3.5 h-3.5 text-[#c8f560]" />
-                        <span>Putar Preview Audio Rilis:</span>
-                      </p>
-                      <audio
-                        controls
-                        src={selectedRelease.audioFile}
-                        className="w-full h-8 rounded-lg bg-black/40 border border-white/15"
-                      />
-                    </div>
-                  )}
+                  {(() => {
+                    const audioTarget =
+                      selectedRelease.audioFile ||
+                      selectedRelease.audioUrl ||
+                      selectedRelease.tracks?.[0]?.audioUrl ||
+                      selectedRelease.tracks?.[0]?.audioFile;
+                    if (audioTarget) {
+                      return (
+                        <div className="pt-2">
+                          <p className="text-[11px] text-[#c8f560] mb-1.5 flex items-center gap-1.5 font-bold">
+                            <Volume2 className="w-4 h-4 text-[#c8f560]" />
+                            <span>Putar Langsung Audio Rilis (Admin Player):</span>
+                          </p>
+                          <audio
+                            controls
+                            src={audioTarget}
+                            className="w-full h-9 rounded-xl bg-black/60 border border-[#c8f560]/40 shadow-inner"
+                          />
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="pt-2">
+                        <span className="text-[11px] text-amber-300/80 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5">
+                          ⚠️ Master audio belum diunggah user untuk lagu ini
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -2559,6 +2583,9 @@ export default function AdminDashboardPage() {
                             <img
                               src={rel.coverUrl || "/logo.png"}
                               alt={rel.title}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = "/logo.png";
+                              }}
                               className="w-10 h-10 rounded-lg object-cover border border-white/20 shrink-0"
                             />
                             <div className="min-w-0">
@@ -3848,8 +3875,11 @@ export default function AdminDashboardPage() {
                             />
                           </div>
                           <img
-                            src={r.coverUrl}
+                            src={r.coverUrl || "/logo.png"}
                             alt={r.title}
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = "/logo.png";
+                            }}
                             className="w-14 h-14 rounded-xl object-cover border border-white/25 shrink-0 shadow"
                           />
                           <div className="min-w-0 flex-1">
@@ -3996,8 +4026,11 @@ export default function AdminDashboardPage() {
                             {/* Col 1: Track & Artis */}
                             <div className="col-span-4 flex items-center gap-3.5 min-w-0 pr-3">
                               <img
-                                src={r.coverUrl}
+                                src={r.coverUrl || "/logo.png"}
                                 alt={r.title}
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).src = "/logo.png";
+                                }}
                                 className="w-12 h-12 rounded-xl object-cover border border-white/25 shrink-0 group-hover:scale-105 transition-transform shadow"
                               />
                               <div className="min-w-0">
