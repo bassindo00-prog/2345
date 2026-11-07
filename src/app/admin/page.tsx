@@ -304,6 +304,15 @@ export default function AdminDashboardPage() {
     setTimeout(() => setToast(""), 3500);
   };
 
+  // Helper to extract artist display name (prefer registered Artist profile over generic account name)
+  const getArtistDisplayName = (u: any) => {
+    if (!u) return "Artis";
+    if (u.artists && u.artists.length > 0 && u.artists[0]?.name) {
+      return u.artists[0].name;
+    }
+    return u.name || "Artis";
+  };
+
   // Mobile / Browser Back Button Protection & Tab/Modal State Management
   const activeTabRef = useRef(activeTab);
   const mobileMenuOpenRef = useRef(mobileMenuOpen);
@@ -514,9 +523,16 @@ export default function AdminDashboardPage() {
         // Jangan pernah menimpa pilihan artis atau angka yang sedang diketik admin!
         if (!currentSelected || !currentSelectedUser) {
           const appRels = (data.releases || []).filter((r: any) => r.status === "Approved");
-          const appArt = (data.users || []).filter(
-            (u: any) => u.role !== "ADMIN" && appRels.some((r: any) => r.userId === u.id)
-          );
+          const appArt = (data.users || [])
+            .filter(
+              (u: any) => u.role !== "ADMIN" && appRels.some((r: any) => r.userId === u.id)
+            )
+            .sort((a: any, b: any) =>
+              getArtistDisplayName(a).localeCompare(getArtistDisplayName(b), "id", {
+                sensitivity: "base",
+                numeric: true,
+              })
+            );
           const target =
             appArt[0] ||
             data.users.find((u: any) => u.role !== "ADMIN") ||
@@ -1580,21 +1596,21 @@ export default function AdminDashboardPage() {
     };
   }, [withdrawals, currentMonthIdx]);
 
-  // Helper to extract artist display name (prefer registered Artist profile over generic account name)
-  const getArtistDisplayName = (u: any) => {
-    if (!u) return "Artis";
-    if (u.artists && u.artists.length > 0 && u.artists[0]?.name) {
-      return u.artists[0].name;
-    }
-    return u.name || "Artis";
-  };
-
-  // Filter artis yang sudah creat new artis & sudah punya rilisan lagu ACC (Approved)
-  const approvedArtists = users.filter(
-    (u) =>
-      u.role !== "ADMIN" &&
-      approvedReleases.some((r) => r.userId === u.id)
-  );
+  // Filter artis yang sudah creat new artis & sudah punya rilisan lagu ACC (Approved) - Diurutkan Alfabetis A sampai Z
+  const approvedArtists = useMemo(() => {
+    return users
+      .filter(
+        (u) =>
+          u.role !== "ADMIN" &&
+          approvedReleases.some((r) => r.userId === u.id)
+      )
+      .sort((a, b) =>
+        getArtistDisplayName(a).localeCompare(getArtistDisplayName(b), "id", {
+          sensitivity: "base",
+          numeric: true,
+        })
+      );
+  }, [users, approvedReleases]);
   const releasedArtists = approvedArtists;
 
   const totalGlobalStreams = users.reduce((acc, u) => acc + (u.totalStreams || 0), 0);
@@ -6242,7 +6258,12 @@ export default function AdminDashboardPage() {
               }
 
               return true;
-            });
+            }).sort((a, b) =>
+              getArtistDisplayName(a).localeCompare(getArtistDisplayName(b), "id", {
+                sensitivity: "base",
+                numeric: true,
+              })
+            );
 
             const paginatedArtists = displayedArtists.slice(
               (pageUsers - 1) * 8,
