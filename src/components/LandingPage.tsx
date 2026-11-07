@@ -1570,9 +1570,32 @@ export default function BreakoutApp({
                     <h4>{rel.artist}</h4>
                     <p>{rel.title}</p>
                   </div>
-                  <Link href={rel.listenUrl || "/login"} className="btn-listen">
-                    ♪ Dengarkan di DSP <span aria-hidden="true">↗</span>
-                  </Link>
+                  {(() => {
+                    const raw = (rel.listenUrl || "/login").trim();
+                    const isInternal = raw.startsWith("/");
+                    const cleanHref = isInternal
+                      ? raw
+                      : (raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`);
+
+                    if (isInternal) {
+                      return (
+                        <Link href={cleanHref} className="btn-listen">
+                          ♪ Dengarkan di DSP <span aria-hidden="true">↗</span>
+                        </Link>
+                      );
+                    }
+
+                    return (
+                      <a
+                        href={cleanHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-listen"
+                      >
+                        ♪ Dengarkan di DSP <span aria-hidden="true">↗</span>
+                      </a>
+                    );
+                  })()}
                 </div>
               </div>
             );

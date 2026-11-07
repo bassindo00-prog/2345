@@ -923,13 +923,17 @@ export default function AdminLandingCMS({ showNotice }: AdminLandingCMSProps) {
               </div>
 
               <div>
-                <label className="text-xs text-white/70 block mb-1">Link Dengarkan (URL)</label>
+                <label className="text-xs text-white/70 block mb-1">Link Dengarkan (URL Spotify / Apple Music / DSP)</label>
                 <input
                   type="text"
-                  value={releaseForm.listenUrl || "/login"}
+                  placeholder="https://open.spotify.com/artist/..."
+                  value={releaseForm.listenUrl || ""}
                   onChange={(e) => setReleaseForm({ ...releaseForm, listenUrl: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-black/30 border border-white/10 text-white text-xs"
+                  className="w-full px-3 py-2 rounded-xl bg-black/30 border border-white/10 text-white text-xs placeholder:text-white/30"
                 />
+                <p className="text-[10px] text-white/40 mt-1">
+                  Contoh: https://open.spotify.com/artist/... (Bisa langsung paste link Spotify/DSP)
+                </p>
               </div>
 
               <div>
@@ -977,12 +981,27 @@ export default function AdminLandingCMS({ showNotice }: AdminLandingCMSProps) {
                     showNotice("Nama artis dan judul lagu wajib diisi!");
                     return;
                   }
+                  const rawUrl = (releaseForm.listenUrl || "").trim();
+                  const normalizedUrl =
+                    !rawUrl || rawUrl === "/login"
+                      ? "/login"
+                      : rawUrl.startsWith("/")
+                      ? rawUrl
+                      : rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
+                      ? rawUrl
+                      : `https://${rawUrl}`;
+
+                  const itemToSave = {
+                    ...releaseForm,
+                    listenUrl: normalizedUrl,
+                  };
+
                   if (editingReleaseId) {
                     setReleases((prev) =>
-                      prev.map((r) => (r.id === editingReleaseId ? { ...releaseForm } : r))
+                      prev.map((r) => (r.id === editingReleaseId ? itemToSave : r))
                     );
                   } else {
-                    setReleases((prev) => [...prev, { ...releaseForm, id: Date.now() }]);
+                    setReleases((prev) => [...prev, { ...itemToSave, id: Date.now() }]);
                   }
                   setReleaseModalOpen(false);
                 }}

@@ -20,6 +20,14 @@ function cleanUrl(url: any): string {
   return url.replace(/https?:\/\/storage\.vpsmurah\.co\.id/g, "/api/storage");
 }
 
+function formatListenUrl(url: any): string {
+  if (typeof url !== "string" || !url.trim() || url === "/login") return "/login";
+  const clean = url.trim();
+  if (clean.startsWith("/")) return clean;
+  if (clean.startsWith("http://") || clean.startsWith("https://")) return clean;
+  return `https://${clean}`;
+}
+
 async function ensureTable() {
   try {
     await prisma.$executeRawUnsafe(`
@@ -90,7 +98,7 @@ export async function GET() {
             artist: r.artist || "Artist",
             coverUrl: cleanUrl(r.coverUrl || DEFAULT_RELEASES[idx % DEFAULT_RELEASES.length].coverUrl),
             tag: r.tag || "Live di DSP",
-            listenUrl: r.listenUrl || "/login",
+            listenUrl: formatListenUrl(r.listenUrl),
           }));
         }
       }
@@ -204,7 +212,7 @@ export async function POST(req: Request) {
         artist: r.artist || "Artist",
         coverUrl: cleanUrl(r.coverUrl || DEFAULT_RELEASES[idx % DEFAULT_RELEASES.length].coverUrl),
         tag: r.tag || "Live di DSP",
-        listenUrl: r.listenUrl || "/login",
+        listenUrl: formatListenUrl(r.listenUrl),
       })
     );
 
