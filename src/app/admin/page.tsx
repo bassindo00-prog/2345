@@ -1647,11 +1647,19 @@ export default function AdminDashboardPage() {
   // Filter artis yang sudah creat new artis & sudah punya rilisan lagu ACC (Approved) - Diurutkan Alfabetis A sampai Z
   const approvedArtists = useMemo(() => {
     return users
-      .filter(
-        (u) =>
-          u.role !== "ADMIN" &&
-          approvedReleases.some((r) => r.userId === u.id)
-      )
+      .filter((u) => {
+        if (u.role === "ADMIN") return false;
+        const uArtistNames = new Set((u.artists || []).map((a: any) => (a.name || a.stageName || "").toLowerCase()));
+        const uArtistIds = new Set((u.artists || []).map((a: any) => a.id));
+        uArtistNames.add((u.name || "").toLowerCase());
+
+        return approvedReleases.some(
+          (r) =>
+            r.userId === u.id ||
+            (r.artistId && uArtistIds.has(r.artistId)) ||
+            (r.artist && uArtistNames.has(r.artist.toLowerCase()))
+        );
+      })
       .sort((a, b) =>
         getArtistDisplayName(a).localeCompare(getArtistDisplayName(b), "id", {
           sensitivity: "base",
@@ -2468,75 +2476,74 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Releases of this Artist */}
-            <div className="mb-5 space-y-2">
-              <div className="flex items-center justify-between pb-1 border-b border-white/10">
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <Disc3 className="w-4 h-4 text-[#c8f560]" />
-                  <span>
-                    Daftar Rilisan Lagu ({releases.filter((r) => r.userId === selectedArtistDetail.id).length} Track)
-                  </span>
-                </h4>
-              </div>
+            {(() => {
+              const modalArtistNames = new Set((selectedArtistDetail.artists || []).map((a: any) => (a.name || a.stageName || "").toLowerCase()));
+              const modalArtistIds = new Set((selectedArtistDetail.artists || []).map((a: any) => a.id));
+              modalArtistNames.add((selectedArtistDetail.name || "").toLowerCase());
 
-              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {releases.filter((r) => r.userId === selectedArtistDetail.id).length === 0 ? (
-                  <p className="text-xs text-white/50 italic py-3 text-center">
-                    Belum ada lagu yang diupload oleh musisi ini.
-                  </p>
-                ) : (
-                  releases
-                    .filter((r) => r.userId === selectedArtistDetail.id)
-                    .map((rel) => (
-                      <div
-                        key={rel.id}
-                        onClick={() => setSelectedRelease(rel)}
-                        className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <img
-                            src={rel.coverUrl}
-                            alt={rel.title}
-                            className="w-10 h-10 rounded-lg object-cover border border-white/20 shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <p className="font-semibold text-white group-hover:text-[#c8f560] transition-colors truncate">
-                              {rel.title}
-                            </p>
-                            <p className="text-[10px] text-white/70 truncate">
-                              {rel.genre} • ISRC: {rel.isrc || "-"} • UPC: {rel.upc || "-"}
-                            </p>
+              const currentArtistReleases = releases.filter(
+                (r) =>
+                  r.userId === selectedArtistDetail.id ||
+                  (r.artistId && modalArtistIds.has(r.artistId)) ||
+                  (r.artist && modalArtistNames.has(r.artist.toLowerCase()))
+              );
+
+              return (
+                <div className="mb-5 space-y-2">
+                  <div className="flex items-center justify-between pb-1 border-b border-white/10">
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Disc3 className="w-4 h-4 text-[#c8f560]" />
+                      <span>
+                        Daftar Rilisan Lagu ({currentArtistReleases.length} Track)
+                      </span>
+                    </h4>
+                  </div>
+
+                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {currentArtistReleases.length === 0 ? (
+                      <p className="text-xs text-white/50 italic py-3 text-center">
+                        Belum ada lagu yang diupload oleh musisi ini.
+                      </p>
+                    ) : (
+                      currentArtistReleases.map((rel) => (
+                        <div
+                          key={rel.id}
+                          onClick={() => setSelectedRelease(rel)}
+                          className="p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={rel.coverUrl || "/logo.png"}
+                              alt={rel.title}
+                              className="w-10 h-10 rounded-lg object-cover border border-white/20 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-bold text-white group-hover:text-[#c8f560] transition-colors truncate">
+                                {rel.title}
+                              </p>
+                              <p className="text-[11px] text-white/60 truncate">
+                                {rel.artist} • {rel.genre}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
                           <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              rel.status === "Approved"
-                                ? "bg-[#c8f560] text-[#312042]"
-                                : rel.status === "Rejected"
-                                ? "bg-red-500/25 border border-red-500/40 text-red-200"
-                                : "bg-[#fde08d] text-[#312042]"
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                              rel.status === "Approved" || rel.status === "APPROVED"
+                                ? "bg-emerald-500/20 text-emerald-300"
+                                : rel.status === "Pending" || rel.status === "PENDING"
+                                ? "bg-amber-500/20 text-amber-300"
+                                : "bg-red-500/20 text-red-300"
                             }`}
                           >
                             {rel.status}
                           </span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedRelease(rel);
-                            }}
-                            className="p-1.5 rounded-lg bg-white/15 text-white hover:bg-white/25"
-                            title="Buka Detail Rilisan & MP3"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-[#c8f560]" />
-                          </button>
                         </div>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Withdrawals of this Artist */}
             <div className="mb-5 space-y-2">

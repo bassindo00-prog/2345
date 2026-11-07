@@ -7,7 +7,7 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    // 1. Query users, withdrawals, catalogs, artists secara aman dan independen
+    // 1. Query dbArtists
     let dbArtists: any[] = [];
     try {
       dbArtists = (await prisma.$queryRawUnsafe(
@@ -21,7 +21,7 @@ export async function GET() {
       }
     }
 
-    // Query users via raw SQL agar kolom royaltyBalance, totalStreams, dll. selalu terambil utuh
+    // 2. Query rawUsers
     let rawUsers: any[] = [];
     try {
       rawUsers = (await prisma.$queryRawUnsafe(
@@ -33,6 +33,7 @@ export async function GET() {
       })) as any[];
     }
 
+    // 3. Query withdrawals and catalogs
     const [rawWithdrawals, rawCatalogSongs] = await Promise.all([
       prisma.withdrawRequest.findMany({
         orderBy: { createdAt: "desc" },
@@ -46,7 +47,7 @@ export async function GET() {
       }).catch(() => []),
     ]);
 
-    // 2. Query releases via raw SQL
+    // 4. Query releases (support both raw SQL and Prisma findMany with artist include)
     let rawReleases: any[] = [];
     try {
       rawReleases = (await prisma.$queryRawUnsafe(
@@ -54,13 +55,95 @@ export async function GET() {
       )) as any[];
     } catch (eRawRel) {
       try {
-        rawReleases = await prisma.release.findMany({
+        rawReleases = (await prisma.release.findMany({
           orderBy: { createdAt: "desc" },
-        });
+          include: {
+            artist: true,
+          },
+        })) as any[];
       } catch (eRel) {
-        console.error("Failed to query Release:", eRel);
+        try {
+          rawReleases = await prisma.release.findMany({
+            orderBy: { createdAt: "desc" },
+          });
+        } catch (eRel2) {
+          console.error("Failed to query Release:", eRel2);
+        }
       }
     }
+
+    // Map releases with full fallback to artistId -> Artist -> userId
+    const releases = rawReleases.map((r: any) => {
+      const artId = r.artistId || r.artistid || (r.artist && typeof r.artist === "object" ? r.artist.id : "");
+      const artistRecord =
+        (dbArtists || []).find((a: any) => a.id === artId) ||
+        (r.artist && typeof r.artist === "object" ? r.artist : null);
+
+      const relUserId =
+        r.userId ||
+        r.userid ||
+        r.user_id ||
+        artistRecord?.userId ||
+        artistRecord?.userid ||
+        artistRecord?.user_id ||
+        "";
+
+      const relArtist =
+        (typeof r.artist === "string" && r.artist.trim() && r.artist !== "Unknown" ? r.artist : null) ||
+        r.primaryArtist ||
+        r.primaryartist ||
+        artistRecord?.stageName ||
+        artistRecord?.stagename ||
+        artistRecord?.name ||
+        "Musisi";
+
+      let releaseDateStr = "-";
+      const rDate = r.releaseDate || r.releasedate;
+      if (rDate) {
+        if (typeof rDate === "string") {
+          releaseDateStr = rDate;
+        } else if (rDate instanceof Date && !isNaN(rDate.getTime())) {
+          releaseDateStr = rDate.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+        }
+      }
+
+      const cover = r.coverUrl || r.coverurl || r.coverArtworkUrl || r.coverartworkurl || "";
+
+      return {
+        id: r.id,
+        title: r.title || "Untitled",
+        artist: relArtist,
+        type: r.type || "SINGLE",
+        genre: r.genre || "Pop",
+        status: r.status || "PENDING",
+        upc: r.upc || "",
+        rejectionReason: r.rejectionReason || r.rejectionreason || "",
+        coverUrl: resolveMediaUrl(cover),
+        releaseDate: releaseDateStr,
+        createdAt: r.createdAt,
+        userId: relUserId,
+        artistId: artId,
+        spotifyUrl: r.spotifyUrl || r.spotifyurl || "",
+        appleMusicUrl: r.appleMusicUrl || r.applemusicurl || "",
+        youtubeMusicUrl: r.youtubeMusicUrl || r.youtubemusicurl || "",
+        tracks: (r.tracks || []).map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          isrc: t.isrc,
+          audioUrl: resolveMediaUrl(t.audioUrl || t.audiourl),
+        })),
+        user: {
+          id: relUserId,
+          name: relArtist,
+          email: "",
+          avatar: "/logo.png",
+        },
+      };
+    });
 
     // Map users to the structure expected by the frontend
     const users = rawUsers.map((u: any) => {
@@ -68,6 +151,8 @@ export async function GET() {
       const userArtists = (dbArtists || []).filter(
         (a: any) => (a.userId || a.userid || a.user_id) === uId
       );
+      const userArtistIds = new Set(userArtists.map((a: any) => a.id));
+
       const primaryArtist = userArtists[0] || null;
       const artistSpotify =
         userArtists.find((a: any) => a.spotifyId && a.spotifyId.trim())?.spotifyId ||
@@ -101,6 +186,11 @@ export async function GET() {
       const totalWithdrawn = rawWithdrawn !== undefined && Number(rawWithdrawn) > 0 ? Number(rawWithdrawn) : totalWithdrawnFromRequests;
 
       const displayName = primaryArtist?.stageName || primaryArtist?.name || u.name || "User Musisi";
+
+      // Match releases either by direct userId OR by artistId matching one of the user's artists
+      const userReleases = releases.filter(
+        (r: any) => r.userId === uId || (r.artistId && userArtistIds.has(r.artistId))
+      );
 
       return {
         id: uId,
@@ -137,59 +227,9 @@ export async function GET() {
           avatarUrl: resolveMediaUrl(a.avatarUrl || a.photoUrl),
         })),
         _count: {
-          releases: rawReleases.filter((r) => (r.userId || r.userid || r.user_id) === uId).length,
+          releases: userReleases.length,
           withdrawals: userWithdraws.length,
           artists: userArtists.length,
-        },
-      };
-    });
-
-    // Map releases
-    const releases = rawReleases.map((r: any) => {
-      const relUserId = r.userId || r.userid || r.user_id || "";
-      const relArtist = r.artist || r.artistname || r.artistName || "Unknown";
-
-      let releaseDateStr = "-";
-      const rDate = r.releaseDate || r.releasedate;
-      if (rDate) {
-        if (typeof rDate === "string") {
-          releaseDateStr = rDate;
-        } else if (rDate instanceof Date && !isNaN(rDate.getTime())) {
-          releaseDateStr = rDate.toLocaleDateString("id-ID", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          });
-        }
-      }
-
-      return {
-        id: r.id,
-        title: r.title || "Untitled",
-        artist: relArtist,
-        type: r.type || "SINGLE",
-        genre: r.genre || "Pop",
-        status: r.status || "PENDING",
-        upc: r.upc || "",
-        rejectionReason: r.rejectionReason || "",
-        coverUrl: resolveMediaUrl(r.coverUrl || r.coverurl),
-        releaseDate: releaseDateStr,
-        createdAt: r.createdAt,
-        userId: relUserId,
-        spotifyUrl: r.spotifyUrl || r.spotifyurl || "",
-        appleMusicUrl: r.appleMusicUrl || r.applemusicurl || "",
-        youtubeMusicUrl: r.youtubeMusicUrl || r.youtubemusicurl || "",
-        tracks: (r.tracks || []).map((t: any) => ({
-          id: t.id,
-          title: t.title,
-          isrc: t.isrc,
-          audioUrl: resolveMediaUrl(t.audioUrl || t.audiourl),
-        })),
-        user: {
-          id: relUserId,
-          name: relArtist,
-          email: "",
-          avatar: "/logo.png",
         },
       };
     });
@@ -240,7 +280,21 @@ export async function GET() {
     }));
 
     return NextResponse.json(
-      { version: "2026-11-07-21-48-ultimate", users, releases, withdrawals, catalogs },
+      {
+        version: "2026-11-07-21-55-universal",
+        debugRawReleaseKeys: rawReleases[0] ? Object.keys(rawReleases[0]) : [],
+        debugSampleRelease: rawReleases[0] ? {
+          id: rawReleases[0].id,
+          title: rawReleases[0].title,
+          artistId: rawReleases[0].artistId,
+          primaryArtist: rawReleases[0].primaryArtist,
+          userId: rawReleases[0].userId,
+        } : null,
+        users,
+        releases,
+        withdrawals,
+        catalogs,
+      },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -286,7 +340,6 @@ export async function PATCH(req: Request) {
       totalStreams !== undefined ||
       royaltyMonth !== undefined
     ) {
-      // Direct raw update to ensure all numerical columns are saved to PostgreSQL
       await prisma.$executeRawUnsafe(
         `UPDATE "User" SET 
           "royaltyBalance" = CASE WHEN $1::float IS NOT NULL THEN $1::float ELSE "royaltyBalance" END,
