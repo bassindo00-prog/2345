@@ -1181,6 +1181,7 @@ export default function AdminDashboardPage() {
     setCatPublisherFilter(pub);
     setPageCatalog(1);
     setCatLoading(true);
+    setCatalogs([]); // Reset data lama agar langsung menampilkan loading state yang bersih
 
     if (catAbortControllerRef.current) {
       catAbortControllerRef.current.abort();
@@ -4151,21 +4152,14 @@ export default function AdminDashboardPage() {
                     </div>
                     {(() => {
                       const filteredCatalogs = catalogs.filter((c) => {
-                        if (catSearch) {
-                          const q = catSearch.toLowerCase();
-                          const match =
-                            c.songId?.toLowerCase().includes(q) ||
-                            c.title?.toLowerCase().includes(q) ||
-                            c.artist?.toLowerCase().includes(q) ||
-                            c.publisher?.toLowerCase().includes(q);
-                          if (!match) return false;
-                        }
-                        if (catPublisherFilter !== "ALL") {
-                          const pubFilter = catPublisherFilter.toLowerCase();
-                          const cPub = (c.publisher || "").toLowerCase();
-                          return cPub.includes(pubFilter) || pubFilter.includes(cPub);
-                        }
-                        return true;
+                        if (!catSearch) return true;
+                        const q = catSearch.toLowerCase();
+                        return (
+                          c.songId?.toLowerCase().includes(q) ||
+                          c.title?.toLowerCase().includes(q) ||
+                          c.artist?.toLowerCase().includes(q) ||
+                          c.publisher?.toLowerCase().includes(q)
+                        );
                       });
 
                       return catLoading ? (
@@ -4175,7 +4169,11 @@ export default function AdminDashboardPage() {
                         </span>
                       ) : (
                         <span className="text-xs text-white/70">
-                          Menampilkan <strong className="text-white">{filteredCatalogs.length}</strong> lagu
+                          Menampilkan <strong className="text-white">{filteredCatalogs.length.toLocaleString("id-ID")}</strong>{" "}
+                          {catPublisherFilter !== "ALL" && catTotal > filteredCatalogs.length ? (
+                            <span className="text-white/50 text-[11px]">(dari total {catTotal.toLocaleString("id-ID")})</span>
+                          ) : null}{" "}
+                          lagu
                         </span>
                       );
                     })()}
@@ -4242,21 +4240,14 @@ export default function AdminDashboardPage() {
 
                 {(() => {
                   const filteredCatalogs = catalogs.filter((c) => {
-                    if (catSearch) {
-                      const q = catSearch.toLowerCase();
-                      const match =
-                        c.songId?.toLowerCase().includes(q) ||
-                        c.title?.toLowerCase().includes(q) ||
-                        c.artist?.toLowerCase().includes(q) ||
-                        c.publisher?.toLowerCase().includes(q);
-                      if (!match) return false;
-                    }
-                    if (catPublisherFilter !== "ALL") {
-                      const pubFilter = catPublisherFilter.toLowerCase();
-                      const cPub = (c.publisher || "").toLowerCase();
-                      return cPub.includes(pubFilter) || pubFilter.includes(cPub);
-                    }
-                    return true;
+                    if (!catSearch) return true;
+                    const q = catSearch.toLowerCase();
+                    return (
+                      c.songId?.toLowerCase().includes(q) ||
+                      c.title?.toLowerCase().includes(q) ||
+                      c.artist?.toLowerCase().includes(q) ||
+                      c.publisher?.toLowerCase().includes(q)
+                    );
                   });
                   const paginatedCatalogs = filteredCatalogs.slice((pageCatalog - 1) * 10, pageCatalog * 10);
 
