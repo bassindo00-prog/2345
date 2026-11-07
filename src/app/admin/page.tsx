@@ -6109,9 +6109,22 @@ export default function AdminDashboardPage() {
               ADMIN VIEW 3: WITHDRAWALS MANAGEMENT
              ========================================================= */}
           {activeTab === "withdrawals" && (() => {
-            const pendingWithdrawals = withdrawals.filter((w) => w.status === "Pending");
-            const approvedWithdrawals = withdrawals.filter((w) => w.status === "Approved");
-            const rejectedWithdrawals = withdrawals.filter((w) => w.status === "Rejected");
+            const isApprovedW = (s: string) => {
+              const norm = (s || "").toUpperCase();
+              return norm === "APPROVED" || norm === "PAID" || norm === "DISETUJUI";
+            };
+            const isRejectedW = (s: string) => {
+              const norm = (s || "").toUpperCase();
+              return norm === "REJECTED" || norm === "DITOLAK";
+            };
+            const isPendingW = (s: string) => {
+              const norm = (s || "").toUpperCase();
+              return norm === "PENDING" || norm === "MENUNGGU";
+            };
+
+            const pendingWithdrawals = withdrawals.filter((w) => isPendingW(w.status));
+            const approvedWithdrawals = withdrawals.filter((w) => isApprovedW(w.status));
+            const rejectedWithdrawals = withdrawals.filter((w) => isRejectedW(w.status));
 
             const currentWithdrawals =
               withdrawalTab === "Pending"
@@ -6451,21 +6464,21 @@ export default function AdminDashboardPage() {
                         <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/10">
                           <span
                             className={`px-3 py-1 rounded-full text-[11px] font-bold ${
-                              w.status === "Approved"
+                              isApprovedW(w.status)
                                 ? "bg-[#c8f560] text-[#312042]"
-                                : w.status === "Rejected"
+                                : isRejectedW(w.status)
                                 ? "bg-red-500/30 text-red-200 border border-red-500/40"
                                 : "bg-[#fde08d] text-[#312042]"
                             }`}
                           >
-                            {w.status === "Approved"
+                            {isApprovedW(w.status)
                               ? "✓ Approved"
-                              : w.status === "Rejected"
+                              : isRejectedW(w.status)
                               ? "✕ Rejected"
                               : "⏳ Pending ACC"}
                           </span>
 
-                          {w.status === "Pending" && (
+                          {isPendingW(w.status) && (
                             <button
                               type="button"
                               onClick={async (e) => {
@@ -6487,12 +6500,12 @@ export default function AdminDashboardPage() {
                               setSelectedWithdrawalForVisaModal(w);
                             }}
                             className={`px-3.5 py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 shadow-md transition-all ${
-                              w.status === "Pending"
+                              isPendingW(w.status)
                                 ? "bg-[#352a4a] text-white border-white/20 hover:border-[#c8f560]"
                                 : "bg-gradient-to-r from-[#312042] via-[#483363] to-[#312042] border-[#c8f560]/50 text-[#c8f560] hover:text-white hover:border-[#c8f560]"
                             }`}
                           >
-                            <span>💳 {w.status === "Pending" ? "Detail VISA" : "Detail Payout"}</span>
+                            <span>💳 {isPendingW(w.status) ? "Detail VISA" : "Detail Payout"}</span>
                           </button>
                         </div>
                       </div>

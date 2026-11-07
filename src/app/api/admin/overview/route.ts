@@ -236,9 +236,13 @@ export async function GET() {
 
     // Map withdrawals
     const withdrawals = (rawWithdrawals || []).map((w: any) => {
-      let statusUi: "Pending" | "Disetujui" | "Ditolak" = "Pending";
-      if (w.status === "APPROVED" || w.status === "PAID") statusUi = "Disetujui";
-      else if (w.status === "REJECTED") statusUi = "Ditolak";
+      let statusUi: "Pending" | "Approved" | "Rejected" = "Pending";
+      const rawStatus = (w.status || "").toUpperCase();
+      if (rawStatus === "APPROVED" || rawStatus === "PAID" || rawStatus === "DISETUJUI") {
+        statusUi = "Approved";
+      } else if (rawStatus === "REJECTED" || rawStatus === "DITOLAK") {
+        statusUi = "Rejected";
+      }
 
       const dateStr =
         w.createdAt instanceof Date
