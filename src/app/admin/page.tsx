@@ -6580,18 +6580,18 @@ export default function AdminDashboardPage() {
                         </p>
                       </div>
                     ) : artistRoyaltySubTab === "with-royalty" ? (
-                      /* ================= TABLE: ARTIS ADA ROYALTI ================= */
+                      /* ================= TABLE: ARTIS SALDO AKTIF ================= */
                       paginatedList.map((u, idx) => (
                         <div
                           key={u.id}
-                          className="py-3.5 px-3 sm:px-4 my-1.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:bg-white/10 bg-white/5 border border-white/10 rounded-2xl transition-all"
+                          className="py-3.5 px-3 sm:px-5 my-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/10 bg-white/5 border border-white/10 rounded-2xl transition-all"
                         >
                           {/* Musisi Info */}
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="text-[11px] font-mono text-white/40 w-6 shrink-0 text-center">
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <span className="text-xs font-mono text-white/40 w-6 shrink-0 text-center font-bold">
                               #{(pageArtistRoyalty - 1) * pageSize + idx + 1}
                             </span>
-                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-[#c8f560]/40 flex items-center justify-center font-bold text-sm text-[#c8f560] shadow-sm shrink-0 overflow-hidden">
+                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-[#c8f560]/40 flex items-center justify-center font-bold text-sm text-[#c8f560] shadow-sm shrink-0 overflow-hidden">
                               {u.avatar ? (
                                 <img
                                   src={u.avatar}
@@ -6603,68 +6603,54 @@ export default function AdminDashboardPage() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="font-bold text-sm text-white truncate flex items-center gap-2">
-                                <span>{getArtistDisplayName(u)}</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/15 text-white/80 font-normal">
-                                  {u.royaltyMonth || "November"}
+                              <h4 className="font-bold text-sm sm:text-base text-white truncate flex items-center gap-2">
+                                <span className="truncate">{getArtistDisplayName(u)}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#c8f560]/15 text-[#c8f560] font-semibold shrink-0">
+                                  Saldo Aktif
                                 </span>
                               </h4>
-                              <p className="text-[11px] text-white/70 truncate">
-                                {u.name || "-"} • {u.email || "-"}
-                              </p>
                             </div>
                           </div>
 
-                          {/* Finansial & Streams Info */}
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10 text-right lg:text-left">
-                            <div>
+                          {/* Saldo Aktif & Action Buttons Container */}
+                          <div className="flex items-center justify-between sm:justify-end gap-5 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/10 shrink-0">
+                            {/* Saldo Aktif Display */}
+                            <div className="text-left sm:text-right">
                               <span className="text-[10px] text-white/60 block">Saldo Aktif:</span>
-                              <span className="font-bold text-sm text-[#c8f560]">
-                                Rp {Number(u.royaltyBalance || 0).toLocaleString("id-ID")}
+                              <span className="font-black text-base sm:text-lg text-[#c8f560] tracking-tight">
+                                Rp {Math.round(Number(u.royaltyBalance || 0)).toLocaleString("id-ID")}
                               </span>
                             </div>
-                            <div>
-                              <span className="text-[10px] text-white/60 block">Total Ditarik:</span>
-                              <span className="font-bold text-xs text-white">
-                                Rp {Number(u.totalWithdrawn || 0).toLocaleString("id-ID")}
-                              </span>
-                            </div>
-                            <div className="col-span-2 sm:col-span-1">
-                              <span className="text-[10px] text-white/60 block">Total Streams:</span>
-                              <span className="font-bold text-xs text-[#fde08d]">
-                                {Number(u.totalStreams || 0).toLocaleString("id-ID")} Streams
-                              </span>
-                            </div>
-                          </div>
 
-                          {/* Action Buttons */}
-                          <div className="flex items-center justify-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedArtistDetail(u)}
-                              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1 transition-colors cursor-pointer"
-                              title="Lihat Detail Musisi"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Detail</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                selectedUserForRoyaltyRef.current = u.id;
-                                setSelectedUserForRoyalty(u.id);
-                                setInputRoyaltyBalance(u.royaltyBalance || 0);
-                                setInputRoyaltyPending(u.royaltyPending || 0);
-                                setInputTotalStreams(u.totalStreams || 0);
-                                setInputRoyaltyMonth(u.royaltyMonth || "November");
-                                setActiveTab("royalty-input");
-                              }}
-                              className="px-3.5 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shadow-sm active:scale-95"
-                              title="Edit Saldo & Streams Musisi Ini"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                              <span>Edit Saldo</span>
-                            </button>
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedArtistDetail(u)}
+                                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                                title="Lihat Detail Musisi Lengkap"
+                              >
+                                <Eye className="w-4 h-4 text-[#c8f560]" />
+                                <span>Detail</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  selectedUserForRoyaltyRef.current = u.id;
+                                  setSelectedUserForRoyalty(u.id);
+                                  setInputRoyaltyBalance(u.royaltyBalance || 0);
+                                  setInputRoyaltyPending(u.royaltyPending || 0);
+                                  setInputTotalStreams(u.totalStreams || 0);
+                                  setInputRoyaltyMonth(u.royaltyMonth || "November");
+                                  setActiveTab("royalty-input");
+                                }}
+                                className="px-3.5 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95"
+                                title="Input atau Update Royalti Musisi Ini"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Input Royalti</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))
@@ -6673,14 +6659,14 @@ export default function AdminDashboardPage() {
                       paginatedList.map((u, idx) => (
                         <div
                           key={u.id}
-                          className="py-3.5 px-3 sm:px-4 my-1.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:bg-white/10 bg-white/5 border border-white/10 rounded-2xl transition-all"
+                          className="py-3.5 px-3 sm:px-5 my-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/10 bg-white/5 border border-white/10 rounded-2xl transition-all"
                         >
                           {/* Musisi Info */}
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="text-[11px] font-mono text-white/40 w-6 shrink-0 text-center">
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <span className="text-xs font-mono text-white/40 w-6 shrink-0 text-center font-bold">
                               #{(pageArtistRoyalty - 1) * pageSize + idx + 1}
                             </span>
-                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-amber-300/40 flex items-center justify-center font-bold text-sm text-amber-200 shadow-sm shrink-0 overflow-hidden">
+                            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-amber-300/40 flex items-center justify-center font-bold text-sm text-amber-200 shadow-sm shrink-0 overflow-hidden">
                               {u.avatar ? (
                                 <img
                                   src={u.avatar}
@@ -6692,66 +6678,50 @@ export default function AdminDashboardPage() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="font-bold text-sm text-white truncate flex items-center gap-2">
-                                <span>{getArtistDisplayName(u)}</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-semibold">
-                                  Belum Ada Royalti
+                              <h4 className="font-bold text-sm sm:text-base text-white truncate flex items-center gap-2">
+                                <span className="truncate">{getArtistDisplayName(u)}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-semibold shrink-0">
+                                  Saldo Rp 0
                                 </span>
                               </h4>
-                              <p className="text-[11px] text-white/70 truncate">
-                                {u.name || "-"} • {u.email || "-"}
-                              </p>
                             </div>
                           </div>
 
-                          {/* Detail Rilisan & Saldo Saat Ini */}
-                          <div className="flex items-center gap-6 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10 text-left">
-                            <div>
-                              <span className="text-[10px] text-white/60 block">Jumlah Rilisan:</span>
-                              <span className="font-bold text-xs text-white">
-                                {u.releasesCount ?? (Array.isArray(u.releases) ? u.releases.length : 0)} Rilisan
-                              </span>
-                            </div>
-                            <div>
+                          {/* Saldo & Action Buttons */}
+                          <div className="flex items-center justify-between sm:justify-end gap-5 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/10 shrink-0">
+                            <div className="text-left sm:text-right">
                               <span className="text-[10px] text-white/60 block">Saldo Royalti:</span>
-                              <span className="font-bold text-xs text-white/50">Rp 0</span>
+                              <span className="font-bold text-sm text-white/50">Rp 0</span>
                             </div>
-                            <div>
-                              <span className="text-[10px] text-white/60 block">Status:</span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/15 text-white font-medium">
-                                {u.status || "ACTIVE"}
-                              </span>
-                            </div>
-                          </div>
 
-                          {/* Action Buttons */}
-                          <div className="flex items-center justify-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedArtistDetail(u)}
-                              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1 transition-colors cursor-pointer"
-                              title="Lihat Detail Musisi"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Detail</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                selectedUserForRoyaltyRef.current = u.id;
-                                setSelectedUserForRoyalty(u.id);
-                                setInputRoyaltyBalance(0);
-                                setInputRoyaltyPending(0);
-                                setInputTotalStreams(0);
-                                setInputRoyaltyMonth("November");
-                                setActiveTab("royalty-input");
-                              }}
-                              className="px-3.5 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-extrabold text-xs flex items-center gap-1 transition-colors cursor-pointer shadow-sm active:scale-95"
-                              title="Input Royalti Pertama Kali untuk Musisi Ini"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>+ Input Royalti</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedArtistDetail(u)}
+                                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                                title="Lihat Detail Musisi"
+                              >
+                                <Eye className="w-4 h-4 text-white/70" />
+                                <span>Detail</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  selectedUserForRoyaltyRef.current = u.id;
+                                  setSelectedUserForRoyalty(u.id);
+                                  setInputRoyaltyBalance(0);
+                                  setInputRoyaltyPending(0);
+                                  setInputTotalStreams(0);
+                                  setInputRoyaltyMonth("November");
+                                  setActiveTab("royalty-input");
+                                }}
+                                className="px-3.5 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-extrabold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm active:scale-95"
+                                title="Input Royalti Pertama Kali untuk Musisi Ini"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Input Royalti</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))
