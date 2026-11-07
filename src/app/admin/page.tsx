@@ -467,7 +467,10 @@ export default function AdminDashboardPage() {
       if (data.releases) {
         setReleases(data.releases);
         const pendingCount = (data.releases || []).filter(
-          (r: any) => r.status === "Pending" || r.status === "PENDING"
+          (r: any) => {
+            const norm = (r.status || "").toUpperCase();
+            return norm === "PENDING" || norm === "REVIEW" || (!["APPROVED", "RELEASED", "DISETUJUI", "REJECTED", "DITOLAK"].includes(norm));
+          }
         ).length;
         if (prevPendingCountRef.current !== null && pendingCount > prevPendingCountRef.current) {
           const diff = pendingCount - prevPendingCountRef.current;
@@ -522,7 +525,10 @@ export default function AdminDashboardPage() {
         // atau artis yang sebelumnya dipilih sudah tidak ada lagi di database.
         // Jangan pernah menimpa pilihan artis atau angka yang sedang diketik admin!
         if (!currentSelected || !currentSelectedUser) {
-          const appRels = (data.releases || []).filter((r: any) => r.status === "Approved");
+          const appRels = (data.releases || []).filter((r: any) => {
+            const norm = (r.status || "").toUpperCase();
+            return norm === "APPROVED" || norm === "RELEASED" || norm === "DISETUJUI";
+          });
           const appArt = (data.users || [])
             .filter(
               (u: any) => u.role !== "ADMIN" && appRels.some((r: any) => r.userId === u.id)
@@ -1553,16 +1559,17 @@ export default function AdminDashboardPage() {
 
   const isApprovedRelease = (s: string) => {
     const norm = (s || "").toUpperCase();
-    return norm === "APPROVED" || norm === "DISETUJUI";
+    return norm === "APPROVED" || norm === "RELEASED" || norm === "DISETUJUI";
   };
   const isRejectedRelease = (s: string) => {
     const norm = (s || "").toUpperCase();
     return norm === "REJECTED" || norm === "DITOLAK";
   };
+  const isPendingRelease = (s: string) => {
+    return !isApprovedRelease(s) && !isRejectedRelease(s);
+  };
 
-  const pendingReleases = releases.filter(
-    (r) => !isApprovedRelease(r.status) && !isRejectedRelease(r.status)
-  );
+  const pendingReleases = releases.filter((r) => isPendingRelease(r.status));
   const approvedReleases = releases.filter((r) => isApprovedRelease(r.status));
   const rejectedReleases = releases.filter((r) => isRejectedRelease(r.status));
 
@@ -2121,14 +2128,18 @@ export default function AdminDashboardPage() {
                   <span className="text-xs text-white/70">Status Sekarang:</span>
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      selectedRelease.status === "Approved"
+                      isApprovedRelease(selectedRelease.status)
                         ? "bg-[#c8f560] text-[#312042]"
-                        : selectedRelease.status === "Rejected"
+                        : isRejectedRelease(selectedRelease.status)
                         ? "bg-red-500/25 border border-red-500/40 text-red-200"
                         : "bg-[#fde08d] text-[#312042]"
                     }`}
                   >
-                    {selectedRelease.status}
+                    {isApprovedRelease(selectedRelease.status)
+                      ? "Approved (ACC)"
+                      : isRejectedRelease(selectedRelease.status)
+                      ? "Rejected (Ditolak)"
+                      : "Pending (Review)"}
                   </span>
                 </div>
 
@@ -2561,9 +2572,9 @@ export default function AdminDashboardPage() {
                           </div>
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                              rel.status === "Approved" || rel.status === "APPROVED"
-                                ? "bg-emerald-500/20 text-emerald-300"
-                                : rel.status === "Pending" || rel.status === "PENDING"
+                              isApprovedRelease(rel.status)
+                                ? "bg-[#c8f560] text-[#312042]"
+                                : isPendingRelease(rel.status)
                                 ? "bg-amber-500/20 text-amber-300"
                                 : "bg-red-500/20 text-red-300"
                             }`}
@@ -3849,14 +3860,14 @@ export default function AdminDashboardPage() {
                               </h4>
                               <span
                                 className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                                  r.status === "Approved"
+                                  isApprovedRelease(r.status)
                                     ? "bg-[#c8f560] text-[#312042]"
-                                    : r.status === "Rejected"
+                                    : isRejectedRelease(r.status)
                                     ? "bg-red-500/25 border border-red-500/40 text-red-200"
                                     : "bg-[#fde08d] text-[#312042]"
                                 }`}
                               >
-                                {r.status === "Approved" ? "✓ Approved" : r.status === "Rejected" ? "✕ Rejected" : "⏳ Review"}
+                                {isApprovedRelease(r.status) ? "✓ Approved" : isRejectedRelease(r.status) ? "✕ Rejected" : "⏳ Review"}
                               </span>
                             </div>
                             <p className="text-white/80 text-xs truncate mt-0.5 flex items-center gap-1.5">
@@ -3893,7 +3904,7 @@ export default function AdminDashboardPage() {
                             <span>Detail & Unduh</span>
                           </button>
 
-                          {r.status !== "Approved" && (
+                          {!isApprovedRelease(r.status) && (
                             <button
                               type="button"
                               onClick={() => handleReleaseStatus(r.id, "Approved")}
@@ -3903,7 +3914,7 @@ export default function AdminDashboardPage() {
                             </button>
                           )}
 
-                          {r.status !== "Rejected" && (
+                          {!isRejectedRelease(r.status) && (
                             <button
                               type="button"
                               onClick={() => handleReleaseStatus(r.id, "Rejected")}
@@ -4024,11 +4035,11 @@ export default function AdminDashboardPage() {
 
                             {/* Col 4: Status */}
                             <div className="col-span-1 flex justify-center">
-                              {r.status === "Approved" ? (
+                              {isApprovedRelease(r.status) ? (
                                 <span className="px-2.5 py-1 rounded-full bg-[#c8f560] text-[#312042] font-bold text-xs whitespace-nowrap shadow-sm">
                                   ✓ ACC
                                 </span>
-                              ) : r.status === "Rejected" ? (
+                              ) : isRejectedRelease(r.status) ? (
                                 <span className="px-2.5 py-1 rounded-full bg-red-500/25 border border-red-500/40 text-red-200 font-bold text-xs whitespace-nowrap shadow-sm">
                                   ✕ Rej
                                 </span>
@@ -4054,7 +4065,7 @@ export default function AdminDashboardPage() {
                                 <span className="hidden sm:inline">Detail</span>
                               </button>
 
-                              {r.status !== "Approved" && (
+                              {!isApprovedRelease(r.status) && (
                                 <button
                                   type="button"
                                   onClick={() => handleReleaseStatus(r.id, "Approved")}
@@ -4065,7 +4076,7 @@ export default function AdminDashboardPage() {
                                 </button>
                               )}
 
-                              {r.status !== "Rejected" && (
+                              {!isRejectedRelease(r.status) && (
                                 <button
                                   type="button"
                                   onClick={() => handleReleaseStatus(r.id, "Rejected")}

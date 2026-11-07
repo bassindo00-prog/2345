@@ -113,13 +113,23 @@ export async function GET() {
 
       const cover = r.coverUrl || r.coverurl || r.coverArtworkUrl || r.coverartworkurl || "";
 
+      let statusNorm = "PENDING";
+      const rawStatusStr = (r.status || "").toUpperCase();
+      if (rawStatusStr === "APPROVED" || rawStatusStr === "RELEASED" || rawStatusStr === "DISETUJUI") {
+        statusNorm = "APPROVED";
+      } else if (rawStatusStr === "REJECTED" || rawStatusStr === "DITOLAK") {
+        statusNorm = "REJECTED";
+      } else {
+        statusNorm = "PENDING";
+      }
+
       return {
         id: r.id,
         title: r.title || "Untitled",
         artist: relArtist,
         type: r.type || "SINGLE",
         genre: r.genre || "Pop",
-        status: r.status || "PENDING",
+        status: statusNorm,
         upc: r.upc || "",
         rejectionReason: r.rejectionReason || r.rejectionreason || "",
         coverUrl: resolveMediaUrl(cover),
