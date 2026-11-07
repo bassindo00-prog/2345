@@ -1435,6 +1435,7 @@ export default function BreakoutApp({
   // State for active release in 3D Coverflow
   const [activeReleaseIndex, setActiveReleaseIndex] = useState(2);
   const [isSpreadOut, setIsSpreadOut] = useState(false);
+  const [isInView, setIsInView] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
 
   // Sync initial center index when releases change
@@ -1447,10 +1448,9 @@ export default function BreakoutApp({
   // Desktop cursor hover tracking when in 3D Deck mode
   useEffect(() => {
     const releasesSection = releasesSectionRef.current;
-    const releasesDeck = releasesDeckRef.current;
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (isSpreadOut || !releasesDeck?.classList.contains("in-view") || !releasesSection) return;
+      if (isSpreadOut || !isInView || !releasesSection) return;
       const rect = releasesSection.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const count = releases.length;
@@ -1470,7 +1470,7 @@ export default function BreakoutApp({
         releasesSection.removeEventListener("mousemove", handleMouseMove);
       }
     };
-  }, [isSpreadOut, releases.length]);
+  }, [isSpreadOut, isInView, releases.length]);
 
   // --- Observer for New Releases in-view animation ---
   useEffect(() => {
@@ -1480,12 +1480,11 @@ export default function BreakoutApp({
         (entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
-              entry.target.classList.add("in-view");
-              observer.unobserve(entry.target);
+              setIsInView(true);
             }
           });
         },
-        { threshold: 0.2 }
+        { threshold: 0.15 }
       );
       observer.observe(releasesDeck);
       return () => observer.disconnect();
@@ -1713,7 +1712,7 @@ export default function BreakoutApp({
         </div>
 
         <div
-          className={`releases-deck ${isSpreadOut ? "spread-out" : ""}`}
+          className={`releases-deck ${isInView ? "in-view" : ""} ${isSpreadOut ? "spread-out" : ""}`}
           id="releasesDeck"
           ref={releasesDeckRef}
           onTouchStart={(e) => {
