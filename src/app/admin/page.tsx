@@ -212,6 +212,14 @@ export default function AdminDashboardPage() {
   const [savingCatalogEdit, setSavingCatalogEdit] = useState(false);
   const [catLoading, setCatLoading] = useState(false);
   const catAbortControllerRef = useRef<AbortController | null>(null);
+  const [selectedCatIds, setSelectedCatIds] = useState<string[]>([]);
+  const [deletePubModal, setDeletePubModal] = useState<{
+    isOpen: boolean;
+    publisher: string;
+    count: number;
+  }>({ isOpen: false, publisher: "", count: 0 });
+  const [isDeletingPublisher, setIsDeletingPublisher] = useState(false);
+  const [isBulkDeletingCat, setIsBulkDeletingCat] = useState(false);
 
   // Pagination State (5 items per page)
   const [pageReleases, setPageReleases] = useState(1);
@@ -1089,10 +1097,87 @@ export default function AdminDashboardPage() {
   };
 
   const handleDeleteCatalog = async (id: string) => {
-    const res = await fetch(`/api/catalog?id=${id}`, { method: "DELETE" });
-    if (res.ok) {
-      await fetchAdminData();
-      showNotice("Lagu berhasil dihapus dari katalog");
+    if (!confirm("Apakah Anda yakin ingin menghapus lagu ini dari katalog?")) return;
+    try {
+      const res = await fetch(`/api/catalog?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setCatalogs((prev) => prev.filter((c) => c.id !== id));
+        setSelectedCatIds((prev) => prev.filter((item) => item !== id));
+        showNotice("Lagu berhasil dihapus dari katalog");
+      } else {
+        showNotice("Gagal menghapus lagu");
+      }
+    } catch (e: any) {
+      showNotice(e.message || "Gagal menghapus lagu");
+    }
+  };
+
+  const handleBulkDeleteCatalogs = async () => {
+    if (selectedCatIds.length === 0) return;
+    if (!confirm(`Hapus ${selectedCatIds.length} lagu yang dicentang secara permanen?`)) return;
+
+    setIsBulkDeletingCat(true);
+    try {
+      const res = await fetch("/api/catalog", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedCatIds }),
+      });
+      const d = await res.json();
+      if (res.ok && d.success) {
+        setCatalogs((prev) => prev.filter((c) => !selectedCatIds.includes(c.id)));
+        setSelectedCatIds([]);
+        showNotice(d.message || `Berhasil menghapus lagu terpilih`);
+        // Refresh daftar publishers & count
+        fetch("/api/catalog?limit=1&withPublishers=true")
+          .then((r) => r.json())
+          .then((data) => {
+            if (Array.isArray(data.publishers)) setCatPublishersList(data.publishers);
+            if (typeof data.total === "number") setCatTotal(data.total);
+          })
+          .catch(() => {});
+      } else {
+        showNotice(d.error || "Gagal menghapus lagu terpilih");
+      }
+    } catch (err: any) {
+      showNotice(err.message || "Terjadi kesalahan saat menghapus lagu");
+    } finally {
+      setIsBulkDeletingCat(false);
+    }
+  };
+
+  const handleDeletePublisherCatalog = async (pubName: string) => {
+    if (!pubName || pubName === "ALL") return;
+    setIsDeletingPublisher(true);
+    try {
+      const res = await fetch(`/api/catalog?publisher=${encodeURIComponent(pubName)}`, {
+        method: "DELETE",
+      });
+      const d = await res.json();
+      if (res.ok && d.success) {
+        showNotice(d.message || `Seluruh lagu dari publisher ${pubName} berhasil dihapus`);
+        setDeletePubModal({ isOpen: false, publisher: "", count: 0 });
+        setSelectedCatIds([]);
+        // Reset filter ke ALL dan reload
+        setCatPublisherFilter("ALL");
+        setPageCatalog(1);
+        handleAdminSelectPublisher("ALL");
+        // Reload list publishers
+        const pRes = await fetch("/api/catalog?limit=1&withPublishers=true");
+        const pData = await pRes.json();
+        if (Array.isArray(pData.publishers)) {
+          setCatPublishersList(pData.publishers);
+        }
+        if (typeof pData.total === "number") {
+          setCatTotal(pData.total);
+        }
+      } else {
+        showNotice(d.error || "Gagal menghapus katalog publisher");
+      }
+    } catch (err: any) {
+      showNotice(err.message || "Gagal menghapus katalog publisher");
+    } finally {
+      setIsDeletingPublisher(false);
     }
   };
 
@@ -4181,18 +4266,39 @@ export default function AdminDashboardPage() {
 
                   {/* Publisher Filter Pills */}
                   <div className="space-y-2 pt-1">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
                         Filter Berdasarkan Publisher Resmi ({catPublishersList.length} Publisher):
                       </span>
                       {catPublisherFilter !== "ALL" && (
-                        <button
-                          type="button"
-                          onClick={() => handleAdminSelectPublisher("ALL")}
-                          className="text-[10px] text-[#c8f560] hover:underline cursor-pointer font-bold"
-                        >
-                          Reset ke Semua Publisher
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curPubItem = catPublishersList.find(
+                                (p) => p.publisher.toLowerCase() === catPublisherFilter.toLowerCase()
+                              );
+                              const count = curPubItem ? curPubItem.count : catTotal;
+                              setDeletePubModal({
+                                isOpen: true,
+                                publisher: catPublisherFilter,
+                                count: count,
+                              });
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-600/25 hover:bg-red-600 text-red-200 hover:text-white border border-red-500/40 text-[11px] font-bold transition-all cursor-pointer shadow-sm active:scale-95"
+                            title={`Hapus seluruh lagu dari publisher ${catPublisherFilter}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-300" />
+                            <span>Hapus Seluruh Katalog Publisher Ini</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleAdminSelectPublisher("ALL")}
+                            className="text-[10px] text-[#c8f560] hover:underline cursor-pointer font-bold"
+                          >
+                            Reset ke Semua Publisher
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -4213,25 +4319,26 @@ export default function AdminDashboardPage() {
                         const pubName = pubItem.publisher;
                         const isSel = catPublisherFilter.toLowerCase() === pubName.toLowerCase();
                         return (
-                          <button
-                            key={pubName}
-                            type="button"
-                            onClick={() => handleAdminSelectPublisher(pubName)}
-                            className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
-                              isSel
-                                ? "bg-[#c8f560] text-[#312042] font-bold shadow-md scale-[1.02]"
-                                : "bg-white/10 text-white/80 hover:bg-white/20"
-                            }`}
-                          >
-                            <span>{pubName}</span>
-                            <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
-                                isSel ? "bg-[#312042]/20 text-[#312042]" : "bg-black/35 text-[#c8f560]"
+                          <div key={pubName} className="inline-flex items-center">
+                            <button
+                              type="button"
+                              onClick={() => handleAdminSelectPublisher(pubName)}
+                              className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
+                                isSel
+                                  ? "bg-[#c8f560] text-[#312042] font-bold shadow-md scale-[1.02]"
+                                  : "bg-white/10 text-white/80 hover:bg-white/20"
                               }`}
                             >
-                              {pubItem.count.toLocaleString("id-ID")}
-                            </span>
-                          </button>
+                              <span>{pubName}</span>
+                              <span
+                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
+                                  isSel ? "bg-[#312042]/20 text-[#312042]" : "bg-black/35 text-[#c8f560]"
+                                }`}
+                              >
+                                {pubItem.count.toLocaleString("id-ID")}
+                              </span>
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -4253,10 +4360,79 @@ export default function AdminDashboardPage() {
 
                   return (
                     <>
+                      {/* Bulk Selection Action Bar */}
+                      {selectedCatIds.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-red-950/60 border-b border-red-500/30 animate-fade-in">
+                          <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-2 text-xs text-red-200 font-bold">
+                              <span className="w-2 h-2 rounded-full bg-red-400 animate-ping" />
+                              <span><strong>{selectedCatIds.length}</strong> lagu dicentang</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allIds = filteredCatalogs.map((c) => c.id);
+                                setSelectedCatIds(allIds);
+                              }}
+                              className="text-[11px] text-[#c8f560] hover:underline cursor-pointer font-bold"
+                            >
+                              Centang Semua ({filteredCatalogs.length}) Lagu di Tampilan Ini
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCatIds([])}
+                              className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold cursor-pointer"
+                            >
+                              Batal
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBulkDeletingCat}
+                              onClick={handleBulkDeleteCatalogs}
+                              className="flex items-center gap-1.5 px-3.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-50 active:scale-95"
+                            >
+                              {isBulkDeletingCat ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Menghapus...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Hapus {selectedCatIds.length} Lagu Terpilih</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="overflow-x-auto min-h-[300px]">
                         <table className="w-full text-left text-xs text-white">
                           <thead className="bg-[#312042]/60 border-b border-white/15 text-[11px] uppercase tracking-wider text-white/75">
                             <tr>
+                              <th className="py-3 px-3 w-10 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    paginatedCatalogs.length > 0 &&
+                                    paginatedCatalogs.every((c) => selectedCatIds.includes(c.id))
+                                  }
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      const pageIds = paginatedCatalogs.map((c) => c.id);
+                                      setSelectedCatIds(Array.from(new Set([...selectedCatIds, ...pageIds])));
+                                    } else {
+                                      const pageIds = paginatedCatalogs.map((c) => c.id);
+                                      setSelectedCatIds(selectedCatIds.filter((id) => !pageIds.includes(id)));
+                                    }
+                                  }}
+                                  className="w-4 h-4 rounded accent-[#c8f560] cursor-pointer"
+                                  title="Centang semua lagu di halaman ini"
+                                />
+                              </th>
                               <th className="py-3 px-4 font-semibold">SONG ID</th>
                               <th className="py-3 px-4 font-semibold">JUDUL LAGU</th>
                               <th className="py-3 px-4 font-semibold">VOKAL / ARTIS</th>
@@ -4269,7 +4445,7 @@ export default function AdminDashboardPage() {
                           <tbody className="divide-y divide-white/10">
                             {catLoading ? (
                               <tr>
-                                <td colSpan={7} className="py-16 text-center">
+                                <td colSpan={8} className="py-16 text-center">
                                   <div className="flex flex-col items-center justify-center gap-2">
                                     <RefreshCw className="w-7 h-7 animate-spin text-[#c8f560]" />
                                     <p className="text-sm font-bold text-white tracking-wide">
@@ -4285,7 +4461,7 @@ export default function AdminDashboardPage() {
                               </tr>
                             ) : paginatedCatalogs.length === 0 ? (
                               <tr>
-                                <td colSpan={7} className="py-16 text-center text-white/60">
+                                <td colSpan={8} className="py-16 text-center text-white/60">
                                   <div className="flex flex-col items-center justify-center gap-2">
                                     <Music className="w-8 h-8 text-white/25" />
                                     <p className="text-sm font-semibold text-white/80">
@@ -4308,88 +4484,110 @@ export default function AdminDashboardPage() {
                                 </td>
                               </tr>
                             ) : (
-                              paginatedCatalogs.map((c) => (
-                                <tr key={c.id} className="hover:bg-white/5 transition-colors">
-                                  <td className="py-3 px-4 font-mono font-bold text-[#c8f560] whitespace-nowrap">
-                                    {c.songId}
-                                  </td>
-                                  <td className="py-3 px-4 font-semibold text-white whitespace-nowrap">
-                                    {c.title}
-                                  </td>
-                                  <td className="py-3 px-4 text-white/90 whitespace-nowrap">
-                                    {c.artist}
-                                  </td>
-                                  <td className="py-3 px-4 text-white/80 whitespace-nowrap">
-                                    {c.publisher}
-                                  </td>
-                                  <td className="py-3 px-4 whitespace-nowrap">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleCatalogStatus(c.id, c.status)}
-                                      title="Klik untuk mengubah status"
-                                      className={`px-3 py-0.5 rounded-full font-bold text-[10px] transition-all ${
-                                        c.status === "Aktif"
-                                          ? "bg-[#c8f560] text-[#312042] hover:bg-[#b0dc4c]"
-                                          : c.status === "Review"
-                                          ? "bg-[#fde08d] text-[#312042]"
-                                          : "bg-white/20 text-white"
-                                      }`}
-                                    >
-                                      {c.status}
-                                    </button>
-                                  </td>
-                                  <td className="py-3 px-4 text-center whitespace-nowrap">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                      {c.youtubeLink ? (
-                                        <a
-                                          href={c.youtubeLink}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="px-2 py-0.5 rounded bg-red-600/80 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1"
-                                        >
-                                          <Youtube className="w-3 h-3" />
-                                          <span>YT</span>
-                                        </a>
-                                      ) : (
-                                        <span className="text-[10px] text-white/40">-</span>
-                                      )}
-                                      {c.driveLink ? (
-                                        <a
-                                          href={c.driveLink}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="px-2 py-0.5 rounded bg-blue-600/80 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1"
-                                        >
-                                          <HardDrive className="w-3 h-3" />
-                                          <span>Drive</span>
-                                        </a>
-                                      ) : (
-                                        <span className="text-[10px] text-white/40">-</span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                                    <div className="flex items-center justify-end gap-1.5">
+                              paginatedCatalogs.map((c) => {
+                                const isChecked = selectedCatIds.includes(c.id);
+                                return (
+                                  <tr
+                                    key={c.id}
+                                    className={`transition-colors ${
+                                      isChecked ? "bg-red-950/20 hover:bg-red-950/30" : "hover:bg-white/5"
+                                    }`}
+                                  >
+                                    <td className="py-3 px-3 text-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setSelectedCatIds([...selectedCatIds, c.id]);
+                                          } else {
+                                            setSelectedCatIds(selectedCatIds.filter((id) => id !== c.id));
+                                          }
+                                        }}
+                                        className="w-4 h-4 rounded accent-[#c8f560] cursor-pointer"
+                                      />
+                                    </td>
+                                    <td className="py-3 px-4 font-mono font-bold text-[#c8f560] whitespace-nowrap">
+                                      {c.songId}
+                                    </td>
+                                    <td className="py-3 px-4 font-semibold text-white whitespace-nowrap">
+                                      {c.title}
+                                    </td>
+                                    <td className="py-3 px-4 text-white/90 whitespace-nowrap">
+                                      {c.artist}
+                                    </td>
+                                    <td className="py-3 px-4 text-white/80 whitespace-nowrap">
+                                      {c.publisher}
+                                    </td>
+                                    <td className="py-3 px-4 whitespace-nowrap">
                                       <button
                                         type="button"
-                                        onClick={() => handleOpenEditCatalog(c)}
-                                        title="Edit data lagu katalog"
-                                        className="p-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 transition-colors cursor-pointer"
+                                        onClick={() => handleToggleCatalogStatus(c.id, c.status)}
+                                        title="Klik untuk mengubah status"
+                                        className={`px-3 py-0.5 rounded-full font-bold text-[10px] transition-all ${
+                                          c.status === "Aktif"
+                                            ? "bg-[#c8f560] text-[#312042] hover:bg-[#b0dc4c]"
+                                            : c.status === "Review"
+                                            ? "bg-[#fde08d] text-[#312042]"
+                                            : "bg-white/20 text-white"
+                                        }`}
                                       >
-                                        <Pencil className="w-3.5 h-3.5" />
+                                        {c.status}
                                       </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteCatalog(c.id)}
-                                        title="Hapus lagu dari katalog"
-                                        className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-colors cursor-pointer"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))
+                                    </td>
+                                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                                      <div className="flex items-center justify-center gap-1.5">
+                                        {c.youtubeLink ? (
+                                          <a
+                                            href={c.youtubeLink}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="px-2 py-0.5 rounded bg-red-600/80 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1"
+                                          >
+                                            <Youtube className="w-3 h-3" />
+                                            <span>YT</span>
+                                          </a>
+                                        ) : (
+                                          <span className="text-[10px] text-white/40">-</span>
+                                        )}
+                                        {c.driveLink ? (
+                                          <a
+                                            href={c.driveLink}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="px-2 py-0.5 rounded bg-blue-600/80 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1"
+                                          >
+                                            <HardDrive className="w-3 h-3" />
+                                            <span>Drive</span>
+                                          </a>
+                                        ) : (
+                                          <span className="text-[10px] text-white/40">-</span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenEditCatalog(c)}
+                                          title="Edit data lagu katalog"
+                                          className="p-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 transition-colors cursor-pointer"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteCatalog(c.id)}
+                                          title="Hapus lagu dari katalog"
+                                          className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-colors cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
                             )}
                           </tbody>
                         </table>
@@ -4899,6 +5097,83 @@ export default function AdminDashboardPage() {
                         </button>
                       </div>
                     </form>
+                  </div>
+                </div>
+              )}
+
+              {/* ================= MODAL KONFIRMASI HAPUS SELURUH PUBLISHER ================= */}
+              {deletePubModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+                  <div className="relative w-full max-w-md rounded-2xl bg-[#1b1226] border border-red-500/40 p-6 shadow-2xl space-y-5 text-white">
+                    <div className="flex items-center justify-between pb-3 border-b border-white/15">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-red-600/20 border border-red-500/40 text-red-400">
+                          <Trash2 className="w-5 h-5 stroke-[2.5]" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-white">Hapus Seluruh Katalog Publisher</h3>
+                          <p className="text-[11px] text-white/60">Tindakan massal menghapus semua lagu publisher</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDeletePubModal({ isOpen: false, publisher: "", count: 0 })}
+                        disabled={isDeletingPublisher}
+                        className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/30 space-y-2 text-xs">
+                      <div className="flex items-start gap-2 text-red-300">
+                        <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-red-200 text-sm mb-1">Peringatan Penghapusan Permanen</p>
+                          <p className="leading-relaxed text-white/80">
+                            Anda akan menghapus seluruh lagu dari publisher:
+                          </p>
+                          <p className="mt-1 text-sm font-black text-[#c8f560] bg-black/40 px-2 py-1 rounded-md inline-block">
+                            {deletePubModal.publisher}
+                          </p>
+                          <p className="mt-2 text-white/80 leading-relaxed">
+                            Total lagu yang akan dihapus: <strong className="text-white">{deletePubModal.count.toLocaleString("id-ID")} lagu</strong>.
+                          </p>
+                          <p className="mt-1 text-[11px] text-red-300/80">
+                            Lagu-lagu ini akan dihapus dari katalog master admin dan juga katalog di akun user secara otomatis.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/15">
+                      <button
+                        type="button"
+                        onClick={() => setDeletePubModal({ isOpen: false, publisher: "", count: 0 })}
+                        disabled={isDeletingPublisher}
+                        className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isDeletingPublisher}
+                        onClick={() => handleDeletePublisherCatalog(deletePubModal.publisher)}
+                        className="flex items-center gap-2 px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-md disabled:opacity-50 cursor-pointer active:scale-95"
+                      >
+                        {isDeletingPublisher ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Menghapus {deletePubModal.count.toLocaleString("id-ID")} Lagu...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Ya, Hapus Semua ({deletePubModal.count.toLocaleString("id-ID")} Lagu)</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

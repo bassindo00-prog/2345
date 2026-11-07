@@ -190,15 +190,73 @@ export async function PATCH(req: Request) {
   }
 }
 
-// DELETE catalog item
+// DELETE catalog item or bulk delete or whole publisher catalog
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-    if (!id) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
+    const idParam = searchParams.get("id");
+    const publisherParam = searchParams.get("publisher");
+    const idsParam = searchParams.get("ids");
 
-    await prisma.catalog.delete({ where: { id } });
-    return NextResponse.json({ ok: true, success: true });
+    let body: any = null;
+    try {
+      body = await req.json();
+    } catch (_) {}
+
+    const targetPublisher = publisherParam || body?.publisher;
+    const targetIds = body?.ids || (idsParam ? idsParam.split(",").map((s: string) => s.trim()).filter(Boolean) : null);
+    const targetId = idParam || body?.id;
+
+    // 1. Hapus seluruh lagu dari publisher tertentu
+    if (targetPublisher && targetPublisher !== "ALL" && targetPublisher !== "Semua Publisher") {
+      const deletedCatalog = await prisma.catalog.deleteMany({
+        where: { publisher: { equals: targetPublisher, mode: "insensitive" } },
+      });
+
+      let deletedPublisherSongCount = 0;
+      try {
+        const deletedPub = await prisma.publisherCatalogSong.deleteMany({
+          where: { publisher: { equals: targetPublisher, mode: "insensitive" } },
+        });
+        deletedPublisherSongCount = deletedPub.count;
+      } catch (errSync) {
+        console.warn("Gagal hapus sync di PublisherCatalogSong:", errSync);
+      }
+
+      return NextResponse.json({
+        ok: true,
+        success: true,
+        count: deletedCatalog.count,
+        deletedCatalogCount: deletedCatalog.count,
+        deletedPublisherSongCount,
+        message: `Berhasil menghapus seluruh katalog dari publisher ${targetPublisher} (${deletedCatalog.count} lagu)`,
+      });
+    }
+
+    // 2. Hapus banyak lagu sekaligus (Bulk Delete by IDs)
+    if (Array.isArray(targetIds) && targetIds.length > 0) {
+      const deletedBulk = await prisma.catalog.deleteMany({
+        where: { id: { in: targetIds } },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        success: true,
+        count: deletedBulk.count,
+        message: `Berhasil menghapus ${deletedBulk.count} lagu secara massal`,
+      });
+    }
+
+    // 3. Hapus single lagu
+    if (targetId) {
+      await prisma.catalog.delete({ where: { id: targetId } });
+      return NextResponse.json({ ok: true, success: true });
+    }
+
+    return NextResponse.json(
+      { error: "Parameter ID, IDs, atau Publisher wajib disertakan untuk menghapus" },
+      { status: 400 }
+    );
   } catch (error: any) {
     console.error("DELETE /api/catalog error:", error);
     return NextResponse.json({ error: error.message || "Failed to delete catalog" }, { status: 500 });
