@@ -328,7 +328,7 @@ export async function GET() {
       const rawWithdrawn = u.totalWithdrawn ?? u.totalwithdrawn ?? u.total_withdrawn;
 
       let royaltyBalance = 0;
-      if (rawBal !== undefined && rawBal !== null && Number(rawBal) > 0) {
+      if (rawBal !== undefined && rawBal !== null) {
         royaltyBalance = Number(rawBal);
       } else if (earnings.royalty > 0) {
         royaltyBalance = Math.max(0, earnings.royalty - totalWithdrawnFromRequests);

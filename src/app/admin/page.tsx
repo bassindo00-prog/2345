@@ -362,6 +362,61 @@ export default function AdminDashboardPage() {
     setTimeout(() => setToast(""), 3500);
   };
 
+  // Quick Edit Saldo Musisi Langsung State
+  const [editingSaldoUser, setEditingSaldoUser] = useState<any | null>(null);
+  const [quickSaldoAmount, setQuickSaldoAmount] = useState<string>("");
+  const [quickSaldoMonth, setQuickSaldoMonth] = useState<string>("November");
+  const [isSavingQuickSaldo, setIsSavingQuickSaldo] = useState<boolean>(false);
+
+  const handleOpenEditSaldo = (u: any) => {
+    setEditingSaldoUser(u);
+    setQuickSaldoAmount(String(Math.round(Number(u.royaltyBalance || 0))));
+    setQuickSaldoMonth(u.royaltyMonth || "November");
+  };
+
+  const handleSaveQuickSaldo = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingSaldoUser) return;
+    setIsSavingQuickSaldo(true);
+    try {
+      const cleanNum = Number(String(quickSaldoAmount).replace(/[^0-9.-]/g, "")) || 0;
+      const res = await fetch("/api/admin/overview", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: editingSaldoUser.id,
+          royaltyBalance: cleanNum,
+          royaltyMonth: quickSaldoMonth,
+        }),
+      });
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((usr) =>
+            usr.id === editingSaldoUser.id
+              ? { ...usr, royaltyBalance: cleanNum, royaltyMonth: quickSaldoMonth }
+              : usr
+          )
+        );
+        setSelectedArtistDetail((prev: any) =>
+          prev && prev.id === editingSaldoUser.id
+            ? { ...prev, royaltyBalance: cleanNum, royaltyMonth: quickSaldoMonth }
+            : prev
+        );
+        showNotice(
+          `✅ Saldo ${getArtistDisplayName(editingSaldoUser)} berhasil diubah menjadi Rp ${Math.round(cleanNum).toLocaleString("id-ID")} dan langsung tersinkron ke dashboard artis!`
+        );
+        setEditingSaldoUser(null);
+      } else {
+        showNotice("Gagal menyimpan saldo. Silakan coba lagi.");
+      }
+    } catch (err) {
+      console.error("Error saving saldo:", err);
+      showNotice("Terjadi kesalahan saat menyimpan saldo.");
+    } finally {
+      setIsSavingQuickSaldo(false);
+    }
+  };
+
   // Helper to extract artist display name (prefer registered Artist profile over generic account name)
   const getArtistDisplayName = (u: any) => {
     if (!u) return "Artis";
@@ -2408,6 +2463,149 @@ export default function AdminDashboardPage() {
         }}
       />
 
+      {/* ================= MODAL EDIT SALDO MUSISI LANGSUNG ================= */}
+      {editingSaldoUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-card-enter">
+          <div className="bg-[#241733] border border-[#c8f560]/40 rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl space-y-5">
+            {/* Header Modal */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#312042] border border-[#c8f560]/50 overflow-hidden flex items-center justify-center font-bold text-sm text-[#c8f560] shadow-sm shrink-0">
+                  {editingSaldoUser.avatar ? (
+                    <img
+                      src={editingSaldoUser.avatar}
+                      alt={getArtistDisplayName(editingSaldoUser)}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{getArtistDisplayName(editingSaldoUser).slice(0, 2).toUpperCase()}</span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-white text-base leading-tight truncate">
+                    {getArtistDisplayName(editingSaldoUser)}
+                  </h3>
+                  <p className="text-xs text-white/60 truncate max-w-[200px]">
+                    {editingSaldoUser.email || "-"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingSaldoUser(null)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors cursor-pointer"
+                title="Tutup"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Info Saldo Saat Ini */}
+            <div className="p-3.5 rounded-2xl bg-black/30 border border-white/10 flex items-center justify-between">
+              <span className="text-xs text-white/60">Saldo Saat Ini di Database:</span>
+              <span className="font-mono font-bold text-sm text-white/90">
+                Rp {Math.round(Number(editingSaldoUser.royaltyBalance || 0)).toLocaleString("id-ID")}
+              </span>
+            </div>
+
+            <form onSubmit={handleSaveQuickSaldo} className="space-y-4">
+              {/* Input Saldo Baru */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-white/80">
+                    Nominal Saldo Baru (Rp):
+                  </label>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#c8f560]/15 text-[#c8f560] font-semibold">
+                    Langsung Sync ke Musisi
+                  </span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-sm text-[#c8f560]">
+                    Rp
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={
+                      quickSaldoAmount === ""
+                        ? ""
+                        : isNaN(Number(quickSaldoAmount))
+                        ? quickSaldoAmount
+                        : Number(quickSaldoAmount).toLocaleString("id-ID")
+                    }
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^0-9]/g, "");
+                      setQuickSaldoAmount(raw);
+                    }}
+                    placeholder="Contoh: 500.000"
+                    className="w-full pl-12 pr-4 py-3 rounded-2xl bg-white/10 border border-white/20 text-white font-mono font-bold text-lg focus:outline-none focus:border-[#c8f560] transition-colors"
+                  />
+                </div>
+                <p className="text-[11px] text-white/50 mt-1">
+                  *Ketik angka tanpa tanda titik (sistem otomatis memformat nominal ribuan).
+                </p>
+              </div>
+
+              {/* Periode Bulan */}
+              <div>
+                <label className="block text-xs font-semibold text-white/80 mb-1.5">
+                  Periode Bulan Royalti:
+                </label>
+                <select
+                  value={quickSaldoMonth}
+                  onChange={(e) => setQuickSaldoMonth(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-2xl bg-white/10 border border-white/20 text-white text-xs font-semibold focus:outline-none focus:border-[#c8f560]"
+                >
+                  {[
+                    "Januari",
+                    "Februari",
+                    "Maret",
+                    "April",
+                    "Mei",
+                    "Juni",
+                    "Juli",
+                    "Agustus",
+                    "September",
+                    "Oktober",
+                    "November",
+                    "Desember",
+                  ].map((m) => (
+                    <option key={m} value={m} className="bg-[#241733] text-white">
+                      Bulan {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tombol Aksi */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingSaldoUser(null)}
+                  className="w-full py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingQuickSaldo}
+                  className="w-full py-3 rounded-2xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-black text-xs transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isSavingQuickSaldo ? (
+                    <span>Menyimpan...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Simpan & Sinkron</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: DETAIL LENGKAP ARTIS & AKUN */}
       {selectedArtistDetail && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-card-enter">
@@ -2845,18 +3043,12 @@ export default function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={() => {
-                  selectedUserForRoyaltyRef.current = selectedArtistDetail.id;
-                  setSelectedUserForRoyalty(selectedArtistDetail.id);
-                  setInputRoyaltyBalance(selectedArtistDetail.royaltyBalance || 0);
-                  setInputRoyaltyPending(selectedArtistDetail.royaltyPending || 0);
-                  setInputTotalStreams(selectedArtistDetail.totalStreams || 0);
-                  setInputRoyaltyMonth(selectedArtistDetail.royaltyMonth || "November");
-                  setSelectedArtistDetail(null);
-                  setActiveTab("royalty-input");
+                  handleOpenEditSaldo(selectedArtistDetail);
                 }}
-                className="px-4 py-2 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs hover:bg-[#b8e450] transition-colors shadow cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-[#c8f560] text-[#312042] font-black text-xs hover:bg-[#b8e450] transition-colors shadow cursor-pointer flex items-center gap-1.5"
               >
-                Input / Edit Royalty & Streams
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Edit Saldo Musisi</span>
               </button>
               <button
                 type="button"
@@ -6642,20 +6834,12 @@ export default function AdminDashboardPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                selectedUserForRoyaltyRef.current = u.id;
-                                setSelectedUserForRoyalty(u.id);
-                                setInputRoyaltyBalance(u.royaltyBalance || 0);
-                                setInputRoyaltyPending(u.royaltyPending || 0);
-                                setInputTotalStreams(u.totalStreams || 0);
-                                setInputRoyaltyMonth(u.royaltyMonth || "November");
-                                setActiveTab("royalty-input");
-                              }}
-                              className="w-full md:w-auto justify-center px-3.5 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95 whitespace-nowrap"
-                              title="Input atau Update Royalti Musisi Ini"
+                              onClick={() => handleOpenEditSaldo(u)}
+                              className="w-full md:w-auto justify-center px-3.5 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-black text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer active:scale-95 whitespace-nowrap"
+                              title="Edit Saldo Musisi Ini Secara Langsung"
                             >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Input Royalti</span>
+                              <Pencil className="w-3.5 h-3.5" />
+                              <span>Edit Saldo</span>
                             </button>
                           </div>
                         </div>
@@ -6720,20 +6904,12 @@ export default function AdminDashboardPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                selectedUserForRoyaltyRef.current = u.id;
-                                setSelectedUserForRoyalty(u.id);
-                                setInputRoyaltyBalance(0);
-                                setInputRoyaltyPending(0);
-                                setInputTotalStreams(0);
-                                setInputRoyaltyMonth("November");
-                                setActiveTab("royalty-input");
-                              }}
-                              className="w-full md:w-auto justify-center px-3.5 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-extrabold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm active:scale-95 whitespace-nowrap"
-                              title="Input Royalti Pertama Kali untuk Musisi Ini"
+                              onClick={() => handleOpenEditSaldo(u)}
+                              className="w-full md:w-auto justify-center px-3.5 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-black text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm active:scale-95 whitespace-nowrap"
+                              title="Isi Saldo Pertama Kali untuk Musisi Ini"
                             >
                               <Plus className="w-3.5 h-3.5" />
-                              <span>Input Royalti</span>
+                              <span>+ Isi Saldo</span>
                             </button>
                           </div>
                         </div>
@@ -7631,18 +7807,11 @@ export default function AdminDashboardPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  selectedUserForRoyaltyRef.current = u.id;
-                                  setSelectedUserForRoyalty(u.id);
-                                  setInputRoyaltyBalance(u.royaltyBalance || 0);
-                                  setInputRoyaltyPending(u.royaltyPending || 0);
-                                  setInputTotalStreams(u.totalStreams || 0);
-                                  setInputRoyaltyMonth(u.royaltyMonth || "November");
-                                  setActiveTab("royalty-input");
-                                }}
-                                className="py-1.5 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold text-xs transition-colors cursor-pointer"
+                                onClick={() => handleOpenEditSaldo(u)}
+                                className="py-1.5 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-[#c8f560] font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
                               >
-                                Edit Saldo
+                                <Pencil className="w-3 h-3" />
+                                <span>Edit Saldo</span>
                               </button>
 
                               {/* Tombol Suspend / Buka Suspend Mobile */}
