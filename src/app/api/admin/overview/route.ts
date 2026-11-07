@@ -5,8 +5,30 @@ import { resolveMediaUrl } from "@/lib/r2";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+async function ensureRoyaltyColumns() {
+  const statements = [
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "royaltyBalance" double precision DEFAULT 0`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "royaltyPending" double precision DEFAULT 0`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "totalStreams" integer DEFAULT 0`,
+    `ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "royaltyMonth" text DEFAULT 'November'`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "royaltyBalance" double precision DEFAULT 0`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "royaltyPending" double precision DEFAULT 0`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "totalStreams" integer DEFAULT 0`,
+    `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "royaltyMonth" text DEFAULT 'November'`,
+  ];
+  for (const sql of statements) {
+    try {
+      await prisma.$executeRawUnsafe(sql);
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export async function GET() {
   try {
+    await ensureRoyaltyColumns();
+
     // 1. Query dbArtists
     let dbArtists: any[] = [];
     try {
@@ -532,24 +554,23 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
     }
 
-    // Pastikan kolom-kolom saldo ada di tabel "User" agar tidak pernah error Code 42703
-    try {
-      await prisma.$executeRawUnsafe(`
-        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "royaltyBalance" double precision DEFAULT 0;
-        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "royaltyPending" double precision DEFAULT 0;
-        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "totalStreams" integer DEFAULT 0;
-        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "royaltyMonth" text DEFAULT 'November';
-      `);
-    } catch (eCol) {
-      console.warn("Ensure user columns warning:", eCol);
-    }
+    // Pastikan kolom-kolom saldo ada di tabel "User" & "users" dengan eksekusi satu per satu
+    await ensureRoyaltyColumns();
 
     if (role) {
-      await prisma.$executeRawUnsafe(
-        `UPDATE "User" SET "role" = $1 WHERE "id" = $2`,
-        role,
-        userId
-      );
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "User" SET "role" = $1 WHERE "id" = $2`,
+          role,
+          userId
+        );
+      } catch {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "users" SET "role" = $1 WHERE "id" = $2`,
+          role,
+          userId
+        ).catch(() => {});
+      }
     }
 
     if (
@@ -558,20 +579,45 @@ export async function PATCH(req: Request) {
       totalStreams !== undefined ||
       royaltyMonth !== undefined
     ) {
-      await prisma.$executeRawUnsafe(
-        `UPDATE "User" SET 
-          "royaltyBalance" = CASE WHEN $1::float IS NOT NULL THEN $1::float ELSE "royaltyBalance" END,
-          "royaltyPending" = CASE WHEN $2::float IS NOT NULL THEN $2::float ELSE "royaltyPending" END,
-          "totalStreams" = CASE WHEN $3::int IS NOT NULL THEN $3::int ELSE "totalStreams" END,
-          "royaltyMonth" = CASE WHEN $4::text IS NOT NULL THEN $4::text ELSE "royaltyMonth" END,
-          "updatedAt" = NOW()
-         WHERE "id" = $5`,
-        royaltyBalance !== undefined ? Number(royaltyBalance) : null,
-        royaltyPending !== undefined ? Number(royaltyPending) : null,
-        totalStreams !== undefined ? Math.round(Number(totalStreams)) : null,
-        royaltyMonth !== undefined ? String(royaltyMonth) : null,
-        userId
-      );
+      let updateSuccess = false;
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "User" SET 
+            "royaltyBalance" = CASE WHEN $1::float IS NOT NULL THEN $1::float ELSE "royaltyBalance" END,
+            "royaltyPending" = CASE WHEN $2::float IS NOT NULL THEN $2::float ELSE "royaltyPending" END,
+            "totalStreams" = CASE WHEN $3::int IS NOT NULL THEN $3::int ELSE "totalStreams" END,
+            "royaltyMonth" = CASE WHEN $4::text IS NOT NULL THEN $4::text ELSE "royaltyMonth" END,
+            "updatedAt" = NOW()
+           WHERE "id" = $5`,
+          royaltyBalance !== undefined ? Number(royaltyBalance) : null,
+          royaltyPending !== undefined ? Number(royaltyPending) : null,
+          totalStreams !== undefined ? Math.round(Number(totalStreams)) : null,
+          royaltyMonth !== undefined ? String(royaltyMonth) : null,
+          userId
+        );
+        updateSuccess = true;
+      } catch (errUser) {
+        console.warn("Update User failed, fallback to users table:", errUser);
+        try {
+          await prisma.$executeRawUnsafe(
+            `UPDATE "users" SET 
+              "royaltyBalance" = CASE WHEN $1::float IS NOT NULL THEN $1::float ELSE "royaltyBalance" END,
+              "royaltyPending" = CASE WHEN $2::float IS NOT NULL THEN $2::float ELSE "royaltyPending" END,
+              "totalStreams" = CASE WHEN $3::int IS NOT NULL THEN $3::int ELSE "totalStreams" END,
+              "royaltyMonth" = CASE WHEN $4::text IS NOT NULL THEN $4::text ELSE "royaltyMonth" END,
+              "updated_at" = NOW()
+             WHERE "id" = $5`,
+            royaltyBalance !== undefined ? Number(royaltyBalance) : null,
+            royaltyPending !== undefined ? Number(royaltyPending) : null,
+            totalStreams !== undefined ? Math.round(Number(totalStreams)) : null,
+            royaltyMonth !== undefined ? String(royaltyMonth) : null,
+            userId
+          );
+          updateSuccess = true;
+        } catch (errUsersLower) {
+          throw errUser;
+        }
+      }
 
       // Sinkronkan juga ke tabel "Royalty" jika tabel tersebut ada di database produksi
       try {
