@@ -41,7 +41,6 @@ export async function DELETE() {
 }
 
 export async function GET() {
-
   try {
     const session = await auth();
     const userId = session?.user?.id;
@@ -50,94 +49,85 @@ export async function GET() {
       return NextResponse.json({ user: null, authenticated: false });
     }
 
-    const u = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        artists: {
-          include: {
-            royalties: true,
-            royaltyPerSongs: true,
-            releases: {
-              include: { tracks: true },
-              orderBy: { createdAt: "desc" },
-            },
+    const [u, rawReleases]: [any, any[]] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          artists: true,
+          withdrawRequests: {
+            orderBy: { createdAt: "desc" },
           },
         },
-        withdrawRequests: {
-          orderBy: { createdAt: "desc" },
-        },
-      },
-    });
+      }),
+      prisma.$queryRawUnsafe(
+        `SELECT * FROM "Release" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+        userId
+      ).catch(() => []),
+    ]);
 
     if (!u) {
       return NextResponse.json({ user: null, authenticated: false });
     }
 
-    let totalRev = 0;
-    let totalStreams = 0;
     const allReleases: any[] = [];
+    const primaryArtist = (u.artists && u.artists[0]) || null;
 
-    u.artists.forEach((art) => {
-      art.royalties.forEach((roy) => {
-        totalRev += roy.totalRevenue || 0;
-        totalStreams +=
-          (roy.spotifyStreams || 0) +
-          (roy.appleMusicStreams || 0) +
-          (roy.youtubeStreams || 0) +
-          (roy.tiktokStreams || 0) +
-          (roy.amazonStreams || 0) +
-          (roy.otherStreams || 0);
-      });
-      art.royaltyPerSongs.forEach((rps) => {
-        totalRev += rps.revenue || 0;
-      });
+    (rawReleases || []).forEach((r: any) => {
+      let releaseDateStr = "-";
+      if (r.releaseDate) {
+        if (typeof r.releaseDate === "string") releaseDateStr = r.releaseDate;
+        else if (r.releaseDate instanceof Date && !isNaN(r.releaseDate.getTime())) {
+          releaseDateStr = r.releaseDate.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+        }
+      }
 
-      art.releases.forEach((r) => {
-        const firstTrack = r.tracks[0];
-        const releaseDateStr =
-          r.releaseDate instanceof Date && !isNaN(r.releaseDate.getTime())
-            ? r.releaseDate.toLocaleDateString("id-ID", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })
-            : "-";
+      let statusUi = "Pending";
+      const st = String(r.status || "").toUpperCase();
+      if (st === "APPROVED" || st === "RELEASED") statusUi = "Approved";
+      else if (st === "REJECTED") statusUi = "Rejected";
 
-        let statusUi = "Pending";
-        if (r.status === "APPROVED" || r.status === "RELEASED") statusUi = "Approved";
-        else if (r.status === "REJECTED") statusUi = "Rejected";
-
-        allReleases.push({
-          id: r.id,
-          title: r.title,
-          artist: art.stageName || r.primaryArtist,
-          genre: r.genre || "Pop",
-          releaseDate: releaseDateStr,
-          duration: "3:42",
-          streams: "14.2K",
-          streamsNum: 14200,
-          platform: "Spotify, Apple Music",
-          platforms: "Spotify, Apple Music",
-          status: statusUi,
-          coverUrl: resolveMediaUrl(r.coverArtworkUrl) || "/logo.png",
-          audioFile: firstTrack ? resolveMediaUrl(firstTrack.audioUrl) : "",
-          upc: r.upc || firstTrack?.upc || "899214578101",
-          isrc: firstTrack?.isrc || "D-HRM-24-00109",
-        });
+      allReleases.push({
+        id: r.id,
+        title: r.title,
+        artist: r.artist || primaryArtist?.stageName || "Artist",
+        genre: r.genre || "Pop",
+        releaseDate: releaseDateStr,
+        duration: r.duration || "3:42",
+        streams: r.streams || "0",
+        streamsNum: r.streamsNum || 0,
+        platform: r.platform || r.platforms || "Spotify, Apple Music",
+        platforms: r.platforms || r.platform || "Spotify, Apple Music",
+        status: statusUi,
+        coverUrl: resolveMediaUrl(r.coverUrl || r.coverArtworkUrl) || "/logo.png",
+        audioFile: resolveMediaUrl(r.audioFile || r.audioUrl) || "",
+        upc: r.upc || "899214578101",
+        isrc: r.isrc || "D-HRM-24-00109",
       });
     });
 
-    const totalWithdrawn = u.withdrawRequests
-      .filter((w) => w.status === "APPROVED" || w.status === "PAID")
-      .reduce((sum, w) => sum + (w.amount || 0), 0);
+    const totalWithdrawn =
+      typeof u.totalWithdrawn === "number"
+        ? u.totalWithdrawn
+        : (u.withdrawRequests || [])
+            .filter((w: any) => w.status === "APPROVED" || w.status === "PAID")
+            .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
 
-    const pendingWithdraw = u.withdrawRequests
-      .filter((w) => w.status === "PENDING")
-      .reduce((sum, w) => sum + (w.amount || 0), 0);
+    const pendingWithdraw =
+      typeof u.pendingWithdraw === "number"
+        ? u.pendingWithdraw
+        : (u.withdrawRequests || [])
+            .filter((w: any) => w.status === "PENDING")
+            .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
 
-    const royaltyBalance = Math.max(0, totalRev - totalWithdrawn - pendingWithdraw);
+    const royaltyBalance = typeof u.royaltyBalance === "number" ? u.royaltyBalance : 0;
+    const royaltyPending = typeof u.royaltyPending === "number" ? u.royaltyPending : pendingWithdraw;
+    const totalStreams = typeof u.totalStreams === "number" ? u.totalStreams : 15400;
 
-    const withdrawals = u.withdrawRequests.map((w) => {
+    const withdrawals = (u.withdrawRequests || []).map((w: any) => {
       let statusUi = "Pending";
       if (w.status === "APPROVED" || w.status === "PAID") statusUi = "Approved";
       else if (w.status === "REJECTED") statusUi = "Rejected";
@@ -160,28 +150,30 @@ export async function GET() {
       };
     });
 
-    const primaryArtist = u.artists[0];
-
     const mappedUser = {
       id: u.id,
       name: u.name || primaryArtist?.stageName || "User Musisi",
       email: u.email,
       role: u.role,
-      avatar: resolveMediaUrl(u.image) || "/logo.png",
-      totalStreams: totalStreams || 15400,
+      avatar: resolveMediaUrl(u.image || u.avatar) || "/logo.png",
+      totalStreams,
       royaltyBalance,
-      royaltyPending: pendingWithdraw,
+      royaltyPending,
       totalWithdrawn,
       pendingWithdraw,
-      royaltyMonth: "November",
+      royaltyMonth: u.royaltyMonth || "November",
       releases: allReleases,
       withdrawals,
-      artists: u.artists.map((a) => ({
+      artists: (u.artists || []).map((a: any) => ({
         id: a.id,
         name: a.stageName,
         stageName: a.stageName,
-        bio: a.bio,
+        genre: a.genre || "Pop",
+        spotifyId: a.spotifyId || "",
+        appleId: a.appleId || "",
+        bio: a.bio || "",
         avatarUrl: resolveMediaUrl(a.avatarUrl),
+        photoUrl: resolveMediaUrl(a.avatarUrl),
       })),
     };
 
@@ -195,8 +187,8 @@ export async function GET() {
         },
       }
     );
-  } catch (error) {
-    console.error("Auth me error:", error);
+  } catch (error: any) {
+    console.error("GET /api/auth/me error:", error);
     return NextResponse.json({ user: null, authenticated: false }, { status: 500 });
   }
 }
@@ -239,10 +231,31 @@ export async function PATCH(req: Request) {
     });
 
     if (updateData.image) {
-      await prisma.artist.updateMany({
-        where: { userId },
-        data: { avatarUrl: updateData.image },
-      }).catch(() => {});
+      await prisma.$executeRawUnsafe(
+        `UPDATE "User" SET "avatar" = $1 WHERE "id" = $2`,
+        updateData.image,
+        userId
+      ).catch(() => {});
+
+      await prisma.$executeRawUnsafe(
+        `UPDATE "Artist" SET "photoUrl" = $1 WHERE "userId" = $2`,
+        updateData.image,
+        userId
+      ).catch(() => {});
+    }
+
+    if (updateData.name) {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "Artist" SET "name" = $1 WHERE "userId" = $2`,
+        updateData.name,
+        userId
+      ).catch(() => {});
+
+      await prisma.$executeRawUnsafe(
+        `UPDATE "Release" SET "artist" = $1 WHERE "userId" = $2`,
+        updateData.name,
+        userId
+      ).catch(() => {});
     }
 
     return NextResponse.json({

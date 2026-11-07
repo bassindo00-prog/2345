@@ -1380,18 +1380,66 @@ export default function AdminDashboardPage() {
     return () => clearTimeout(timer);
   }, [catSearch]);
 
-  const handleUploadAdminAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const compressImageFile = async (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 800;
+            let width = img.width;
+            let height = img.height;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return resolve(file);
+            ctx.drawImage(img, 0, 0, width, height);
+            canvas.toBlob(
+              (blob) => {
+                if (blob) {
+                  const cleanName = (file.name || "avatar").replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.[^.]+$/, ".jpg");
+                  const compressedFile = new File([blob], cleanName, {
+                    type: "image/jpeg",
+                  });
+                  resolve(compressedFile);
+                } else {
+                  resolve(file);
+                }
+              },
+              "image/jpeg",
+              0.88
+            );
+          };
+          img.onerror = () => resolve(file);
+          img.src = e.target?.result as string;
+        };
+        reader.onerror = () => resolve(file);
+        reader.readAsDataURL(file);
+      } catch {
+        resolve(file);
+      }
+    });
+  };
 
-    if (file.size > 10 * 1024 * 1024) {
-      showNotice("Ukuran foto maksimal 10MB!");
-      return;
-    }
+  const handleUploadAdminAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
     setUploadingAdminAvatar(true);
-    showNotice(`Sedang mengunggah foto profil Admin: ${file.name}...`);
+    showNotice(`Sedang mengoptimalkan & mengunggah foto profil Admin...`);
     try {
+      const file = await compressImageFile(rawFile);
       const formData = new FormData();
       formData.append("file", file);
       formData.append("type", "profile");

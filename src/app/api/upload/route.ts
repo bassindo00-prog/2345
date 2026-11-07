@@ -15,10 +15,13 @@ const ALLOWED_IMAGE_TYPES = [
   'image/heic',
   'image/heif',
   'image/gif',
+  'image/jfif',
+  'image/bmp',
+  'image/svg+xml',
   'application/octet-stream',
   ''
 ];
-const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.gif'];
+const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.gif', '.jfif', '.bmp', '.svg'];
 
 const ALLOWED_AUDIO_TYPES = [
   'audio/mpeg',
@@ -254,8 +257,11 @@ export async function POST(req: NextRequest) {
         fileExt,
         allowedTypes
       });
+      const isImg = ['cover', 'profile', 'asset', 'cms', 'brand'].includes(uploadType);
       return NextResponse.json({ 
-        error: `Format file "${file.name}" tidak valid. Format audio yang didukung: MP3, WAV, FLAC, M4A, AAC.`
+        error: isImg 
+          ? `Format foto "${file.name}" tidak didukung. Format gambar yang didukung: JPG, PNG, WEBP, GIF, HEIC.` 
+          : `Format file "${file.name}" tidak valid. Format audio yang didukung: MP3, WAV, FLAC, M4A, AAC.`
       }, { status: 400 });
     }
 
@@ -332,6 +338,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Upload to R2 using AWS SDK
+    const safeOriginalName = (file.name || 'file')
+      .replace(/[^\x20-\x7E]/g, '')
+      .replace(/["\r\n\\]/g, '')
+      .substring(0, 100);
+
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -340,7 +351,7 @@ export async function POST(req: NextRequest) {
       Metadata: {
         'uploaded-by': userId,
         'upload-type': uploadType,
-        'original-name': file.name,
+        'original-name': safeOriginalName,
       }
     });
 
@@ -352,7 +363,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         'uploaded-by': userId,
         'upload-type': uploadType,
-        'original-name': file.name,
+        'original-name': safeOriginalName,
       }
     });
 

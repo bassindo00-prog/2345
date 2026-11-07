@@ -1193,19 +1193,68 @@ export default function UserDashboardPage() {
   };
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingArtistPhoto, setUploadingArtistPhoto] = useState(false);
+
+  const compressImageFile = async (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 800;
+            let width = img.width;
+            let height = img.height;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return resolve(file);
+            ctx.drawImage(img, 0, 0, width, height);
+            canvas.toBlob(
+              (blob) => {
+                if (blob) {
+                  const cleanName = (file.name || "avatar").replace(/[^a-zA-Z0-9.-]/g, "_").replace(/\.[^.]+$/, ".jpg");
+                  const compressedFile = new File([blob], cleanName, {
+                    type: "image/jpeg",
+                  });
+                  resolve(compressedFile);
+                } else {
+                  resolve(file);
+                }
+              },
+              "image/jpeg",
+              0.88
+            );
+          };
+          img.onerror = () => resolve(file);
+          img.src = e.target?.result as string;
+        };
+        reader.onerror = () => resolve(file);
+        reader.readAsDataURL(file);
+      } catch {
+        resolve(file);
+      }
+    });
+  };
 
   const handleUploadUserAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      showNotice("Ukuran foto maksimal 10MB!");
-      return;
-    }
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
     setUploadingAvatar(true);
-    showNotice(`Sedang mengunggah foto profil: ${file.name}...`);
+    showNotice(`Sedang mengoptimalkan & mengunggah foto profil...`);
     try {
+      const file = await compressImageFile(rawFile);
       const formData = new FormData();
       formData.append("file", file);
       formData.append("type", "profile");
@@ -1227,6 +1276,7 @@ export default function UserDashboardPage() {
         if (user) {
           setUser({ ...user, avatar: newUrl });
         }
+        await fetchUserData(true);
         showNotice("Foto profil musisi berhasil diperbarui!");
       } else {
         showNotice(`Gagal mengunggah foto: ${data.error || res.statusText}`);
@@ -1235,6 +1285,38 @@ export default function UserDashboardPage() {
       showNotice(`Error upload: ${err.message}`);
     } finally {
       setUploadingAvatar(false);
+    }
+  };
+
+  const handleUploadArtistPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
+
+    setUploadingArtistPhoto(true);
+    showNotice(`Sedang mengoptimalkan & mengunggah foto artis...`);
+    try {
+      const file = await compressImageFile(rawFile);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", "profile");
+      formData.append("uploadType", "profile");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      const newUrl = data.url || (data.key ? `/api/storage/${data.key}` : null);
+      if (res.ok && newUrl) {
+        setNewArtistPhoto(newUrl);
+        showNotice("Foto profil artis berhasil diunggah!");
+      } else {
+        showNotice(`Gagal mengunggah foto: ${data.error || res.statusText}`);
+      }
+    } catch (err: any) {
+      showNotice(`Error upload: ${err.message}`);
+    } finally {
+      setUploadingArtistPhoto(false);
     }
   };
 
@@ -6540,16 +6622,38 @@ export default function UserDashboardPage() {
               </div>
 
               <div>
-                <label className="block text-white/80 font-medium mb-1">
-                  URL Foto Profil Artis (Opsional)
-                </label>
-                <input
-                  type="text"
-                  value={newArtistPhoto}
-                  onChange={(e) => setNewArtistPhoto(e.target.value)}
-                  placeholder="https://... atau biarkan avatar default"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-white/80 font-medium">
+                    Foto Profil Artis (Opsional)
+                  </label>
+                  <label className="cursor-pointer px-3 py-1 rounded-lg bg-[#c8f560] hover:bg-[#b5e050] text-[#312042] font-bold text-xs flex items-center gap-1.5 transition-all shadow active:scale-95">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{uploadingArtistPhoto ? "Mengunggah..." : "Upload Foto Artis"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingArtistPhoto}
+                      className="hidden"
+                      onChange={handleUploadArtistPhoto}
+                    />
+                  </label>
+                </div>
+                <div className="flex items-center gap-3">
+                  {newArtistPhoto ? (
+                    <img
+                      src={newArtistPhoto}
+                      alt="Preview"
+                      className="w-11 h-11 rounded-xl object-cover border border-[#c8f560] shrink-0"
+                    />
+                  ) : null}
+                  <input
+                    type="text"
+                    value={newArtistPhoto}
+                    onChange={(e) => setNewArtistPhoto(e.target.value)}
+                    placeholder="https://... atau klik tombol 'Upload Foto Artis' di atas"
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560] text-xs"
+                  />
+                </div>
               </div>
 
               <div>

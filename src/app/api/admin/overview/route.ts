@@ -7,74 +7,67 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    const [rawUsers, rawReleases, rawWithdrawals, rawCatalogSongs] =
-      await Promise.all([
-        prisma.user.findMany({
+    // 1. Query users, withdrawals, catalogs secara aman
+    const [rawUsers, rawWithdrawals, rawCatalogSongs] = await Promise.all([
+      prisma.user.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          artists: true,
+          withdrawRequests: true,
+        },
+      }),
+      prisma.withdrawRequest.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          user: { select: { id: true, name: true, email: true, image: true } },
+        },
+      }),
+      prisma.catalog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 3000,
+      }),
+    ]);
+
+    // 2. Query releases via raw SQL karena di PostgreSQL kolomnya adalah "artist" & "userId"
+    let rawReleases: any[] = [];
+    try {
+      rawReleases = (await prisma.$queryRawUnsafe(
+        `SELECT * FROM "Release" ORDER BY "createdAt" DESC`
+      )) as any[];
+    } catch (eRawRel) {
+      try {
+        rawReleases = await prisma.release.findMany({
           orderBy: { createdAt: "desc" },
-          include: {
-            artists: {
-              include: {
-                royalties: true,
-                royaltyPerSongs: true,
-                releases: true,
-              },
-            },
-            withdrawRequests: true,
-          },
-        }),
-        prisma.release.findMany({
-          orderBy: { createdAt: "desc" },
-          include: {
-            artist: { include: { user: true } },
-            tracks: true,
-          },
-        }),
-        prisma.withdrawRequest.findMany({
-          orderBy: { createdAt: "desc" },
-          include: {
-            user: { select: { id: true, name: true, email: true, image: true } },
-          },
-        }),
-        prisma.catalog.findMany({
-          orderBy: { createdAt: "desc" },
-          take: 3000,
-        }),
-      ]);
+        });
+      } catch (eRel) {
+        console.error("Failed to query Release:", eRel);
+      }
+    }
 
     // Map users to the structure expected by the frontend
-    const users = rawUsers.map((u) => {
-      // Aggregate revenue & streams across all user's artists
-      let totalRev = 0;
-      let totalStreams = 0;
+    const users = rawUsers.map((u: any) => {
+      const primaryArtist = (u.artists && u.artists[0]) || null;
+      const artistSpotify =
+        u.artists.find((a: any) => a.spotifyId && a.spotifyId.trim())?.spotifyId ||
+        primaryArtist?.spotifyId ||
+        "";
+      const artistApple =
+        u.artists.find((a: any) => a.appleId && a.appleId.trim())?.appleId ||
+        primaryArtist?.appleId ||
+        "";
 
-      u.artists.forEach((art) => {
-        art.royalties.forEach((roy) => {
-          totalRev += roy.totalRevenue || 0;
-          totalStreams +=
-            (roy.spotifyStreams || 0) +
-            (roy.appleMusicStreams || 0) +
-            (roy.youtubeStreams || 0) +
-            (roy.tiktokStreams || 0) +
-            (roy.amazonStreams || 0) +
-            (roy.otherStreams || 0);
-        });
-        art.royaltyPerSongs.forEach((rps) => {
-          totalRev += rps.revenue || 0;
-        });
-      });
+      const totalWithdrawn = (u.withdrawRequests || [])
+        .filter((w: any) => w.status === "APPROVED" || w.status === "PAID")
+        .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
 
-      // Calculate total approved withdrawals and pending withdrawals
-      const totalWithdrawn = u.withdrawRequests
-        .filter((w) => w.status === "APPROVED" || w.status === "PAID")
-        .reduce((sum, w) => sum + (w.amount || 0), 0);
+      const pendingWithdraw = (u.withdrawRequests || [])
+        .filter((w: any) => w.status === "PENDING")
+        .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
 
-      const pendingWithdraw = u.withdrawRequests
-        .filter((w) => w.status === "PENDING")
-        .reduce((sum, w) => sum + (w.amount || 0), 0);
-
-      const royaltyBalance = Math.max(0, totalRev - totalWithdrawn - pendingWithdraw);
-
-      const primaryArtist = u.artists[0];
+      const royaltyBalance =
+        typeof u.royaltyBalance === "number" ? u.royaltyBalance : 0;
+      const totalStreams =
+        typeof u.totalStreams === "number" ? u.totalStreams : 15400;
 
       return {
         id: u.id,
@@ -85,90 +78,96 @@ export async function GET() {
         rejectionReason: u.rejectionReason || "",
         whatsapp: u.whatsapp || "",
         youtubeUrl: u.youtubeUrl || "",
+        spotifyUrl: artistSpotify,
+        spotifyId: artistSpotify,
+        appleId: artistApple,
+        appleMusicUrl: artistApple,
         nik: u.nik || "",
         ktpUrl: resolveMediaUrl(u.ktpUrl) || "",
         createdAt: u.createdAt,
-        avatar: resolveMediaUrl(u.image) || "/logo.png",
-        totalStreams: totalStreams || 15400,
+        avatar: resolveMediaUrl(u.image || u.avatar) || "/logo.png",
+        totalStreams,
         royaltyBalance,
-        royaltyPending: pendingWithdraw,
-        totalWithdrawn,
+        royaltyPending: typeof u.royaltyPending === "number" ? u.royaltyPending : pendingWithdraw,
+        totalWithdrawn: typeof u.totalWithdrawn === "number" ? u.totalWithdrawn : totalWithdrawn,
         pendingWithdraw,
-        royaltyMonth: "November",
-        artists: u.artists.map((a) => ({
+        royaltyMonth: u.royaltyMonth || "November",
+        artists: (u.artists || []).map((a: any) => ({
           id: a.id,
           name: a.stageName,
           stageName: a.stageName,
-          bio: a.bio,
+          genre: a.genre || "Pop",
+          spotifyId: a.spotifyId || "",
+          appleId: a.appleId || "",
+          bio: a.bio || "",
+          photoUrl: resolveMediaUrl(a.avatarUrl),
           avatarUrl: resolveMediaUrl(a.avatarUrl),
-          avatar: resolveMediaUrl(a.avatarUrl),
         })),
         _count: {
-          releases: u.artists.reduce((acc, a) => acc + (a.releases?.length || 0), 0),
-          withdrawals: u.withdrawRequests.length,
-          artists: u.artists.length,
+          releases: rawReleases.filter((r) => r.userId === u.id).length,
+          withdrawals: (u.withdrawRequests && u.withdrawRequests.length) || 0,
+          artists: (u.artists && u.artists.length) || 0,
         },
       };
     });
 
     // Map releases
-    const releases = rawReleases.map((r) => {
-      const firstTrack = r.tracks[0];
-      const releaseDateStr =
-        r.releaseDate instanceof Date && !isNaN(r.releaseDate.getTime())
-          ? r.releaseDate.toLocaleDateString("id-ID", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })
-          : "-";
+    const releases = rawReleases.map((r: any) => {
+      const firstTrack = (r.tracks && r.tracks[0]) || null;
+      let releaseDateStr = "-";
+      if (r.releaseDate) {
+        if (typeof r.releaseDate === "string") {
+          releaseDateStr = r.releaseDate;
+        } else if (r.releaseDate instanceof Date && !isNaN(r.releaseDate.getTime())) {
+          releaseDateStr = r.releaseDate.toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+        }
+      }
 
       let statusUi = "Pending";
-      if (r.status === "APPROVED" || r.status === "RELEASED") statusUi = "Approved";
-      else if (r.status === "REJECTED") statusUi = "Rejected";
+      const st = String(r.status || "").toUpperCase();
+      if (st === "APPROVED" || st === "RELEASED") statusUi = "Approved";
+      else if (st === "REJECTED") statusUi = "Rejected";
+
+      const matchedUser = rawUsers.find(
+        (u) => u.id === (r.userId || r.artist?.userId || r.artistId)
+      );
 
       return {
         id: r.id,
         title: r.title,
         type: r.type || "SINGLE",
-        artist: r.artist?.stageName || r.primaryArtist || "Artist",
+        artist: r.artist?.stageName || r.artist || r.primaryArtist || "Artist",
         genre: r.genre || "Pop",
         releaseDate: releaseDateStr,
-        duration: "3:42",
-        streams: "12.5K",
-        streamsNum: 12500,
-        platform: "Spotify, Apple Music",
-        platforms: "Spotify, Apple Music",
+        duration: r.duration || "3:42",
+        streams: r.streams || "0",
+        streamsNum: r.streamsNum || 0,
+        platform: r.platform || r.platforms || "Spotify, Apple Music",
+        platforms: r.platforms || r.platform || "Spotify, Apple Music",
         status: statusUi,
-        composer: firstTrack?.composer || "-",
-        producer: firstTrack?.producer || "-",
-        publisher: r.distributor || "-",
-        distributor: r.distributor || "-",
-        featuring: firstTrack?.featuredArtist || r.featuredArtist || "Tidak ada (Solo)",
-        tiktokClip: firstTrack?.tiktokClipStart || "-",
-        coverUrl: resolveMediaUrl(r.coverArtworkUrl) || "/logo.png",
-        audioFile: firstTrack ? resolveMediaUrl(firstTrack.audioUrl) : "",
+        composer: firstTrack?.composer || r.composer || "-",
+        producer: firstTrack?.producer || r.producer || "-",
+        publisher: r.distributor || r.publisher || "-",
+        distributor: r.distributor || r.publisher || "-",
+        featuring: firstTrack?.featuredArtist || r.featuredArtist || r.featuring || "Tidak ada (Solo)",
+        tiktokClip: firstTrack?.tiktokClipStart || r.tiktokClip || "-",
+        coverUrl: resolveMediaUrl(r.coverUrl || r.coverArtworkUrl) || "/logo.png",
+        audioFile: firstTrack
+          ? resolveMediaUrl(firstTrack.audioUrl)
+          : resolveMediaUrl(r.audioFile) || "",
         upc: r.upc || firstTrack?.upc || "899214578101",
-        isrc: firstTrack?.isrc || "D-HRM-24-00109",
-        tracks: (r.tracks || []).map((t, idx) => ({
-          id: t.id,
-          trackNumber: idx + 1,
-          title: t.title,
-          audioUrl: resolveMediaUrl(t.audioUrl),
-          audioFile: resolveMediaUrl(t.audioUrl),
-          composer: t.composer || "-",
-          producer: t.producer || "-",
-          featuring: t.featuredArtist || "-",
-          tiktokClip: t.tiktokClipStart || "-",
-          isrc: t.isrc || "-",
-          upc: t.upc || r.upc || "-",
-        })),
-        userId: r.artist?.userId || r.artistId,
+        isrc: r.isrc || firstTrack?.isrc || "D-HRM-24-00109",
+        spotifyUrl: r.spotifyUrl || "",
+        userId: r.userId || r.artist?.userId || r.artistId,
         user: {
-          id: r.artist?.userId || r.artistId,
-          name: r.artist?.user?.name || r.primaryArtist || "Artist",
-          email: r.artist?.user?.email || "",
-          avatar: resolveMediaUrl(r.artist?.user?.image) || "/logo.png",
+          id: matchedUser?.id || r.userId,
+          name: matchedUser?.name || r.artist || "Artist",
+          email: matchedUser?.email || "",
+          avatar: resolveMediaUrl(matchedUser?.image || matchedUser?.avatar) || "/logo.png",
         },
       };
     });
