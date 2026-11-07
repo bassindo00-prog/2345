@@ -389,7 +389,7 @@ export default function AdminDashboardPage() {
     const todayStr = new Date().toISOString().slice(0, 10);
 
     if (subTab === "with-royalty") {
-      filename = `Breakout_Artis_Ada_Royalti_${todayStr}.csv`;
+      filename = `Breakout_Saldo_Artis_Aktif_${todayStr}.csv`;
       headers = [
         "No",
         "Nama Musisi / Stage Name",
@@ -415,7 +415,7 @@ export default function AdminDashboardPage() {
         u.status || "ACTIVE",
       ]);
     } else if (subTab === "no-royalty") {
-      filename = `Breakout_Artis_Belum_Ada_Royalti_${todayStr}.csv`;
+      filename = `Breakout_Artis_Saldo_Nol_${todayStr}.csv`;
       headers = [
         "No",
         "Nama Musisi / Stage Name",
@@ -6195,14 +6195,12 @@ export default function AdminDashboardPage() {
           {activeTab === "artist-royalties" && (() => {
             const allArtists = users.filter((u) => u.role !== "ADMIN");
 
-            const hasRoyalty = (u: any) =>
-              Number(u.royaltyBalance || 0) > 0 ||
-              Number(u.totalWithdrawn || 0) > 0 ||
-              Number(u.royaltyPending || 0) > 0 ||
-              Number(u.totalStreams || 0) > 0;
-
-            const artistsWithRoyalty = allArtists.filter((u) => hasRoyalty(u));
-            const artistsWithoutRoyalty = allArtists.filter((u) => !hasRoyalty(u));
+            const artistsWithActiveBalance = allArtists.filter(
+              (u) => Number(u.royaltyBalance || 0) > 0
+            );
+            const artistsWithZeroBalance = allArtists.filter(
+              (u) => Number(u.royaltyBalance || 0) <= 0
+            );
 
             const approvedWithdrawals = withdrawals.filter((w) => isApprovedWithdrawal(w.status));
 
@@ -6218,7 +6216,7 @@ export default function AdminDashboardPage() {
             });
 
             // Summary metrics
-            const totalSaldoEndap = artistsWithRoyalty.reduce(
+            const totalSaldoEndap = artistsWithActiveBalance.reduce(
               (acc, u) => acc + Number(u.royaltyBalance || 0),
               0
             );
@@ -6236,7 +6234,7 @@ export default function AdminDashboardPage() {
 
             let currentList: any[] = [];
             if (artistRoyaltySubTab === "with-royalty") {
-              currentList = artistsWithRoyalty.filter((u) => {
+              currentList = artistsWithActiveBalance.filter((u) => {
                 if (!q) return true;
                 const dName = getArtistDisplayName(u).toLowerCase();
                 const uName = (u.name || "").toLowerCase();
@@ -6244,7 +6242,7 @@ export default function AdminDashboardPage() {
                 return dName.includes(q) || uName.includes(q) || email.includes(q);
               });
             } else if (artistRoyaltySubTab === "no-royalty") {
-              currentList = artistsWithoutRoyalty.filter((u) => {
+              currentList = artistsWithZeroBalance.filter((u) => {
                 if (!q) return true;
                 const dName = getArtistDisplayName(u).toLowerCase();
                 const uName = (u.name || "").toLowerCase();
@@ -6285,7 +6283,7 @@ export default function AdminDashboardPage() {
                       <span>Artis Royalty — Rekap Saldo & Riwayat ACC</span>
                     </h2>
                     <p className="text-xs text-white/75 mt-1">
-                      Monitoring musisi beroyalti, musisi tanpa royalti, serta riwayat pencairan yang sudah di-ACC per periode bulan & tahun.
+                      Monitoring musisi beroyalti aktif, saldo endap, serta riwayat pencairan yang sudah di-ACC per periode bulan & tahun.
                     </p>
                   </div>
 
@@ -6329,7 +6327,7 @@ export default function AdminDashboardPage() {
                       Rp {totalSaldoEndap.toLocaleString("id-ID")}
                     </div>
                     <div className="text-[11px] text-white/60 mt-1">
-                      Saldo aktif di {artistsWithRoyalty.length} akun musisi
+                      Saldo aktif di {artistsWithActiveBalance.length} akun musisi
                     </div>
                   </div>
 
@@ -6351,41 +6349,41 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
 
-                  {/* Card 3: Artis Ada Royalti */}
+                  {/* Card 3: Musisi Saldo Aktif */}
                   <div className="p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md shadow-sm">
                     <div className="flex items-center justify-between pb-2">
                       <span className="text-xs text-white/70 font-semibold uppercase tracking-wider">
-                        Artis Ada Royalti
+                        Musisi Saldo Aktif
                       </span>
-                      <span className="p-2 rounded-xl bg-purple-400/20 text-purple-300">
+                      <span className="p-2 rounded-xl bg-[#c8f560]/20 text-[#c8f560]">
                         <Coins className="w-4 h-4" />
                       </span>
                     </div>
                     <div className="text-xl sm:text-2xl font-black text-white">
-                      {artistsWithRoyalty.length}{" "}
+                      {artistsWithActiveBalance.length}{" "}
                       <span className="text-xs font-normal text-white/60">Musisi</span>
                     </div>
-                    <div className="text-[11px] text-white/60 mt-1">
-                      Sudah diinput saldo / riwayat royalti
+                    <div className="text-[11px] text-[#c8f560]/80 mt-1">
+                      Memiliki saldo &gt; Rp 0 siap ditarik
                     </div>
                   </div>
 
-                  {/* Card 4: Artis Belum Ada Royalti */}
+                  {/* Card 4: Musisi Saldo Rp 0 */}
                   <div className="p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md shadow-sm">
                     <div className="flex items-center justify-between pb-2">
                       <span className="text-xs text-white/70 font-semibold uppercase tracking-wider">
-                        Belum Ada Royalti
+                        Musisi Saldo Rp 0
                       </span>
                       <span className="p-2 rounded-xl bg-amber-400/20 text-amber-300">
                         <Users className="w-4 h-4" />
                       </span>
                     </div>
                     <div className="text-xl sm:text-2xl font-black text-white">
-                      {artistsWithoutRoyalty.length}{" "}
+                      {artistsWithZeroBalance.length}{" "}
                       <span className="text-xs font-normal text-white/60">Musisi</span>
                     </div>
                     <div className="text-[11px] text-amber-300/80 mt-1">
-                      Musisi aktif belum diinput royalti
+                      Saldo Rp 0 / belum diinput royalti
                     </div>
                   </div>
                 </div>
@@ -6395,7 +6393,7 @@ export default function AdminDashboardPage() {
                   {/* Sub-Tabs Selector */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/15">
                     <div className="flex flex-wrap items-center gap-2">
-                      {/* Sub-Tab 1: Artis Ada Royalti */}
+                      {/* Sub-Tab 1: Saldo Artis Aktif */}
                       <button
                         type="button"
                         onClick={() => {
@@ -6409,7 +6407,7 @@ export default function AdminDashboardPage() {
                         }`}
                       >
                         <Coins className="w-3.5 h-3.5" />
-                        <span>Artis Ada Royalti</span>
+                        <span>Saldo Artis Aktif</span>
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             artistRoyaltySubTab === "with-royalty"
@@ -6417,11 +6415,11 @@ export default function AdminDashboardPage() {
                               : "bg-[#c8f560]/20 text-[#c8f560]"
                           }`}
                         >
-                          {artistsWithRoyalty.length}
+                          {artistsWithActiveBalance.length}
                         </span>
                       </button>
 
-                      {/* Sub-Tab 2: Artis Belum Ada Royalti */}
+                      {/* Sub-Tab 2: Artis Saldo Rp 0 */}
                       <button
                         type="button"
                         onClick={() => {
@@ -6435,7 +6433,7 @@ export default function AdminDashboardPage() {
                         }`}
                       >
                         <Users className="w-3.5 h-3.5" />
-                        <span>Artis Belum Ada Royalti</span>
+                        <span>Artis Saldo Rp 0</span>
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             artistRoyaltySubTab === "no-royalty"
@@ -6443,7 +6441,7 @@ export default function AdminDashboardPage() {
                               : "bg-amber-300/20 text-amber-200"
                           }`}
                         >
-                          {artistsWithoutRoyalty.length}
+                          {artistsWithZeroBalance.length}
                         </span>
                       </button>
 
