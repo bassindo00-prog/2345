@@ -52,6 +52,7 @@ import {
   User,
   Upload,
   Save,
+  Plus,
 } from "lucide-react";
 import VisaWithdrawalCardModal from "@/components/VisaWithdrawalCardModal";
 import VisaMetricCard from "@/components/VisaMetricCard";
@@ -160,6 +161,18 @@ export default function AdminDashboardPage() {
   const [bulkCsvText, setBulkCsvText] = useState("");
   const [catSearch, setCatSearch] = useState("");
   const [catPublisherFilter, setCatPublisherFilter] = useState("ALL");
+  const [isCatManualModalOpen, setIsCatManualModalOpen] = useState(false);
+  const [isCatImportModalOpen, setIsCatImportModalOpen] = useState(false);
+  const [catImporting, setCatImporting] = useState(false);
+  const [catImportResult, setCatImportResult] = useState<{
+    success?: boolean;
+    count?: number;
+    filename?: string;
+    error?: string;
+  } | null>(null);
+  const [catDefaultPublisher, setCatDefaultPublisher] = useState("BREAKOUT Publishing");
+  const [catDefaultStatus, setCatDefaultStatus] = useState("Aktif");
+  const catFileInputRef = useRef<HTMLInputElement>(null);
 
   // Pagination State (5 items per page)
   const [pageReleases, setPageReleases] = useState(1);
@@ -932,10 +945,61 @@ export default function AdminDashboardPage() {
         setCatDrive("");
         setCatSongId(`HRM-ID-${Math.floor(1000 + Math.random() * 9000)}`);
         await fetchAdminData();
+        setIsCatManualModalOpen(false);
         showNotice("Lagu berhasil diupload ke katalog & langsung muncul ke akun user!");
+      } else {
+        const d = await res.json().catch(() => ({}));
+        showNotice(d.error || "Gagal menyimpan lagu ke katalog");
       }
+    } catch (err: any) {
+      showNotice(err.message || "Terjadi kesalahan saat upload");
     } finally {
       setUploadingCatalog(false);
+    }
+  };
+
+  const handleCatalogFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCatImporting(true);
+    setCatImportResult(null);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("defaultPublisher", catDefaultPublisher);
+    formData.append("defaultStatus", catDefaultStatus);
+
+    try {
+      const res = await fetch("/api/catalog/import", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCatImportResult({
+          success: true,
+          count: data.count,
+          filename: data.filename || file.name,
+        });
+        await fetchAdminData();
+        showNotice(`Berhasil mengimpor ${data.count} lagu dari file ${file.name}!`);
+      } else {
+        setCatImportResult({
+          error: data.error || "Gagal memproses file katalog",
+        });
+        showNotice(data.error || "Gagal import katalog");
+      }
+    } catch (err: any) {
+      setCatImportResult({
+        error: err.message || "Terjadi kesalahan koneksi saat mengunggah file",
+      });
+      showNotice("Gagal mengunggah file katalog");
+    } finally {
+      setCatImporting(false);
+      if (catFileInputRef.current) {
+        catFileInputRef.current.value = "";
+      }
     }
   };
 
@@ -3871,14 +3935,40 @@ export default function AdminDashboardPage() {
                     <span>Daftar Katalog Musik</span>
                   </h2>
                   <p className="text-xs text-white/75 mt-1">
-                    Daftar seluruh lagu musisi yang terdaftar dalam katalog distribusi BREAKOUT.ID. (Form unggah lagu hanya tersedia di akun Artis / User)
+                    Daftar seluruh lagu yang terdaftar dalam katalog distribusi BREAKOUT.ID. Tambah lagu secara manual atau unggah massal otomatis via file Excel dan PDF.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <span className="px-3.5 py-2 rounded-xl bg-[#c8f560]/20 border border-[#c8f560]/40 text-[#c8f560] text-xs font-bold">
                     {catalogs.length} Lagu Terdaftar
                   </span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!catSongId) {
+                        setCatSongId(`HRM-ID-${Math.floor(1000 + Math.random() * 9000)}`);
+                      }
+                      setIsCatManualModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#c8f560] to-[#9de028] text-[#312042] text-xs font-black shadow-md hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 stroke-[3]" />
+                    <span>+ Upload Manual</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCatImportResult(null);
+                      setIsCatImportModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/25 text-white text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-[#c8f560]" />
+                    <span>📁 Upload Excel / PDF</span>
+                  </button>
                 </div>
               </div>
 
@@ -3959,7 +4049,7 @@ export default function AdminDashboardPage() {
                       (catPublisherFilter === "ALL" ||
                         c.publisher?.toLowerCase() === catPublisherFilter.toLowerCase())
                   );
-                  const paginatedCatalogs = filteredCatalogs.slice((pageCatalog - 1) * 5, pageCatalog * 5);
+                  const paginatedCatalogs = filteredCatalogs.slice((pageCatalog - 1) * 10, pageCatalog * 10);
 
                   return (
                     <>
@@ -4056,7 +4146,7 @@ export default function AdminDashboardPage() {
                         <Pagination
                           currentPage={pageCatalog}
                           totalItems={filteredCatalogs.length}
-                          pageSize={5}
+                          pageSize={10}
                           onPageChange={setPageCatalog}
                         />
                       </div>
@@ -4064,6 +4154,332 @@ export default function AdminDashboardPage() {
                   );
                 })()}
               </div>
+
+              {/* ================= MODAL UPLOAD KATALOG MANUAL ================= */}
+              {isCatManualModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+                  <div className="relative w-full max-w-lg rounded-2xl bg-[#1b1226] border border-white/20 p-6 shadow-2xl space-y-5 text-white max-h-[90vh] overflow-y-auto">
+                    {/* Header Modal */}
+                    <div className="flex items-center justify-between pb-3 border-b border-white/15">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-[#c8f560]/20 border border-[#c8f560]/30 text-[#c8f560]">
+                          <Plus className="w-5 h-5 stroke-[2.5]" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-white">Upload Lagu ke Katalog (Manual)</h3>
+                          <p className="text-[11px] text-white/60">Input data lagu satu per satu langsung ke database katalog</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsCatManualModalOpen(false)}
+                        className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Form */}
+                    <form onSubmit={handleSaveCatalog} className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                            Song ID <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={catSongId}
+                            onChange={(e) => setCatSongId(e.target.value)}
+                            placeholder="Contoh: HRM-ID-0106"
+                            className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs font-mono focus:outline-none focus:border-[#c8f560]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                            Status Katalog <span className="text-red-400">*</span>
+                          </label>
+                          <select
+                            value={catStatus}
+                            onChange={(e) => setCatStatus(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-[#2a1b3d] border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                          >
+                            <option value="Aktif">Aktif</option>
+                            <option value="Review">Review</option>
+                            <option value="Nonaktif">Nonaktif</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                          Judul Lagu <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={catTitle}
+                          onChange={(e) => setCatTitle(e.target.value)}
+                          placeholder="Masukkan judul lagu..."
+                          className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                            Nama Artis / Vokal <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={catArtist}
+                            onChange={(e) => setCatArtist(e.target.value)}
+                            placeholder="Contoh: Bunga Citra / BREAKOUT"
+                            className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                            Publisher / Label <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={catPublisher}
+                            onChange={(e) => setCatPublisher(e.target.value)}
+                            placeholder="Contoh: BREAKOUT Publishing"
+                            className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                          Link YouTube (Opsional)
+                        </label>
+                        <input
+                          type="url"
+                          value={catYoutube}
+                          onChange={(e) => setCatYoutube(e.target.value)}
+                          placeholder="https://youtube.com/watch?v=..."
+                          className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                          Link Google Drive / Audio WAV / MP3 (Opsional)
+                        </label>
+                        <input
+                          type="url"
+                          value={catDrive}
+                          onChange={(e) => setCatDrive(e.target.value)}
+                          placeholder="https://drive.google.com/..."
+                          className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/15">
+                        <button
+                          type="button"
+                          onClick={() => setIsCatManualModalOpen(false)}
+                          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={uploadingCatalog}
+                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b0dc4c] text-[#312042] text-xs font-bold transition-all disabled:opacity-50 shadow-md cursor-pointer"
+                        >
+                          {uploadingCatalog ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Menyimpan...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Simpan ke Katalog</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+              {/* ================= MODAL UPLOAD OTOMATIS EXCEL / PDF ================= */}
+              {isCatImportModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+                  <div className="relative w-full max-w-lg rounded-2xl bg-[#1b1226] border border-white/20 p-6 shadow-2xl space-y-5 text-white max-h-[90vh] overflow-y-auto">
+                    {/* Header Modal */}
+                    <div className="flex items-center justify-between pb-3 border-b border-white/15">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-[#c8f560]/20 border border-[#c8f560]/30 text-[#c8f560]">
+                          <FileSpreadsheet className="w-5 h-5 stroke-[2.5]" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-white">Upload Otomatis Katalog (Excel / PDF)</h3>
+                          <p className="text-[11px] text-white/60">Ekstrak dan impor data ribuan lagu secara otomatis</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!catImporting) setIsCatImportModalOpen(false);
+                        }}
+                        disabled={catImporting}
+                        className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Info Petunjuk */}
+                    <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-2 text-xs">
+                      <div className="flex items-center gap-1.5 text-[#c8f560] font-bold text-[11px]">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Format File yang Didukung:</span>
+                      </div>
+                      <ul className="list-disc list-inside space-y-1 text-white/80 text-[11px] leading-relaxed">
+                        <li><strong>Excel (.xlsx, .xls, .csv):</strong> Kolom <code>Judul</code> / <code>Title</code> dan <code>Artis</code> / <code>Artist</code> (otomatis mendeteksi kolom Publisher, Song ID, Status, YouTube, Drive).</li>
+                        <li><strong>PDF (.pdf):</strong> Dokumen teks daftar lagu berformat baris (dipisah Tab, Pipe <code>|</code>, koma, atau tanda strip <code>-</code>).</li>
+                      </ul>
+                    </div>
+
+                    {/* Pengaturan Tambahan */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                          Default Publisher
+                        </label>
+                        <input
+                          type="text"
+                          value={catDefaultPublisher}
+                          onChange={(e) => setCatDefaultPublisher(e.target.value)}
+                          placeholder="Contoh: BREAKOUT Publishing"
+                          className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                          Default Status
+                        </label>
+                        <select
+                          value={catDefaultStatus}
+                          onChange={(e) => setCatDefaultStatus(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-[#2a1b3d] border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                        >
+                          <option value="Aktif">Aktif</option>
+                          <option value="Review">Review</option>
+                          <option value="Nonaktif">Nonaktif</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Upload Dropzone */}
+                    <div className="space-y-3">
+                      <label className="block text-[11px] font-semibold text-white/80">
+                        Pilih File Excel / PDF
+                      </label>
+                      <div
+                        onClick={() => {
+                          if (!catImporting && catFileInputRef.current) {
+                            catFileInputRef.current.click();
+                          }
+                        }}
+                        className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                          catImporting
+                            ? "border-[#c8f560]/50 bg-[#c8f560]/10 cursor-not-allowed"
+                            : "border-white/20 hover:border-[#c8f560] bg-white/5 hover:bg-white/10"
+                        }`}
+                      >
+                        <input
+                          ref={catFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls,.csv,.pdf"
+                          onChange={handleCatalogFileImport}
+                          disabled={catImporting}
+                          className="hidden"
+                        />
+
+                        {catImporting ? (
+                          <div className="space-y-3">
+                            <RefreshCw className="w-8 h-8 text-[#c8f560] animate-spin mx-auto" />
+                            <div>
+                              <p className="text-xs font-bold text-white">Sedang Memproses & Mengimpor Data...</p>
+                              <p className="text-[11px] text-white/60 mt-0.5">Mohon tunggu, sistem sedang mengekstrak file ke database katalog</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="w-12 h-12 rounded-xl bg-[#c8f560]/10 border border-[#c8f560]/30 flex items-center justify-center mx-auto text-[#c8f560]">
+                              <Upload className="w-6 h-6" />
+                            </div>
+                            <p className="text-xs font-bold text-white">
+                              Klik untuk Memilih File (.xlsx, .xls, .csv, .pdf)
+                            </p>
+                            <p className="text-[10px] text-white/50">
+                              Maksimal ukuran file hingga 50MB
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Result Status Banner */}
+                    {catImportResult && (
+                      <div
+                        className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+                          catImportResult.success
+                            ? "bg-[#c8f560]/15 border-[#c8f560]/40 text-[#c8f560]"
+                            : "bg-red-500/15 border-red-500/40 text-red-300"
+                        }`}
+                      >
+                        {catImportResult.success ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold">Impor Berhasil!</p>
+                              <p className="text-[11px] text-white/80 mt-0.5">
+                                Berhasil menambahkan/memperbarui <strong>{catImportResult.count}</strong> lagu dari file <em>{catImportResult.filename}</em> ke dalam katalog.
+                              </p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold">Gagal Mengimpor</p>
+                              <p className="text-[11px] text-white/80 mt-0.5">
+                                {catImportResult.error || "Terjadi kesalahan saat membaca file."}
+                              </p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Footer Modal */}
+                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/15">
+                      <button
+                        type="button"
+                        onClick={() => setIsCatImportModalOpen(false)}
+                        disabled={catImporting}
+                        className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
+                      >
+                        {catImportResult?.success ? "Tutup & Selesai" : "Batal"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
