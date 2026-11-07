@@ -1091,6 +1091,171 @@ const STYLES = `
   .releases-deck.spread-out .release-card .side-info {
     display: none !important;
   }
+
+  /* FEATURES 3D DECK & SPREAD OUT STYLES */
+  .features-section-3d {
+    background: var(--bg);
+    overflow: hidden;
+    padding: 100px var(--gutter) 140px var(--gutter);
+    perspective: 1200px;
+  }
+
+  .features-deck {
+    position: relative;
+    height: 460px;
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  .feature-card-3d {
+    position: absolute;
+    width: 320px;
+    height: 410px;
+    border-radius: 24px;
+    background: #ffffff;
+    padding: 34px 28px;
+    box-shadow: 0 15px 35px rgba(20, 17, 20, 0.12);
+    border: 1px solid rgba(20, 17, 20, 0.06);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), 
+                opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity: 0;
+    transform: translateY(100px) scale(0.8) rotate(0deg); 
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .feature-card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 5px 12px;
+    border-radius: 99px;
+    background: rgba(255, 127, 171, 0.12);
+    color: #ff528a;
+    border: 1px solid rgba(255, 127, 171, 0.25);
+    width: fit-content;
+    margin-bottom: 14px;
+  }
+
+  .feature-card-3d h3 {
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+
+  .feature-card-3d p {
+    color: var(--muted);
+    line-height: 1.6;
+    font-size: 13.5px;
+    margin-bottom: 20px;
+    flex-grow: 1;
+  }
+
+  .feature-card-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 13.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    background: rgba(255, 127, 171, 0.08);
+    transition: all 0.2s ease;
+    width: fit-content;
+  }
+
+  .feature-card-link:hover {
+    background: #ff7fab;
+    color: #ffffff;
+    transform: translateX(3px);
+  }
+
+  /* 3D DECK ANIMATED STATE FOR FEATURES */
+  .features-deck.in-view .card-l4 { transform: translateX(-360px) scale(0.65) rotate(-16deg); z-index: 1; opacity: 0; pointer-events: none; }
+  .features-deck.in-view .card-l3 { transform: translateX(-290px) scale(0.7) rotate(-12deg); z-index: 2; opacity: 1; }
+  .features-deck.in-view .card-l2 { transform: translateX(-210px) scale(0.8) rotate(-8deg); z-index: 3; opacity: 1; }
+  .features-deck.in-view .card-l1 { transform: translateX(-110px) scale(0.9) rotate(-4deg); z-index: 4; opacity: 1; }
+  .features-deck.in-view .card-center { transform: translateX(0) scale(1.05) rotate(0deg); z-index: 10; opacity: 1; box-shadow: 0 25px 50px rgba(20, 17, 20, 0.22); }
+  .features-deck.in-view .card-r1 { transform: translateX(110px) scale(0.9) rotate(4deg); z-index: 4; opacity: 1; }
+  .features-deck.in-view .card-r2 { transform: translateX(210px) scale(0.8) rotate(8deg); z-index: 3; opacity: 1; }
+  .features-deck.in-view .card-r3 { transform: translateX(290px) scale(0.7) rotate(12deg); z-index: 2; opacity: 1; }
+  .features-deck.in-view .card-r4 { transform: translateX(360px) scale(0.65) rotate(16deg); z-index: 1; opacity: 0; pointer-events: none; }
+
+  /* SPREAD OUT FOR FEATURES */
+  .features-deck.spread-out {
+    position: relative;
+    height: auto;
+    min-height: 440px;
+    max-width: 1150px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 20px;
+    padding: 20px 20px 32px 20px;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    transform-style: flat;
+    justify-content: flex-start;
+  }
+
+  @media (min-width: 1024px) {
+    .features-deck.spread-out {
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+  }
+
+  .features-deck.spread-out::-webkit-scrollbar {
+    height: 8px;
+  }
+  .features-deck.spread-out::-webkit-scrollbar-track {
+    background: rgba(20, 17, 20, 0.05);
+    border-radius: 99px;
+  }
+  .features-deck.spread-out::-webkit-scrollbar-thumb {
+    background: #ff7fab;
+    border-radius: 99px;
+  }
+
+  .features-deck.spread-out .feature-card-3d {
+    position: relative;
+    flex: 0 0 300px;
+    width: 300px;
+    height: 400px;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    scroll-snap-align: center;
+    box-shadow: 0 10px 25px rgba(20, 17, 20, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .features-deck.spread-out .feature-card-3d:hover {
+    transform: translateY(-8px) scale(1.02) !important;
+    box-shadow: 0 18px 35px rgba(255, 127, 171, 0.28);
+  }
   
   .side-info h4 {
     font-size: 12px;
@@ -1115,6 +1280,18 @@ const STYLES = `
     .releases-deck.in-view .card-r4 { transform: translateX(160px) scale(0.65) rotate(16deg); }
     .release-bottom { padding: 12px; }
     .btn-listen { font-size: 12px; padding: 8px 12px; }
+
+    .features-deck { height: 380px; }
+    .feature-card-3d { width: 240px; height: 340px; padding: 22px 18px; }
+    .features-deck.in-view .card-l4 { transform: translateX(-160px) scale(0.65) rotate(-16deg); }
+    .features-deck.in-view .card-l3 { transform: translateX(-120px) scale(0.7) rotate(-12deg); }
+    .features-deck.in-view .card-l2 { transform: translateX(-80px) scale(0.8) rotate(-8deg); }
+    .features-deck.in-view .card-l1 { transform: translateX(-40px) scale(0.9) rotate(-4deg); }
+    .features-deck.in-view .card-center { transform: translateX(0) scale(1.05) rotate(0deg); }
+    .features-deck.in-view .card-r1 { transform: translateX(40px) scale(0.9) rotate(4deg); }
+    .features-deck.in-view .card-r2 { transform: translateX(80px) scale(0.8) rotate(8deg); }
+    .features-deck.in-view .card-r3 { transform: translateX(120px) scale(0.7) rotate(12deg); }
+    .features-deck.in-view .card-r4 { transform: translateX(160px) scale(0.65) rotate(16deg); }
   }
 `;
 
@@ -1178,6 +1355,9 @@ export default function BreakoutApp({
   const releasesSectionRef = useRef<HTMLDivElement>(null);
   const releasesDeckRef = useRef<HTMLDivElement>(null);
   const cardsRef = useRef<(HTMLDivElement | null)[]>([]);
+
+  const featuresSectionRef = useRef<HTMLDivElement>(null);
+  const featuresDeckRef = useRef<HTMLDivElement>(null);
 
   // Real-time synchronization state with Web CMS
   useEffect(() => {
@@ -1493,6 +1673,78 @@ export default function BreakoutApp({
 
   const getCardClass = (idx: number) => {
     const diff = idx - activeReleaseIndex;
+    if (diff === 0) return "card-center";
+    if (diff === -1) return "card-l1";
+    if (diff === -2) return "card-l2";
+    if (diff === -3) return "card-l3";
+    if (diff <= -4) return "card-l4";
+    if (diff === 1) return "card-r1";
+    if (diff === 2) return "card-r2";
+    if (diff === 3) return "card-r3";
+    return "card-r4";
+  };
+
+  // State for active feature in 3D Coverflow
+  const [activeFeatureIndex, setActiveFeatureIndex] = useState(1);
+  const [isFeaturesSpreadOut, setIsFeaturesSpreadOut] = useState(false);
+  const [isFeaturesInView, setIsFeaturesInView] = useState(false);
+  const featuresTouchStartXRef = useRef<number | null>(null);
+
+  // Sync initial center index when features change
+  useEffect(() => {
+    if (features.length > 0) {
+      setActiveFeatureIndex(Math.min(1, Math.floor(features.length / 2)));
+    }
+  }, [features.length]);
+
+  // Desktop cursor hover tracking when in 3D Deck mode for features
+  useEffect(() => {
+    const section = featuresSectionRef.current;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isFeaturesSpreadOut || !isFeaturesInView || !section) return;
+      const rect = section.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const count = features.length;
+      if (count <= 1) return;
+      let hoveredIndex = Math.round((x / rect.width) * (count - 1));
+      if (hoveredIndex < 0) hoveredIndex = 0;
+      if (hoveredIndex >= count) hoveredIndex = count - 1;
+      setActiveFeatureIndex(hoveredIndex);
+    };
+
+    if (section && !isFeaturesSpreadOut) {
+      section.addEventListener("mousemove", handleMouseMove);
+    }
+
+    return () => {
+      if (section) {
+        section.removeEventListener("mousemove", handleMouseMove);
+      }
+    };
+  }, [isFeaturesSpreadOut, isFeaturesInView, features.length]);
+
+  // Observer for Features in-view animation
+  useEffect(() => {
+    const deck = featuresDeckRef.current;
+    if (deck) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              setIsFeaturesInView(true);
+            }
+          });
+        },
+        { threshold: 0.15 }
+      );
+      observer.observe(deck);
+      return () => observer.disconnect();
+    }
+  }, []);
+
+  const getFeatureCardClass = (idx: number) => {
+    const diff = idx - activeFeatureIndex;
     if (diff === 0) return "card-center";
     if (diff === -1) return "card-l1";
     if (diff === -2) return "card-l2";
@@ -1842,20 +2094,131 @@ export default function BreakoutApp({
         )}
       </section>
 
-      {/* BAR 4: FITUR & LAYANAN (SYNC DENGAN CMS) */}
-      <section className="content-section" id="layanan">
+      {/* BAR 4: FITUR & LAYANAN (3D DECK + TAP MENJAJAR) */}
+      <section
+        className="features-section-3d"
+        id="layanan"
+        ref={featuresSectionRef}
+      >
         <h2 className="section-title">Fitur & Layanan</h2>
-        <div className="features-grid">
-          {features.map((feat, idx) => (
-            <div key={feat.id || idx} className="feature-card">
-              <h3>{feat.title}</h3>
-              <p>{feat.desc}</p>
-              <Link href={feat.linkUrl || "/register"}>
-                {feat.linkText || "Pelajari Selengkapnya"} <span aria-hidden="true">→</span>
-              </Link>
-            </div>
-          ))}
+
+        {/* TOGGLE MENJAJAR / TUMPUK DECK 3D */}
+        <div className="spread-toggle-container">
+          <button
+            type="button"
+            onClick={() => setIsFeaturesSpreadOut((prev) => !prev)}
+            className="spread-toggle-btn"
+            title={isFeaturesSpreadOut ? "Tumpuk Kembali" : "Klik untuk Menjajar"}
+          >
+            {isFeaturesSpreadOut ? (
+              <>
+                <Layers className="w-4 h-4 text-[#ff7fab]" />
+                <span>Tumpuk 3D Deck</span>
+              </>
+            ) : (
+              <>
+                <LayoutGrid className="w-4 h-4 text-[#ff7fab]" />
+                <span>Ketuk untuk Menjajar ({features.length} Layanan)</span>
+              </>
+            )}
+          </button>
         </div>
+
+        <div
+          className={`features-deck ${isFeaturesInView ? "in-view" : ""} ${isFeaturesSpreadOut ? "spread-out" : ""}`}
+          id="featuresDeck"
+          ref={featuresDeckRef}
+          onTouchStart={(e) => {
+            if (isFeaturesSpreadOut) return;
+            featuresTouchStartXRef.current = e.touches[0].clientX;
+          }}
+          onTouchEnd={(e) => {
+            if (isFeaturesSpreadOut || featuresTouchStartXRef.current === null) return;
+            const diff = featuresTouchStartXRef.current - e.changedTouches[0].clientX;
+            if (diff > 35) {
+              setActiveFeatureIndex((prev) => (prev < features.length - 1 ? prev + 1 : 0));
+            } else if (diff < -35) {
+              setActiveFeatureIndex((prev) => (prev > 0 ? prev - 1 : features.length - 1));
+            }
+            featuresTouchStartXRef.current = null;
+          }}
+        >
+          {features.map((feat, idx) => {
+            const cardClass = isFeaturesSpreadOut ? "" : getFeatureCardClass(idx);
+            const isCenter = idx === activeFeatureIndex;
+
+            return (
+              <div
+                key={feat.id || idx}
+                className={`feature-card-3d ${cardClass}`}
+                onClick={() => {
+                  if (!isFeaturesSpreadOut) {
+                    setIsFeaturesSpreadOut(true);
+                    setActiveFeatureIndex(idx);
+                  }
+                }}
+              >
+                <div>
+                  <div className="feature-card-badge">
+                    <Sparkles className="w-3 h-3 text-[#ff528a]" />
+                    <span>Layanan {String(idx + 1).padStart(2, "0")}</span>
+                  </div>
+                  <h3>{feat.title}</h3>
+                  <p>{feat.desc}</p>
+                </div>
+                <Link
+                  href={feat.linkUrl || "/register"}
+                  className="feature-card-link"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span>{feat.linkText || "Pelajari Selengkapnya"}</span>
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* CONTROLS: Panah Geser & Indikator Titik (Hanya tampil saat mode 3D Deck) */}
+        {!isFeaturesSpreadOut && features.length > 1 && (
+          <div className="releases-controls">
+            <button
+              type="button"
+              onClick={() =>
+                setActiveFeatureIndex((prev) => (prev > 0 ? prev - 1 : features.length - 1))
+              }
+              className="control-btn"
+              aria-label="Layanan Sebelumnya"
+              title="Sebelumnya"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="releases-dots">
+              {features.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActiveFeatureIndex(i)}
+                  className={`dot-btn ${i === activeFeatureIndex ? "active" : ""}`}
+                  aria-label={`Lihat Layanan ${i + 1}`}
+                />
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActiveFeatureIndex((prev) => (prev < features.length - 1 ? prev + 1 : 0))
+              }
+              className="control-btn"
+              aria-label="Layanan Berikutnya"
+              title="Berikutnya"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </section>
 
       {/* BAR 5: FAQ ACCORDIONS (SYNC DENGAN CMS) */}
