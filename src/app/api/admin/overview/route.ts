@@ -46,7 +46,7 @@ export async function GET() {
       }).catch(() => []),
     ]);
 
-    // 2. Query releases via raw SQL karena di PostgreSQL kolomnya adalah "artist" & "userId"
+    // 2. Query releases via raw SQL
     let rawReleases: any[] = [];
     try {
       rawReleases = (await prisma.$queryRawUnsafe(
@@ -64,7 +64,10 @@ export async function GET() {
 
     // Map users to the structure expected by the frontend
     const users = rawUsers.map((u: any) => {
-      const userArtists = (dbArtists || []).filter((a: any) => a.userId === u.id);
+      const uId = u.id || u.ID || "";
+      const userArtists = (dbArtists || []).filter(
+        (a: any) => (a.userId || a.userid || a.user_id) === uId
+      );
       const primaryArtist = userArtists[0] || null;
       const artistSpotify =
         userArtists.find((a: any) => a.spotifyId && a.spotifyId.trim())?.spotifyId ||
@@ -75,43 +78,35 @@ export async function GET() {
         primaryArtist?.appleId ||
         "";
 
-      const userWithdraws = (rawWithdrawals || []).filter((w: any) => w.userId === u.id);
+      const userWithdraws = (rawWithdrawals || []).filter(
+        (w: any) => (w.userId || w.userid) === uId
+      );
 
       const totalWithdrawnFromRequests = (userWithdraws || [])
         .filter((w: any) => w.status === "APPROVED" || w.status === "PAID")
-        .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
+        .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
       const pendingWithdrawFromRequests = (userWithdraws || [])
         .filter((w: any) => w.status === "PENDING")
-        .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
+        .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
-      const royaltyBalance =
-        typeof u.royaltyBalance === "number"
-          ? u.royaltyBalance
-          : Number(u.royaltyBalance || 0);
+      const rawBal = u.royaltyBalance ?? u.royaltybalance ?? 0;
+      const rawStreams = u.totalStreams ?? u.totalstreams ?? 0;
+      const rawPend = u.royaltyPending ?? u.royaltypending;
+      const rawWithdrawn = u.totalWithdrawn ?? u.totalwithdrawn;
 
-      const totalStreams =
-        typeof u.totalStreams === "number"
-          ? u.totalStreams
-          : Number(u.totalStreams || 0);
-
-      const royaltyPending =
-        typeof u.royaltyPending === "number"
-          ? u.royaltyPending
-          : pendingWithdrawFromRequests;
-
-      const totalWithdrawn =
-        typeof u.totalWithdrawn === "number" && u.totalWithdrawn > 0
-          ? u.totalWithdrawn
-          : totalWithdrawnFromRequests;
+      const royaltyBalance = Number(rawBal || 0);
+      const totalStreams = Number(rawStreams || 0);
+      const royaltyPending = rawPend !== undefined && rawPend !== null ? Number(rawPend) : pendingWithdrawFromRequests;
+      const totalWithdrawn = rawWithdrawn !== undefined && Number(rawWithdrawn) > 0 ? Number(rawWithdrawn) : totalWithdrawnFromRequests;
 
       const displayName = primaryArtist?.stageName || primaryArtist?.name || u.name || "User Musisi";
 
       return {
-        id: u.id,
+        id: uId,
         name: displayName,
-        email: u.email,
-        role: u.role,
+        email: u.email || "",
+        role: u.role || "USER",
         status: u.status || "APPROVED",
         rejectionReason: u.rejectionReason || "",
         whatsapp: u.whatsapp || "",
@@ -129,7 +124,7 @@ export async function GET() {
         royaltyPending,
         totalWithdrawn,
         pendingWithdraw: pendingWithdrawFromRequests,
-        royaltyMonth: u.royaltyMonth || "November",
+        royaltyMonth: u.royaltyMonth || u.royaltymonth || "November",
         artists: userArtists.map((a: any) => ({
           id: a.id,
           name: a.stageName || a.name || displayName,
@@ -142,7 +137,7 @@ export async function GET() {
           avatarUrl: resolveMediaUrl(a.avatarUrl || a.photoUrl),
         })),
         _count: {
-          releases: rawReleases.filter((r) => r.userId === u.id).length,
+          releases: rawReleases.filter((r) => (r.userId || r.userid || r.user_id) === uId).length,
           withdrawals: userWithdraws.length,
           artists: userArtists.length,
         },
@@ -151,13 +146,16 @@ export async function GET() {
 
     // Map releases
     const releases = rawReleases.map((r: any) => {
-      const firstTrack = (r.tracks && r.tracks[0]) || null;
+      const relUserId = r.userId || r.userid || r.user_id || "";
+      const relArtist = r.artist || r.artistname || r.artistName || "Unknown";
+
       let releaseDateStr = "-";
-      if (r.releaseDate) {
-        if (typeof r.releaseDate === "string") {
-          releaseDateStr = r.releaseDate;
-        } else if (r.releaseDate instanceof Date && !isNaN(r.releaseDate.getTime())) {
-          releaseDateStr = r.releaseDate.toLocaleDateString("id-ID", {
+      const rDate = r.releaseDate || r.releasedate;
+      if (rDate) {
+        if (typeof rDate === "string") {
+          releaseDateStr = rDate;
+        } else if (rDate instanceof Date && !isNaN(rDate.getTime())) {
+          releaseDateStr = rDate.toLocaleDateString("id-ID", {
             day: "numeric",
             month: "short",
             year: "numeric",
@@ -167,29 +165,29 @@ export async function GET() {
 
       return {
         id: r.id,
-        title: r.title,
-        artist: r.artist || "Unknown",
-        type: r.type,
+        title: r.title || "Untitled",
+        artist: relArtist,
+        type: r.type || "SINGLE",
         genre: r.genre || "Pop",
-        status: r.status,
-        upc: r.upc,
+        status: r.status || "PENDING",
+        upc: r.upc || "",
         rejectionReason: r.rejectionReason || "",
-        coverUrl: resolveMediaUrl(r.coverUrl),
+        coverUrl: resolveMediaUrl(r.coverUrl || r.coverurl),
         releaseDate: releaseDateStr,
         createdAt: r.createdAt,
-        userId: r.userId,
-        spotifyUrl: r.spotifyUrl || "",
-        appleMusicUrl: r.appleMusicUrl || "",
-        youtubeMusicUrl: r.youtubeMusicUrl || "",
+        userId: relUserId,
+        spotifyUrl: r.spotifyUrl || r.spotifyurl || "",
+        appleMusicUrl: r.appleMusicUrl || r.applemusicurl || "",
+        youtubeMusicUrl: r.youtubeMusicUrl || r.youtubemusicurl || "",
         tracks: (r.tracks || []).map((t: any) => ({
           id: t.id,
           title: t.title,
           isrc: t.isrc,
-          audioUrl: resolveMediaUrl(t.audioUrl),
+          audioUrl: resolveMediaUrl(t.audioUrl || t.audiourl),
         })),
         user: {
-          id: r.userId,
-          name: r.artist || "Musisi",
+          id: relUserId,
+          name: relArtist,
           email: "",
           avatar: "/logo.png",
         },
@@ -212,7 +210,7 @@ export async function GET() {
       return {
         id: w.id,
         date: dateStr,
-        amount: w.amount,
+        amount: Number(w.amount || 0),
         method: w.bankName || "Bank BCA",
         accountNumber: w.accountNumber || "1234 5678 9012",
         accountHolder: w.accountName || w.user?.name || "Musisi",
@@ -242,7 +240,7 @@ export async function GET() {
     }));
 
     return NextResponse.json(
-      { version: "2026-11-07-21-40", users, releases, withdrawals, catalogs },
+      { version: "2026-11-07-21-48-ultimate", users, releases, withdrawals, catalogs },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
