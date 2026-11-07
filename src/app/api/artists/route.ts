@@ -14,41 +14,19 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let artists: any[] = [];
-    try {
-      artists = (await prisma.$queryRawUnsafe(
-        `SELECT "id", "name", "genre", "spotifyId", "appleId", "photoUrl", "bio", "createdAt" FROM "Artist" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
-        userId
-      )) as any[];
-    } catch (eRaw) {
-      console.warn("Raw artist query failed, falling back to prisma:", eRaw);
-      const pArtists = await prisma.artist.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-      });
-      artists = pArtists.map((a: any) => ({
-        id: a.id,
-        name: a.stageName || a.name,
-        genre: a.genre || "Pop",
-        spotifyId: a.spotifyId || "",
-        appleId: a.appleId || "",
-        photoUrl: a.avatarUrl || a.photoUrl,
-        bio: a.bio,
-      }));
-    }
+    const artists = await prisma.artist.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
 
     return NextResponse.json({
       ok: true,
       artists: artists.map((a) => ({
         id: a.id,
-        name: a.name || a.stageName,
-        stageName: a.name || a.stageName,
-        genre: a.genre || "Pop",
-        spotifyId: a.spotifyId || "",
-        appleId: a.appleId || "",
+        name: a.stageName,
+        stageName: a.stageName,
         bio: a.bio,
-        photoUrl: resolveMediaUrl(a.photoUrl || a.avatarUrl),
-        avatarUrl: resolveMediaUrl(a.photoUrl || a.avatarUrl),
+        avatarUrl: resolveMediaUrl(a.avatarUrl),
       })),
     });
   } catch (error) {
@@ -67,60 +45,47 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, genre, spotifyId, appleId, photoUrl, bio } = body;
+    const { name, bio, photoUrl } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "Nama artis wajib diisi!" }, { status: 400 });
     }
 
     const trimmedName = name.trim();
-    const newId = `art_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    try {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO "Artist" ("id", "userId", "name", "genre", "spotifyId", "appleId", "photoUrl", "bio", "createdAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
-        newId,
+    const newArtist = await prisma.artist.create({
+      data: {
         userId,
-        trimmedName,
-        genre || "Pop",
-        spotifyId ? spotifyId.trim() : "",
-        appleId ? appleId.trim() : "",
-        photoUrl ? photoUrl.trim() : "",
-        bio ? bio.trim() : ""
-      );
-    } catch (eRaw) {
-      console.warn("Raw insert failed, trying Prisma:", eRaw);
-      await prisma.artist.create({
-        data: {
-          userId,
-          stageName: trimmedName,
-          bio: bio ? bio.trim() : null,
-          avatarUrl: photoUrl ? photoUrl.trim() : null,
-        },
-      });
-    }
+        stageName: trimmedName,
+        bio: bio ? bio.trim() : null,
+        avatarUrl: photoUrl ? photoUrl.trim() : null,
+      },
+    });
 
     // Singkronkan user.name jika masih belum ada atau default
     try {
-      await prisma.$executeRawUnsafe(
-        `UPDATE "User" SET "name" = $1 WHERE "id" = $2 AND ("name" IS NULL OR "name" = '' OR "name" = 'User' OR "name" = 'Artis')`,
-        trimmedName,
-        userId
-      );
-    } catch (eUser) {}
+      const userRec = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+      if (!userRec?.name || userRec.name === "User" || userRec.name === "Artis") {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { name: trimmedName },
+        });
+      }
+    } catch (eUser) {
+      console.warn("Failed to sync user name on create artist:", eUser);
+    }
 
     return NextResponse.json({
       ok: true,
       artist: {
-        id: newId,
-        name: trimmedName,
-        stageName: trimmedName,
-        genre: genre || "Pop",
-        spotifyId: spotifyId ? spotifyId.trim() : "",
-        appleId: appleId ? appleId.trim() : "",
-        bio: bio ? bio.trim() : "",
-        photoUrl: resolveMediaUrl(photoUrl),
-        avatarUrl: resolveMediaUrl(photoUrl),
+        id: newArtist.id,
+        name: newArtist.stageName,
+        stageName: newArtist.stageName,
+        bio: newArtist.bio,
+        avatarUrl: resolveMediaUrl(newArtist.avatarUrl),
       },
     });
   } catch (error) {
@@ -139,7 +104,7 @@ export async function PATCH(req: Request) {
     }
 
     const body = await req.json();
-    const { id, name, genre, spotifyId, appleId, photoUrl, bio } = body;
+    const { id, name, bio, photoUrl } = body;
 
     if (!id) {
       return NextResponse.json({ error: "ID profil artis wajib disertakan!" }, { status: 400 });
@@ -151,61 +116,75 @@ export async function PATCH(req: Request) {
 
     const trimmedName = name.trim();
 
-    // 1. Update Artist di PostgreSQL
-    try {
-      await prisma.$executeRawUnsafe(
-        `UPDATE "Artist" SET "name" = $1, "genre" = $2, "spotifyId" = $3, "appleId" = $4, "photoUrl" = $5, "bio" = $6 WHERE "id" = $7 AND "userId" = $8`,
-        trimmedName,
-        genre || "Pop",
-        spotifyId ? spotifyId.trim() : "",
-        appleId ? appleId.trim() : "",
-        photoUrl ? photoUrl.trim() : "",
-        bio ? bio.trim() : "",
-        id,
-        userId
+    // Verifikasi kepemilikan profil artis
+    const existing = await prisma.artist.findFirst({
+      where: { id, userId },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Profil artis tidak ditemukan atau bukan milik Anda" },
+        { status: 404 }
       );
-    } catch (eRaw) {
-      console.warn("Raw update failed, trying Prisma:", eRaw);
-      await prisma.artist.update({
-        where: { id },
-        data: {
-          stageName: trimmedName,
-          bio: bio !== undefined ? (bio ? bio.trim() : null) : undefined,
-          avatarUrl: photoUrl !== undefined ? (photoUrl ? photoUrl.trim() : null) : undefined,
-        },
-      });
     }
 
-    // 2. Singkronkan nama artis di Release
-    try {
-      await prisma.$executeRawUnsafe(
-        `UPDATE "Release" SET "artist" = $1 WHERE "userId" = $2`,
-        trimmedName,
-        userId
-      );
-    } catch (eRel) {}
+    const oldName = existing.stageName;
 
-    // 3. Singkronkan User.name
+    // 1. Update nama artis dan data profil di tabel Artist
+    const updated = await prisma.artist.update({
+      where: { id },
+      data: {
+        stageName: trimmedName,
+        bio: bio !== undefined ? (bio ? bio.trim() : null) : existing.bio,
+        avatarUrl: photoUrl !== undefined ? (photoUrl ? photoUrl.trim() : null) : existing.avatarUrl,
+      },
+    });
+
+    // 2. Singkronkan nama artis di seluruh rilisan lagu (Release) yang terhubung
     try {
-      await prisma.$executeRawUnsafe(
-        `UPDATE "User" SET "name" = $1 WHERE "id" = $2`,
-        trimmedName,
-        userId
-      );
-    } catch (eUser) {}
+      await prisma.release.updateMany({
+        where: { artistId: id },
+        data: { primaryArtist: trimmedName },
+      });
+      // Sinkronkan juga rilisan berdasar userId & old primaryArtist
+      await prisma.release.updateMany({
+        where: { userId, primaryArtist: oldName },
+        data: { primaryArtist: trimmedName },
+      });
+    } catch (eRel) {
+      console.warn("Failed to sync primaryArtist in releases:", eRel);
+    }
+
+    // 3. Singkronkan ke User.name agar identitas di Admin & Dashboard langsung terupdate
+    try {
+      const userRec = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true },
+      });
+      if (
+        userRec &&
+        (!userRec.name ||
+          userRec.name === oldName ||
+          userRec.name === "User" ||
+          userRec.name === "Artis")
+      ) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { name: trimmedName },
+        });
+      }
+    } catch (eUser) {
+      console.warn("Failed to sync user name on artist edit:", eUser);
+    }
 
     return NextResponse.json({
       ok: true,
       artist: {
-        id,
-        name: trimmedName,
-        stageName: trimmedName,
-        genre: genre || "Pop",
-        spotifyId: spotifyId ? spotifyId.trim() : "",
-        appleId: appleId ? appleId.trim() : "",
-        bio: bio ? bio.trim() : "",
-        photoUrl: resolveMediaUrl(photoUrl),
-        avatarUrl: resolveMediaUrl(photoUrl),
+        id: updated.id,
+        name: updated.stageName,
+        stageName: updated.stageName,
+        bio: updated.bio,
+        avatarUrl: resolveMediaUrl(updated.avatarUrl),
       },
     });
   } catch (error) {
@@ -230,15 +209,20 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "ID profil artis wajib disertakan!" }, { status: 400 });
     }
 
-    try {
-      await prisma.$executeRawUnsafe(
-        `DELETE FROM "Artist" WHERE "id" = $1 AND "userId" = $2`,
-        id,
-        userId
+    const existing = await prisma.artist.findFirst({
+      where: { id, userId },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Profil artis tidak ditemukan atau bukan milik Anda" },
+        { status: 404 }
       );
-    } catch (eRaw) {
-      await prisma.artist.delete({ where: { id } });
     }
+
+    await prisma.artist.delete({
+      where: { id },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
