@@ -6390,12 +6390,13 @@ export default function AdminDashboardPage() {
           {activeTab === "artist-royalties" && (() => {
             const allArtists = users.filter((u) => u.role !== "ADMIN");
 
-            const artistsWithActiveBalance = allArtists.filter(
-              (u) => Number(u.royaltyBalance || 0) > 0
-            );
-            const artistsWithZeroBalance = allArtists.filter(
-              (u) => Number(u.royaltyBalance || 0) <= 0
-            );
+            const artistsWithActiveBalance = allArtists
+              .filter((u) => Number(u.royaltyBalance || 0) > 0)
+              .sort((a, b) => Number(b.royaltyBalance || 0) - Number(a.royaltyBalance || 0));
+
+            const artistsWithZeroBalance = allArtists
+              .filter((u) => Number(u.royaltyBalance || 0) <= 0)
+              .sort((a, b) => getArtistDisplayName(a).localeCompare(getArtistDisplayName(b)));
 
             const approvedWithdrawals = withdrawals.filter((w) => isApprovedWithdrawal(w.status));
 
@@ -6762,6 +6763,25 @@ export default function AdminDashboardPage() {
 
                   {/* List / Table Content */}
                   <div className="divide-y divide-white/10 text-xs">
+                    {/* Header Kolom Desktop yang Lurus & Rapi */}
+                    {currentList.length > 0 && (
+                      <div className="hidden md:grid md:grid-cols-12 items-center px-5 py-2.5 text-[11px] font-bold text-white/50 uppercase tracking-wider border-b border-white/10 mb-2">
+                        <div className="md:col-span-6">
+                          {artistRoyaltySubTab === "approved-periods"
+                            ? "Penerima & Rekening Musisi"
+                            : "Musisi / Stage Name"}
+                        </div>
+                        <div className="md:col-span-3 text-right pr-4">
+                          {artistRoyaltySubTab === "approved-periods"
+                            ? "Nominal Pencairan"
+                            : artistRoyaltySubTab === "no-royalty"
+                            ? "Saldo Royalti"
+                            : "Saldo Royalti Aktif"}
+                        </div>
+                        <div className="md:col-span-3 text-right pr-2">Aksi & Status</div>
+                      </div>
+                    )}
+
                     {currentList.length === 0 ? (
                       <div className="py-14 text-center text-white/70">
                         <Coins className="w-12 h-12 mx-auto text-[#c8f560]/60 mb-2" />
@@ -6779,12 +6799,12 @@ export default function AdminDashboardPage() {
                       paginatedList.map((u, idx) => (
                         <div
                           key={u.id}
-                          className="p-3.5 sm:px-5 sm:py-4 my-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all"
+                          className="p-3.5 sm:px-5 sm:py-3.5 my-2 flex flex-col md:grid md:grid-cols-12 md:items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all"
                         >
-                          {/* Row 1 di Mobile / Kiri di Desktop: Musisi Info */}
-                          <div className="flex items-center justify-between md:justify-start gap-3 min-w-0">
+                          {/* Col 1 (Mobile Row 1 / Desktop md:col-span-6): Musisi Info */}
+                          <div className="md:col-span-6 flex items-center justify-between md:justify-start gap-3 min-w-0">
                             <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-xs font-mono text-white/40 w-5 shrink-0 text-center font-bold">
+                              <span className="text-xs font-mono text-white/40 w-6 shrink-0 text-center font-bold">
                                 #{(pageArtistRoyalty - 1) * pageSize + idx + 1}
                               </span>
                               <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-[#c8f560]/40 flex items-center justify-center font-bold text-sm text-[#c8f560] shadow-sm shrink-0 overflow-hidden">
@@ -6799,10 +6819,12 @@ export default function AdminDashboardPage() {
                                 )}
                               </div>
                               <div className="min-w-0">
-                                <h4 className="font-bold text-sm sm:text-base text-white truncate">
-                                  {getArtistDisplayName(u)}
+                                <h4 className="font-bold text-sm sm:text-base text-white truncate flex items-center gap-2">
+                                  <span className="truncate">{getArtistDisplayName(u)}</span>
                                 </h4>
-                                <span className="text-[10px] text-white/50 block md:hidden">Musisi Terverifikasi</span>
+                                <span className="text-[10px] text-white/50 block truncate max-w-[200px]">
+                                  {u.email || "-"}
+                                </span>
                               </div>
                             </div>
                             <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#c8f560]/15 text-[#c8f560] font-semibold shrink-0">
@@ -6810,19 +6832,19 @@ export default function AdminDashboardPage() {
                             </span>
                           </div>
 
-                          {/* Row 2 di Mobile / Tengah di Desktop: Saldo Box (Luas & Anti Tumpuk) */}
-                          <div className="flex items-center justify-between bg-black/25 md:bg-transparent px-3.5 py-2.5 md:p-0 rounded-xl border border-white/5 md:border-0">
+                          {/* Col 2 (Mobile Row 2 / Desktop md:col-span-3): Saldo Box (Lurus Sempurna di Desktop) */}
+                          <div className="md:col-span-3 flex items-center justify-between md:justify-end bg-black/25 md:bg-transparent px-3.5 py-2.5 md:p-0 rounded-xl border border-white/5 md:border-0 md:pr-4">
                             <span className="text-xs text-white/60 md:hidden font-medium">Saldo Aktif:</span>
                             <div className="text-right">
-                              <span className="text-[10px] text-white/50 hidden md:block">Saldo Aktif</span>
-                              <span className="font-black text-base sm:text-lg text-[#c8f560] tracking-tight whitespace-nowrap font-mono">
+                              <span className="text-[10px] text-white/50 hidden md:block font-medium mb-0.5">Saldo Aktif</span>
+                              <span className="font-black text-base sm:text-lg text-[#c8f560] tracking-tight whitespace-nowrap font-mono block">
                                 Rp {Math.round(Number(u.royaltyBalance || 0)).toLocaleString("id-ID")}
                               </span>
                             </div>
                           </div>
 
-                          {/* Row 3 di Mobile / Kanan di Desktop: Action Buttons */}
-                          <div className="grid grid-cols-2 md:flex md:items-center gap-2 shrink-0">
+                          {/* Col 3 (Mobile Row 3 / Desktop md:col-span-3): Action Buttons */}
+                          <div className="md:col-span-3 grid grid-cols-2 md:flex md:items-center md:justify-end gap-2 shrink-0">
                             <button
                               type="button"
                               onClick={() => setSelectedArtistDetail(u)}
@@ -6849,10 +6871,10 @@ export default function AdminDashboardPage() {
                       paginatedList.map((u, idx) => (
                         <div
                           key={u.id}
-                          className="p-3.5 sm:px-5 sm:py-4 my-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all"
+                          className="p-3.5 sm:px-5 sm:py-3.5 my-2 flex flex-col md:grid md:grid-cols-12 md:items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all"
                         >
-                          {/* Row 1 di Mobile / Kiri di Desktop: Musisi Info */}
-                          <div className="flex items-center justify-between md:justify-start gap-3 min-w-0">
+                          {/* Col 1 (Mobile Row 1 / Desktop md:col-span-6): Musisi Info */}
+                          <div className="md:col-span-6 flex items-center justify-between md:justify-start gap-3 min-w-0">
                             <div className="flex items-center gap-3 min-w-0">
                               <span className="text-xs font-mono text-white/40 w-5 shrink-0 text-center font-bold">
                                 #{(pageArtistRoyalty - 1) * pageSize + idx + 1}
@@ -6872,7 +6894,9 @@ export default function AdminDashboardPage() {
                                 <h4 className="font-bold text-sm sm:text-base text-white truncate">
                                   {getArtistDisplayName(u)}
                                 </h4>
-                                <span className="text-[10px] text-white/50 block md:hidden">Belum Memiliki Royalti</span>
+                                <span className="text-[10px] text-white/50 block truncate max-w-[200px]">
+                                  {u.email || "-"}
+                                </span>
                               </div>
                             </div>
                             <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-semibold shrink-0">
@@ -6880,19 +6904,19 @@ export default function AdminDashboardPage() {
                             </span>
                           </div>
 
-                          {/* Row 2 di Mobile / Tengah di Desktop: Saldo Box */}
-                          <div className="flex items-center justify-between bg-black/25 md:bg-transparent px-3.5 py-2.5 md:p-0 rounded-xl border border-white/5 md:border-0">
+                          {/* Col 2 (Mobile Row 2 / Desktop md:col-span-3): Saldo Box */}
+                          <div className="md:col-span-3 flex items-center justify-between md:justify-end bg-black/25 md:bg-transparent px-3.5 py-2.5 md:p-0 rounded-xl border border-white/5 md:border-0 md:pr-4">
                             <span className="text-xs text-white/60 md:hidden font-medium">Saldo Royalti:</span>
                             <div className="text-right">
-                              <span className="text-[10px] text-white/50 hidden md:block">Saldo Royalti</span>
-                              <span className="font-bold text-sm sm:text-base text-white/50 whitespace-nowrap font-mono">
+                              <span className="text-[10px] text-white/50 hidden md:block font-medium mb-0.5">Saldo Royalti</span>
+                              <span className="font-bold text-sm sm:text-base text-white/50 whitespace-nowrap font-mono block">
                                 Rp 0
                               </span>
                             </div>
                           </div>
 
-                          {/* Row 3 di Mobile / Kanan di Desktop: Action Buttons */}
-                          <div className="grid grid-cols-2 md:flex md:items-center gap-2 shrink-0">
+                          {/* Col 3 (Mobile Row 3 / Desktop md:col-span-3): Action Buttons */}
+                          <div className="md:col-span-3 grid grid-cols-2 md:flex md:items-center md:justify-end gap-2 shrink-0">
                             <button
                               type="button"
                               onClick={() => setSelectedArtistDetail(u)}
@@ -6922,14 +6946,14 @@ export default function AdminDashboardPage() {
                           <div
                             key={w.id}
                             onClick={() => setSelectedWithdrawalForVisaModal(w)}
-                            className="py-3.5 px-3 sm:px-4 my-1.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:bg-white/10 bg-white/5 border border-white/10 rounded-2xl transition-all cursor-pointer group"
+                            className="p-3.5 sm:px-5 sm:py-3.5 my-2 flex flex-col md:grid md:grid-cols-12 md:items-center gap-3 hover:bg-white/10 bg-white/5 border border-white/10 rounded-2xl transition-all cursor-pointer group"
                           >
-                            {/* Left: Avatar & Info */}
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-[11px] font-mono text-white/40 w-6 shrink-0 text-center">
+                            {/* Col 1: Musisi Info (6 kolom di desktop) */}
+                            <div className="md:col-span-6 flex items-center gap-3 min-w-0">
+                              <span className="text-[11px] font-mono text-white/40 w-6 shrink-0 text-center font-bold">
                                 #{(pageArtistRoyalty - 1) * pageSize + idx + 1}
                               </span>
-                              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-emerald-400/40 flex items-center justify-center font-bold text-sm text-[#c8f560] shadow-sm shrink-0 overflow-hidden">
+                              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-emerald-400/40 flex items-center justify-center font-bold text-sm text-[#c8f560] shadow-sm shrink-0 overflow-hidden">
                                 {w.user?.avatar ? (
                                   <img
                                     src={w.user.avatar}
@@ -6955,17 +6979,21 @@ export default function AdminDashboardPage() {
                               </div>
                             </div>
 
-                            {/* Middle & Right: Nominal & Status */}
-                            <div className="flex items-center justify-between lg:justify-end gap-4 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10">
-                              <div className="text-left lg:text-right">
-                                <span className="text-[10px] text-white/60 block">{w.date || "Tanggal ACC"}</span>
-                                <span className="font-black text-sm sm:text-base text-[#c8f560] font-mono whitespace-nowrap">
+                            {/* Col 2: Nominal Pencairan (3 kolom di desktop, lurus ke kanan) */}
+                            <div className="md:col-span-3 flex items-center justify-between md:justify-end bg-black/25 md:bg-transparent px-3.5 py-2.5 md:p-0 rounded-xl border border-white/5 md:border-0 md:pr-4">
+                              <span className="text-xs text-white/60 md:hidden font-medium">Nominal:</span>
+                              <div className="text-right">
+                                <span className="text-[10px] text-white/50 hidden md:block font-medium mb-0.5">{w.date || "Tanggal ACC"}</span>
+                                <span className="font-black text-sm sm:text-base text-[#c8f560] font-mono whitespace-nowrap block">
                                   Rp {Math.round(Number(w.amount || 0)).toLocaleString("id-ID")}
                                 </span>
                               </div>
+                            </div>
 
-                              <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-[#c8f560] text-[#312042] flex items-center gap-1 shrink-0 whitespace-nowrap">
-                                <CheckCircle2 className="w-3.5 h-3.5" />
+                            {/* Col 3: Status Approved Badge (3 kolom di desktop) */}
+                            <div className="md:col-span-3 flex items-center justify-end">
+                              <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#c8f560] text-[#312042] flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-sm">
+                                <CheckCircle2 className="w-4 h-4" />
                                 <span>Approved</span>
                               </span>
                             </div>
