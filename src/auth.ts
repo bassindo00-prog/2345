@@ -50,6 +50,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw new Error("Pendaftaran ditolak: " + (user.rejectionReason || "Silakan hubungi Admin."));
         }
 
+        if (user.status === "SUSPENDED") {
+          throw new Error("Akun Anda telah dinonaktifkan / disuspend oleh Admin Breakout Record.");
+        }
+
         return user;
       }
     })
@@ -61,6 +65,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = user.role;
         // @ts-ignore
         token.status = user.status;
+      } else if (token.sub) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub },
+            select: { role: true, status: true },
+          });
+          if (dbUser) {
+            // @ts-ignore
+            token.role = dbUser.role;
+            // @ts-ignore
+            token.status = dbUser.status;
+          }
+        } catch (_) {}
       }
       return token;
     },

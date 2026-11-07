@@ -22,6 +22,11 @@ export default async function DashboardLayout({
     redirect("/admin");
   }
 
+  // @ts-ignore
+  if (session.user.status === "SUSPENDED") {
+    redirect("/dashboard/pending");
+  }
+
   // Check Maintenance Mode
   const active = await isMaintenanceActive();
   if (active) {

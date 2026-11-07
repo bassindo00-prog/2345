@@ -15,6 +15,7 @@ import {
   Check,
   Clock,
   ShieldCheck,
+  ShieldAlert,
   ArrowUpRight,
   Trash2,
   RefreshCw,
@@ -244,6 +245,11 @@ export default function AdminDashboardPage() {
 
   // Artist Detail Modal State
   const [selectedArtistDetail, setSelectedArtistDetail] = useState<any | null>(null);
+
+  // Artist Search & Suspend State
+  const [artistSearch, setArtistSearch] = useState("");
+  const [artistTabFilter, setArtistTabFilter] = useState<"ALL" | "RELEASED" | "SUSPENDED">("ALL");
+  const [suspendingUserId, setSuspendingUserId] = useState<string | null>(null);
 
   // Bulk Selection & Deletion State
   const [selectedReleaseIds, setSelectedReleaseIds] = useState<string[]>([]);
@@ -1181,6 +1187,43 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleToggleSuspendArtist = async (userId: string, currentStatus: string, artistName: string) => {
+    const isCurrentlySuspended = currentStatus === "SUSPENDED";
+    const confirmMsg = isCurrentlySuspended
+      ? `Aktifkan kembali akun musisi "${artistName}"? Musisi akan dapat kembali login dan mengakses dashboard Breakout.`
+      : `Yakin ingin MEN-SUSPEND akun musisi "${artistName}"? Akun akan dibekukan dan musisi TIDAK BISA login maupun mengakses dashboard Breakout.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setSuspendingUserId(userId);
+    try {
+      const res = await fetch("/api/admin/artists/suspend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          suspend: !isCurrentlySuspended,
+        }),
+      });
+      const d = await res.json();
+      if (res.ok && d.success) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, status: d.status } : u))
+        );
+        if (selectedArtistDetail && selectedArtistDetail.id === userId) {
+          setSelectedArtistDetail((prev: any) => (prev ? { ...prev, status: d.status } : null));
+        }
+        showNotice(d.message || "Status akun berhasil diperbarui");
+      } else {
+        showNotice(d.error || "Gagal mengubah status akun artis");
+      }
+    } catch (err: any) {
+      showNotice(err.message || "Terjadi kesalahan saat memproses status akun");
+    } finally {
+      setSuspendingUserId(null);
+    }
+  };
+
   const handleToggleCatalogStatus = async (id: string, currentStatus: string) => {
     const nextStatus = currentStatus === "Aktif" ? "Nonaktif" : "Aktif";
     const res = await fetch("/api/catalog", {
@@ -2074,9 +2117,16 @@ export default function AdminDashboardPage() {
                   <h2 className="text-xl font-bold text-white">
                     {getArtistDisplayName(selectedArtistDetail)}
                   </h2>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#312042] text-[#c8f560] text-[11px] font-bold border border-[#c8f560]/40">
-                    Artis Terverifikasi
-                  </span>
+                  {selectedArtistDetail.status === "SUSPENDED" ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-red-600/30 text-red-300 text-[11px] font-black border border-red-500/50 flex items-center gap-1 animate-pulse">
+                      <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+                      <span>AKUN DI-SUSPEND</span>
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#312042] text-[#c8f560] text-[11px] font-bold border border-[#c8f560]/40">
+                      Artis Terverifikasi
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-white/70 mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2">
                   <span>Email: <strong className="text-white">{selectedArtistDetail.email}</strong></span>
@@ -2285,6 +2335,36 @@ export default function AdminDashboardPage() {
                 className="px-4 py-2 rounded-xl bg-[#312042] text-[#c8f560] border border-[#c8f560]/40 font-semibold text-xs hover:bg-[#432d5b] transition-colors cursor-pointer"
               >
                 Kirim Pesan Inbox
+              </button>
+              <button
+                type="button"
+                disabled={suspendingUserId === selectedArtistDetail.id}
+                onClick={() =>
+                  handleToggleSuspendArtist(
+                    selectedArtistDetail.id,
+                    selectedArtistDetail.status,
+                    getArtistDisplayName(selectedArtistDetail)
+                  )
+                }
+                className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow cursor-pointer active:scale-95 disabled:opacity-50 ${
+                  selectedArtistDetail.status === "SUSPENDED"
+                    ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                    : "bg-red-600/30 hover:bg-red-600 text-red-200 hover:text-white border border-red-500/50"
+                }`}
+              >
+                {suspendingUserId === selectedArtistDetail.id ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : selectedArtistDetail.status === "SUSPENDED" ? (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Buka Suspend Akun</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>Suspend Akun Ini</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -6108,259 +6188,469 @@ export default function AdminDashboardPage() {
           })()}
 
           {/* =========================================================
-              ADMIN VIEW 4: DAFTAR ARTIS DENGAN RILISAN AKTIF
+              ADMIN VIEW 4: DAFTAR ARTIS DENGAN PENCARIAN & KONTROL SUSPEND
              ========================================================= */}
-          {activeTab === "users" && (
-            <div className={`${ROYALTY_CARD} animate-card-enter`}>
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-white/15">
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-white mb-0.5 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-[#c8f560]" />
-                    <span>Daftar Artis Rilis Aktif ({releasedArtists.length})</span>
-                  </h3>
-                  <p className="text-xs text-white/75">
-                    Menampilkan musisi resmi yang telah memiliki rilisan aktif • Klik pada artis untuk membuka detail profil & katalog
-                  </p>
+          {activeTab === "users" && (() => {
+            const allNonAdminUsers = users.filter((u) => u.role !== "ADMIN");
+            const suspendedArtists = allNonAdminUsers.filter((u) => u.status === "SUSPENDED");
+            const activeReleasedArtists = allNonAdminUsers.filter((u) =>
+              approvedReleases.some((r) => r.userId === u.id)
+            );
+
+            const displayedArtists = allNonAdminUsers.filter((u) => {
+              // Status tab filter
+              if (artistTabFilter === "RELEASED") {
+                const hasRelease = approvedReleases.some((r) => r.userId === u.id);
+                if (!hasRelease) return false;
+              } else if (artistTabFilter === "SUSPENDED") {
+                if (u.status !== "SUSPENDED") return false;
+              }
+
+              // Search query filter
+              if (artistSearch.trim()) {
+                const q = artistSearch.toLowerCase().trim();
+                const dName = getArtistDisplayName(u).toLowerCase();
+                const uName = (u.name || "").toLowerCase();
+                const email = (u.email || "").toLowerCase();
+                const wa = (u.whatsapp || "").toLowerCase();
+                const id = (u.id || "").toLowerCase();
+                return (
+                  dName.includes(q) ||
+                  uName.includes(q) ||
+                  email.includes(q) ||
+                  wa.includes(q) ||
+                  id.includes(q)
+                );
+              }
+
+              return true;
+            });
+
+            const paginatedArtists = displayedArtists.slice(
+              (pageUsers - 1) * 8,
+              pageUsers * 8
+            );
+
+            return (
+              <div className={`${ROYALTY_CARD} animate-card-enter space-y-4`}>
+                {/* Header Section */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/15">
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-white mb-0.5 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-[#c8f560]" />
+                      <span>Daftar Musisi & Akun Artis ({allNonAdminUsers.length})</span>
+                    </h3>
+                    <p className="text-xs text-white/75">
+                      Pencarian data musisi, monitoring royalti, dan kontrol penangguhan akses akun (Suspend).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("royalty-input")}
+                    className="px-4 py-2 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs hover:bg-[#b8e450] transition-colors shadow cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Banknote className="w-4 h-4" />
+                    <span>+ Input Royalty / Streams</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("royalty-input")}
-                  className="px-4 py-2 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs hover:bg-[#b8e450] transition-colors shadow cursor-pointer flex items-center gap-1.5"
-                >
-                  <Banknote className="w-4 h-4" />
-                  <span>+ Input Royalty / Streams</span>
-                </button>
-              </div>
 
-              {releasedArtists.length === 0 ? (
-                <div className="py-14 text-center text-white/70 space-y-2">
-                  <Users className="w-12 h-12 mx-auto text-white/25" />
-                  <p className="font-semibold text-base text-white">Belum Ada Artis yang Merilis Lagu</p>
-                  <p className="text-xs text-white/60">
-                    Hanya akun artis yang telah mengajukan/merilis lagu yang akan ditampilkan pada daftar ini.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* MOBILE VIEW (< md): Clean Responsive Cards */}
-                  <div className="md:hidden space-y-3.5 pt-2">
-                    {releasedArtists.slice((pageUsers - 1) * 5, pageUsers * 5).map((u) => {
-                      const userApprovedCount = approvedReleases.filter((r) => r.userId === u.id).length;
-                      return (
-                        <div
-                          key={u.id}
-                          onClick={() => setSelectedArtistDetail(u)}
-                          className="p-4 rounded-2xl bg-white/5 border border-white/15 hover:bg-white/10 transition-all cursor-pointer space-y-3"
-                        >
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={
-                                u.avatar ||
-                                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
-                              }
-                              alt={getArtistDisplayName(u)}
-                              className="w-13 h-13 rounded-2xl object-cover border-2 border-white/30 shrink-0 shadow"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-1">
-                                <h4 className="font-bold text-sm text-white truncate flex items-center gap-1.5">
-                                  <span>{getArtistDisplayName(u)}</span>
-                                  <Eye className="w-3.5 h-3.5 text-[#c8f560]" />
-                                </h4>
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#312042] text-[#c8f560] border border-[#c8f560]/30 shrink-0">
-                                  {userApprovedCount} ACC
-                                </span>
-                              </div>
-                              <p className="text-xs text-white/70 truncate mt-0.5">{u.email}</p>
-                              <span className="text-[10px] text-[#c8f560] font-semibold">Artis Terverifikasi</span>
-                            </div>
-                          </div>
-
-                          {/* Stats Grid */}
-                          <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-black/25 border border-white/10 text-center">
-                            <div>
-                              <span className="text-[10px] text-white/60 block">Saldo Royalti</span>
-                              <span className="font-bold text-xs text-[#c8f560] tabular-nums block truncate">
-                                Rp {Number(u.royaltyBalance || 0).toLocaleString("id-ID")}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-white/60 block">Streams</span>
-                              <span className="font-bold text-xs text-white tabular-nums block truncate">
-                                {Number(u.totalStreams || 0).toLocaleString("id-ID")}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-white/60 block">Dicairkan</span>
-                              <span className="font-bold text-xs text-white/90 tabular-nums block truncate">
-                                Rp {Number(u.totalWithdrawn || 0).toLocaleString("id-ID")}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Quick Actions */}
-                          <div
-                            className="flex items-center gap-2 pt-2 border-t border-white/10"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => setSelectedArtistDetail(u)}
-                              className="flex-1 py-1.5 px-3 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center justify-center gap-1 shadow cursor-pointer"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Detail Lengkap</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedUserForRoyalty(u.id);
-                                setInputRoyaltyBalance(u.royaltyBalance || 0);
-                                setInputRoyaltyPending(u.royaltyPending || 0);
-                                setInputTotalStreams(u.totalStreams || 0);
-                                setInputRoyaltyMonth(u.royaltyMonth || "November");
-                                setActiveTab("royalty-input");
-                              }}
-                              className="py-1.5 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold text-xs transition-colors cursor-pointer"
-                            >
-                              Edit Saldo
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMsgTargetUser(u.id);
-                                setActiveTab("inbox");
-                              }}
-                              className="py-1.5 px-3 rounded-xl bg-[#312042] text-[#c8f560] border border-[#c8f560]/30 font-semibold text-xs hover:bg-[#432d5b] transition-colors cursor-pointer"
-                            >
-                              Pesan
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                {/* Toolbar: Search Bar & Filter Status Pills */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="relative flex-1 min-w-[240px]">
+                    <Search className="w-4 h-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={artistSearch}
+                      onChange={(e) => {
+                        setArtistSearch(e.target.value);
+                        setPageUsers(1);
+                      }}
+                      placeholder="Cari musisi (Nama, Stage Name, Email, No. WA)..."
+                      className="w-full pl-9 pr-8 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
+                    />
+                    {artistSearch && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setArtistSearch("");
+                          setPageUsers(1);
+                        }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
-                  {/* DESKTOP VIEW (md:block): Spacious Executive Table */}
-                  <div className="hidden md:block overflow-x-auto pt-2">
-                    <div className="min-w-[820px]">
-                      {/* Table Headers */}
-                      <div className="grid grid-cols-12 text-xs font-semibold uppercase tracking-wider text-white/70 pb-3 border-b border-white/20 px-3">
-                        <div className="col-span-4">Musisi & Akun</div>
-                        <div className="col-span-2 text-center">Saldo Royalti</div>
-                        <div className="col-span-2 text-center">Total Streams</div>
-                        <div className="col-span-2 text-center">Total Dicairkan</div>
-                        <div className="col-span-2 text-right">Aksi & Detail</div>
-                      </div>
+                  {/* Filter Status Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setArtistTabFilter("ALL");
+                        setPageUsers(1);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        artistTabFilter === "ALL"
+                          ? "bg-[#c8f560] text-[#312042] shadow-md"
+                          : "bg-white/10 text-white/80 hover:bg-white/20"
+                      }`}
+                    >
+                      Semua Akun ({allNonAdminUsers.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setArtistTabFilter("RELEASED");
+                        setPageUsers(1);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        artistTabFilter === "RELEASED"
+                          ? "bg-[#c8f560] text-[#312042] shadow-md"
+                          : "bg-white/10 text-white/80 hover:bg-white/20"
+                      }`}
+                    >
+                      Rilis Aktif ({activeReleasedArtists.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setArtistTabFilter("SUSPENDED");
+                        setPageUsers(1);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                        artistTabFilter === "SUSPENDED"
+                          ? "bg-red-600 text-white shadow-md font-black"
+                          : "bg-red-600/20 text-red-300 hover:bg-red-600/30 border border-red-500/30"
+                      }`}
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Disuspend ({suspendedArtists.length})</span>
+                    </button>
+                  </div>
+                </div>
 
-                      {/* Rows */}
-                      <div className="divide-y divide-white/15">
-                        {releasedArtists.slice((pageUsers - 1) * 5, pageUsers * 5).map((u) => {
-                          const userApprovedCount = approvedReleases.filter((r) => r.userId === u.id).length;
-                          return (
-                            <div
-                              key={u.id}
-                              onClick={() => setSelectedArtistDetail(u)}
-                              className="grid grid-cols-12 items-center py-3.5 px-3 hover:bg-white/10 rounded-2xl transition-colors cursor-pointer group"
-                            >
-                              {/* Col 1: Musisi & Akun */}
-                              <div className="col-span-4 flex items-center gap-3.5 min-w-0 pr-3">
-                                <img
-                                  src={
-                                    u.avatar ||
-                                    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
-                                  }
-                                  alt={getArtistDisplayName(u)}
-                                  className="w-12 h-12 rounded-2xl object-cover border border-white/25 shrink-0 group-hover:scale-105 transition-transform shadow"
-                                />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <p className="font-bold text-sm text-white group-hover:text-[#c8f560] transition-colors truncate">
-                                      {getArtistDisplayName(u)}
-                                    </p>
-                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#312042] text-[#c8f560] border border-[#c8f560]/30 shrink-0">
-                                      {userApprovedCount} ACC
+                <div className="text-xs text-white/70 px-1">
+                  Menampilkan <strong className="text-white">{displayedArtists.length}</strong> musisi
+                  {artistSearch && (
+                    <span> dengan kata kunci &quot;<strong className="text-[#c8f560]">{artistSearch}</strong>&quot;</span>
+                  )}
+                </div>
+
+                {displayedArtists.length === 0 ? (
+                  <div className="py-14 text-center text-white/70 space-y-2">
+                    <Users className="w-12 h-12 mx-auto text-white/25" />
+                    <p className="font-semibold text-base text-white">Musisi Tidak Ditemukan</p>
+                    <p className="text-xs text-white/60">
+                      Tidak ada akun musisi yang sesuai dengan kata kunci atau filter yang Anda pilih.
+                    </p>
+                    {artistSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setArtistSearch("")}
+                        className="mt-2 px-3.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[#c8f560] text-xs font-bold cursor-pointer"
+                      >
+                        Reset Pencarian
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* MOBILE VIEW (< md): Clean Responsive Cards */}
+                    <div className="md:hidden space-y-3.5 pt-1">
+                      {paginatedArtists.map((u) => {
+                        const userApprovedCount = approvedReleases.filter((r) => r.userId === u.id).length;
+                        const isSuspended = u.status === "SUSPENDED";
+                        return (
+                          <div
+                            key={u.id}
+                            onClick={() => setSelectedArtistDetail(u)}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-3 ${
+                              isSuspended
+                                ? "bg-red-950/20 border-red-500/40 hover:bg-red-950/30"
+                                : "bg-white/5 border-white/15 hover:bg-white/10"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={
+                                  u.avatar ||
+                                  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
+                                }
+                                alt={getArtistDisplayName(u)}
+                                className={`w-13 h-13 rounded-2xl object-cover border-2 shrink-0 shadow ${
+                                  isSuspended ? "border-red-500/60 grayscale" : "border-white/30"
+                                }`}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <h4 className="font-bold text-sm text-white truncate flex items-center gap-1.5">
+                                    <span>{getArtistDisplayName(u)}</span>
+                                    <Eye className="w-3.5 h-3.5 text-[#c8f560]" />
+                                  </h4>
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#312042] text-[#c8f560] border border-[#c8f560]/30 shrink-0">
+                                    {userApprovedCount} ACC
+                                  </span>
+                                </div>
+                                <p className="text-xs text-white/70 truncate mt-0.5">{u.email}</p>
+                                <div className="mt-1 flex items-center gap-2">
+                                  {isSuspended ? (
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-600/30 text-red-300 border border-red-500/50 inline-flex items-center gap-1 animate-pulse">
+                                      <ShieldAlert className="w-3 h-3 text-red-400" />
+                                      <span>DI-SUSPEND</span>
                                     </span>
-                                  </div>
-                                  <p className="text-white/70 text-xs truncate mt-0.5">{u.email}</p>
-                                  <span className="text-[10px] text-[#c8f560] font-medium">Artis Terverifikasi</span>
+                                  ) : (
+                                    <span className="text-[10px] text-[#c8f560] font-semibold">
+                                      Artis Aktif
+                                    </span>
+                                  )}
+                                  {u.whatsapp && (
+                                    <span className="text-[10px] text-white/50 truncate">WA: {u.whatsapp}</span>
+                                  )}
                                 </div>
                               </div>
+                            </div>
 
-                              {/* Col 2: Saldo Royalti */}
-                              <div className="col-span-2 text-center font-bold text-[#c8f560] text-sm tabular-nums whitespace-nowrap">
-                                Rp {Number(u.royaltyBalance || 0).toLocaleString("id-ID")}
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-black/25 border border-white/10 text-center">
+                              <div>
+                                <span className="text-[10px] text-white/60 block">Saldo Royalti</span>
+                                <span className="font-bold text-xs text-[#c8f560] tabular-nums block truncate">
+                                  Rp {Number(u.royaltyBalance || 0).toLocaleString("id-ID")}
+                                </span>
                               </div>
-
-                              {/* Col 3: Total Streams */}
-                              <div className="col-span-2 text-center font-bold text-white text-xs tabular-nums whitespace-nowrap">
-                                {Number(u.totalStreams || 0).toLocaleString("id-ID")} Streams
+                              <div>
+                                <span className="text-[10px] text-white/60 block">Streams</span>
+                                <span className="font-bold text-xs text-white tabular-nums block truncate">
+                                  {Number(u.totalStreams || 0).toLocaleString("id-ID")}
+                                </span>
                               </div>
-
-                              {/* Col 4: Total Dicairkan */}
-                              <div className="col-span-2 text-center font-medium text-white/85 text-xs tabular-nums whitespace-nowrap">
-                                Rp {Number(u.totalWithdrawn || 0).toLocaleString("id-ID")}
-                              </div>
-
-                              {/* Col 5: Aksi */}
-                              <div
-                                className="col-span-2 flex items-center justify-end gap-1.5"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedArtistDetail(u)}
-                                  className="px-2.5 py-1.5 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-[11px] flex items-center gap-1 shadow hover:bg-[#b8e450] transition-colors cursor-pointer"
-                                  title="Lihat Detail Profil & Rilisan Artis"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                  <span>Detail</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedUserForRoyalty(u.id);
-                                    setInputRoyaltyBalance(u.royaltyBalance || 0);
-                                    setInputRoyaltyPending(u.royaltyPending || 0);
-                                    setInputTotalStreams(u.totalStreams || 0);
-                                    setInputRoyaltyMonth(u.royaltyMonth || "November");
-                                    setActiveTab("royalty-input");
-                                  }}
-                                  className="px-2 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold text-[11px] transition-colors cursor-pointer"
-                                  title="Input / Edit Royalti & Stream"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMsgTargetUser(u.id);
-                                    setActiveTab("inbox");
-                                  }}
-                                  className="p-1.5 rounded-xl bg-[#312042] text-[#c8f560] border border-[#c8f560]/30 hover:bg-[#432d5b] transition-colors cursor-pointer"
-                                  title="Kirim Pesan Inbox ke Artis"
-                                >
-                                  <Mail className="w-3.5 h-3.5" />
-                                </button>
+                              <div>
+                                <span className="text-[10px] text-white/60 block">Dicairkan</span>
+                                <span className="font-bold text-xs text-white/90 tabular-nums block truncate">
+                                  Rp {Number(u.totalWithdrawn || 0).toLocaleString("id-ID")}
+                                </span>
                               </div>
                             </div>
-                          );
-                        })}
+
+                            {/* Quick Actions */}
+                            <div
+                              className="flex items-center gap-2 pt-2 border-t border-white/10"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setSelectedArtistDetail(u)}
+                                className="flex-1 py-1.5 px-3 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs flex items-center justify-center gap-1 shadow cursor-pointer active:scale-95"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Detail</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedUserForRoyalty(u.id);
+                                  setInputRoyaltyBalance(u.royaltyBalance || 0);
+                                  setInputRoyaltyPending(u.royaltyPending || 0);
+                                  setInputTotalStreams(u.totalStreams || 0);
+                                  setInputRoyaltyMonth(u.royaltyMonth || "November");
+                                  setActiveTab("royalty-input");
+                                }}
+                                className="py-1.5 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold text-xs transition-colors cursor-pointer"
+                              >
+                                Edit Saldo
+                              </button>
+
+                              {/* Tombol Suspend / Buka Suspend Mobile */}
+                              <button
+                                type="button"
+                                disabled={suspendingUserId === u.id}
+                                onClick={() =>
+                                  handleToggleSuspendArtist(u.id, u.status, getArtistDisplayName(u))
+                                }
+                                className={`py-1.5 px-3 rounded-xl font-bold text-xs flex items-center gap-1 transition-all cursor-pointer shadow active:scale-95 disabled:opacity-50 ${
+                                  isSuspended
+                                    ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                                    : "bg-red-600/25 hover:bg-red-600 text-red-200 hover:text-white border border-red-500/40"
+                                }`}
+                              >
+                                {suspendingUserId === u.id ? (
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                ) : isSuspended ? (
+                                  <>
+                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                    <span>Buka Suspend</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ShieldAlert className="w-3.5 h-3.5" />
+                                    <span>Suspend</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* DESKTOP VIEW (md:block): Executive Table */}
+                    <div className="hidden md:block overflow-x-auto pt-1">
+                      <div className="min-w-[880px]">
+                        {/* Table Headers */}
+                        <div className="grid grid-cols-12 text-xs font-semibold uppercase tracking-wider text-white/70 pb-3 border-b border-white/20 px-3">
+                          <div className="col-span-4">Musisi & Akun</div>
+                          <div className="col-span-2 text-center">Status Akun</div>
+                          <div className="col-span-2 text-center">Saldo Royalti</div>
+                          <div className="col-span-2 text-center">Total Streams</div>
+                          <div className="col-span-2 text-right">Aksi & Kontrol</div>
+                        </div>
+
+                        {/* Rows */}
+                        <div className="divide-y divide-white/15">
+                          {paginatedArtists.map((u) => {
+                            const userApprovedCount = approvedReleases.filter((r) => r.userId === u.id).length;
+                            const isSuspended = u.status === "SUSPENDED";
+                            return (
+                              <div
+                                key={u.id}
+                                onClick={() => setSelectedArtistDetail(u)}
+                                className={`grid grid-cols-12 items-center py-3.5 px-3 rounded-2xl transition-colors cursor-pointer group ${
+                                  isSuspended
+                                    ? "bg-red-950/20 hover:bg-red-950/30 border border-red-500/20"
+                                    : "hover:bg-white/10"
+                                }`}
+                              >
+                                {/* Col 1: Musisi & Akun */}
+                                <div className="col-span-4 flex items-center gap-3.5 min-w-0 pr-3">
+                                  <img
+                                    src={
+                                      u.avatar ||
+                                      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80"
+                                    }
+                                    alt={getArtistDisplayName(u)}
+                                    className={`w-12 h-12 rounded-2xl object-cover border shrink-0 group-hover:scale-105 transition-transform shadow ${
+                                      isSuspended ? "border-red-500/60 grayscale" : "border-white/25"
+                                    }`}
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="font-bold text-sm text-white group-hover:text-[#c8f560] transition-colors truncate">
+                                        {getArtistDisplayName(u)}
+                                      </p>
+                                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#312042] text-[#c8f560] border border-[#c8f560]/30 shrink-0">
+                                        {userApprovedCount} ACC
+                                      </span>
+                                    </div>
+                                    <p className="text-white/70 text-xs truncate mt-0.5">{u.email}</p>
+                                    {u.whatsapp && (
+                                      <span className="text-[10px] text-white/50 block truncate">WA: {u.whatsapp}</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Col 2: Status Akun */}
+                                <div className="col-span-2 text-center">
+                                  {isSuspended ? (
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-red-600/30 text-red-300 border border-red-500/50 inline-flex items-center gap-1 shadow-sm animate-pulse">
+                                      <ShieldAlert className="w-3 h-3 text-red-400" />
+                                      <span>DI-SUSPEND</span>
+                                    </span>
+                                  ) : (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-1">
+                                      <Check className="w-3 h-3" />
+                                      <span>Aktif</span>
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Col 3: Saldo Royalti */}
+                                <div className="col-span-2 text-center font-bold text-[#c8f560] text-sm tabular-nums whitespace-nowrap">
+                                  Rp {Number(u.royaltyBalance || 0).toLocaleString("id-ID")}
+                                </div>
+
+                                {/* Col 4: Total Streams */}
+                                <div className="col-span-2 text-center font-bold text-white text-xs tabular-nums whitespace-nowrap">
+                                  {Number(u.totalStreams || 0).toLocaleString("id-ID")} Streams
+                                </div>
+
+                                {/* Col 5: Aksi & Kontrol Suspend */}
+                                <div
+                                  className="col-span-2 flex items-center justify-end gap-1.5"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedArtistDetail(u)}
+                                    className="px-2.5 py-1.5 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-[11px] flex items-center gap-1 shadow hover:bg-[#b8e450] transition-colors cursor-pointer"
+                                    title="Lihat Detail Profil & Rilisan Artis"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Detail</span>
+                                  </button>
+
+                                  {/* Tombol Suspend / Buka Suspend Desktop */}
+                                  <button
+                                    type="button"
+                                    disabled={suspendingUserId === u.id}
+                                    onClick={() =>
+                                      handleToggleSuspendArtist(u.id, u.status, getArtistDisplayName(u))
+                                    }
+                                    className={`px-2.5 py-1.5 rounded-xl font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow active:scale-95 disabled:opacity-50 ${
+                                      isSuspended
+                                        ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                                        : "bg-red-600/25 hover:bg-red-600 text-red-200 hover:text-white border border-red-500/40"
+                                    }`}
+                                    title={isSuspended ? "Buka suspend musisi" : "Suspend akun musisi"}
+                                  >
+                                    {suspendingUserId === u.id ? (
+                                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    ) : isSuspended ? (
+                                      <>
+                                        <ShieldCheck className="w-3.5 h-3.5" />
+                                        <span>Buka</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ShieldAlert className="w-3.5 h-3.5" />
+                                        <span>Suspend</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMsgTargetUser(u.id);
+                                      setActiveTab("inbox");
+                                    }}
+                                    className="p-1.5 rounded-xl bg-[#312042] text-[#c8f560] border border-[#c8f560]/30 hover:bg-[#432d5b] transition-colors cursor-pointer"
+                                    title="Kirim Pesan Inbox ke Artis"
+                                  >
+                                    <Mail className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
 
-              {/* Pagination Artis */}
-              <Pagination
-                currentPage={pageUsers}
-                totalItems={releasedArtists.length}
-                pageSize={5}
-                onPageChange={setPageUsers}
-              />
-            </div>
-          )}
+                {/* Pagination Artis */}
+                {displayedArtists.length > 8 && (
+                  <Pagination
+                    currentPage={pageUsers}
+                    totalItems={displayedArtists.length}
+                    pageSize={8}
+                    onPageChange={setPageUsers}
+                  />
+                )}
+              </div>
+            );
+          })()}
 
           {/* =========================================================
               ADMIN VIEW: MODE MAINTENANCE USER (Maintenance Screen Controls)
