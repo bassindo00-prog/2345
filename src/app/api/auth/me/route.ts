@@ -49,15 +49,15 @@ export async function GET() {
       return NextResponse.json({ user: null, authenticated: false });
     }
 
-    const [u, rawReleases, dbArtists]: [any, any[], any[]] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          withdrawRequests: {
-            orderBy: { createdAt: "desc" },
-          },
-        },
-      }),
+    const [rawUsers, rawWithdraws, rawReleases, dbArtists]: [any[], any[], any[], any[]] = await Promise.all([
+      prisma.$queryRawUnsafe(
+        `SELECT * FROM "User" WHERE "id" = $1 LIMIT 1`,
+        userId
+      ).catch(() => []),
+      prisma.withdrawRequest.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      }).catch(() => []),
       prisma.$queryRawUnsafe(
         `SELECT * FROM "Release" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
         userId
@@ -67,6 +67,8 @@ export async function GET() {
         userId
       ).catch(() => []),
     ]);
+
+    const u = (rawUsers && rawUsers[0]) || (await prisma.user.findUnique({ where: { id: userId } }));
 
     if (!u) {
       return NextResponse.json({ user: null, authenticated: false });
@@ -113,24 +115,24 @@ export async function GET() {
     });
 
     const totalWithdrawn =
-      typeof u.totalWithdrawn === "number"
+      typeof u.totalWithdrawn === "number" && u.totalWithdrawn > 0
         ? u.totalWithdrawn
-        : (u.withdrawRequests || [])
+        : (rawWithdraws || [])
             .filter((w: any) => w.status === "APPROVED" || w.status === "PAID")
             .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
 
     const pendingWithdraw =
-      typeof u.pendingWithdraw === "number"
+      typeof u.pendingWithdraw === "number" && u.pendingWithdraw > 0
         ? u.pendingWithdraw
-        : (u.withdrawRequests || [])
+        : (rawWithdraws || [])
             .filter((w: any) => w.status === "PENDING")
             .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
 
-    const royaltyBalance = typeof u.royaltyBalance === "number" ? u.royaltyBalance : 0;
+    const royaltyBalance = Number(u.royaltyBalance || 0);
     const royaltyPending = typeof u.royaltyPending === "number" ? u.royaltyPending : pendingWithdraw;
-    const totalStreams = typeof u.totalStreams === "number" ? u.totalStreams : 15400;
+    const totalStreams = Number(u.totalStreams || 0);
 
-    const withdrawals = (u.withdrawRequests || []).map((w: any) => {
+    const withdrawals = (rawWithdraws || []).map((w: any) => {
       let statusUi = "Pending";
       if (w.status === "APPROVED" || w.status === "PAID") statusUi = "Approved";
       else if (w.status === "REJECTED") statusUi = "Rejected";
