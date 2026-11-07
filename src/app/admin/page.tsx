@@ -2525,22 +2525,24 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Period Pills — Responsive 3-Pills */}
-              <div className="flex items-center justify-center gap-2 w-full sm:w-auto">
-                {(["Daily", "Weekly", "Monthly"] as const).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPeriod(p)}
-                    className={`flex-1 sm:flex-initial text-center px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs font-medium transition-all ${
-                      period === p
-                        ? "bg-[#312042] text-white shadow-sm scale-105"
-                        : "bg-[#8a88b5]/70 border border-white/20 text-white/90 hover:bg-white/25"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
+              {/* Period Pills — Hanya Tampil di Menu Overview */}
+              {activeTab === "overview" && (
+                <div className="flex items-center justify-center gap-2 w-full sm:w-auto">
+                  {(["Daily", "Weekly", "Monthly"] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPeriod(p)}
+                      className={`flex-1 sm:flex-initial text-center px-4 sm:px-5 py-1.5 sm:py-2 rounded-full text-xs font-medium transition-all ${
+                        period === p
+                          ? "bg-[#312042] text-white shadow-sm scale-105"
+                          : "bg-[#8a88b5]/70 border border-white/20 text-white/90 hover:bg-white/25"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Desktop Right Controls (hidden on mobile) */}
               <div className="hidden sm:flex items-center gap-3">
@@ -2580,49 +2582,51 @@ export default function AdminDashboardPage() {
           {/* MAIN SCROLLABLE BODY — Hanya bagian konten ini yang bergulir */}
           <main className="flex-1 w-full overflow-y-auto overflow-x-hidden p-5 sm:p-7 md:p-8">
 
-          {/* HEADER BANNER */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 animate-card-enter">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-semibold text-white">
-                Welcome Back, Admin Avelin!
-              </h1>
-              <p className="text-xs text-white/80 mt-1">
-                Executive label distribution & royalty settlement control center
-              </p>
-            </div>
+          {/* HEADER BANNER — HANYA TAMPIL DI MENU OVERVIEW */}
+          {activeTab === "overview" && (
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6 animate-card-enter">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-semibold text-white">
+                  Welcome Back, Admin Avelin!
+                </h1>
+                <p className="text-xs text-white/80 mt-1">
+                  Executive label distribution & royalty settlement control center
+                </p>
+              </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              {pendingUsers.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("registrations")}
-                  className="px-4 py-2 rounded-full bg-[#c8f560] text-[#312042] text-xs font-bold flex items-center gap-1.5 shadow-md hover:bg-[#b8e450] transition-all cursor-pointer animate-pulse"
-                >
-                  <UserCheck className="w-4 h-4" />
-                  <span>ACC Artis Baru ({pendingUsers.length})</span>
-                </button>
-              )}
-              {maintenanceActive && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("maintenance")}
-                  className="px-4 py-2 rounded-full bg-amber-400 text-[#312042] text-xs font-bold flex items-center gap-2 shadow-md hover:bg-amber-300 transition-all cursor-pointer animate-pulse"
-                >
-                  <Construction className="w-4 h-4" />
-                  <span>Maintenance User: AKTIF</span>
-                </button>
-              )}
-              {pendingReleases.length > 0 && (
-                <button
-                  onClick={() => setActiveTab("releases")}
-                  className="px-5 py-2.5 rounded-full bg-[#fde08d] text-[#312042] text-xs font-bold flex items-center gap-2 shadow-md hover:bg-[#fff2a8] transition-all"
-                >
-                  <Clock className="w-4 h-4" />
-                  <span>Review Queue ({pendingReleases.length})</span>
-                </button>
-              )}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {pendingUsers.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("registrations")}
+                    className="px-4 py-2 rounded-full bg-[#c8f560] text-[#312042] text-xs font-bold flex items-center gap-1.5 shadow-md hover:bg-[#b8e450] transition-all cursor-pointer animate-pulse"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>ACC Artis Baru ({pendingUsers.length})</span>
+                  </button>
+                )}
+                {maintenanceActive && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("maintenance")}
+                    className="px-4 py-2 rounded-full bg-amber-400 text-[#312042] text-xs font-bold flex items-center gap-2 shadow-md hover:bg-amber-300 transition-all cursor-pointer animate-pulse"
+                  >
+                    <Construction className="w-4 h-4" />
+                    <span>Maintenance User: AKTIF</span>
+                  </button>
+                )}
+                {pendingReleases.length > 0 && (
+                  <button
+                    onClick={() => setActiveTab("releases")}
+                    className="px-5 py-2.5 rounded-full bg-[#fde08d] text-[#312042] text-xs font-bold flex items-center gap-2 shadow-md hover:bg-[#fff2a8] transition-all"
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span>Review Queue ({pendingReleases.length})</span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* ATTENTION BANNER IF MAINTENANCE IS ACTIVE */}
           {maintenanceActive && activeTab === "overview" && (
@@ -2660,11 +2664,12 @@ export default function AdminDashboardPage() {
             </div>
           )}
 
-          {/* LIVE ANIMATED CHARTS ROW FOR ADMIN */}
-          <div
-            key={`admin-charts-${animKey}`}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6"
-          >
+          {/* LIVE ANIMATED CHARTS ROW FOR ADMIN — HANYA TAMPIL DI MENU OVERVIEW */}
+          {activeTab === "overview" && (
+            <div
+              key={`admin-charts-${animKey}`}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6"
+            >
             {/* Card 1: Luxury VISA Card for Total Royalty Musisi */}
             <VisaMetricCard
               title="TOTAL ROYALTY MUSISI"
@@ -2884,6 +2889,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </div>
+        )}
 
           {/* =========================================================
               ADMIN VIEW 1: OVERVIEW (Releases Moderation + Payout Queue)
