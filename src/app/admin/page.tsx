@@ -1019,7 +1019,10 @@ export default function AdminDashboardPage() {
   // Save Royalty & Streaming directly to User
   const handleSaveUserRoyalty = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedUserForRoyalty) return;
+    if (!selectedUserForRoyalty) {
+      showNotice("⚠️ Pilih akun musisi terlebih dahulu!");
+      return;
+    }
     setSavingRoyalty(true);
     try {
       const res = await fetch("/api/admin/overview", {
@@ -1033,10 +1036,29 @@ export default function AdminDashboardPage() {
           royaltyMonth: inputRoyaltyMonth,
         }),
       });
+      const data = await res.json();
       if (res.ok) {
+        setUsers((prev) =>
+          prev.map((usr) =>
+            usr.id === selectedUserForRoyalty
+              ? {
+                  ...usr,
+                  royaltyBalance: inputRoyaltyBalance,
+                  royaltyPending: inputRoyaltyPending,
+                  totalStreams: inputTotalStreams,
+                  royaltyMonth: inputRoyaltyMonth,
+                }
+              : usr
+          )
+        );
+        showNotice(`✅ Berhasil! Saldo Rp ${inputRoyaltyBalance.toLocaleString("id-ID")} Bulan ${inputRoyaltyMonth} berhasil disimpan & langsung tersinkron!`);
         await fetchAdminData();
-        showNotice(`Data Royalty & Streams Bulan ${inputRoyaltyMonth} berhasil disimpan untuk User!`);
+      } else {
+        showNotice(`❌ Gagal menyimpan royalti: ${data.message || data.error || "Kesalahan server"}`);
       }
+    } catch (err: any) {
+      console.error("Save royalty error:", err);
+      showNotice(`❌ Kesalahan koneksi: ${err.message || String(err)}`);
     } finally {
       setSavingRoyalty(false);
     }

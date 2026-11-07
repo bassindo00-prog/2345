@@ -532,6 +532,18 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
     }
 
+    // Pastikan kolom-kolom saldo ada di tabel "User" agar tidak pernah error Code 42703
+    try {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "royaltyBalance" double precision DEFAULT 0;
+        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "royaltyPending" double precision DEFAULT 0;
+        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "totalStreams" integer DEFAULT 0;
+        ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "royaltyMonth" text DEFAULT 'November';
+      `);
+    } catch (eCol) {
+      console.warn("Ensure user columns warning:", eCol);
+    }
+
     if (role) {
       await prisma.$executeRawUnsafe(
         `UPDATE "User" SET "role" = $1 WHERE "id" = $2`,
@@ -560,6 +572,53 @@ export async function PATCH(req: Request) {
         royaltyMonth !== undefined ? String(royaltyMonth) : null,
         userId
       );
+
+      // Sinkronkan juga ke tabel "Royalty" jika tabel tersebut ada di database produksi
+      try {
+        const artists = (await prisma.$queryRawUnsafe(
+          `SELECT id FROM "Artist" WHERE "userId" = $1 LIMIT 1`,
+          userId
+        )) as any[];
+        const primaryArtistId = artists[0]?.id;
+
+        if (primaryArtistId && royaltyBalance !== undefined) {
+          const curMonth = royaltyMonth || "November";
+          const curYear = new Date().getFullYear();
+          const existing = (await prisma.$queryRawUnsafe(
+            `SELECT id FROM "Royalty" WHERE "artistId" = $1 AND "month" = $2 LIMIT 1`,
+            primaryArtistId,
+            curMonth
+          )) as any[];
+
+          if (existing && existing.length > 0) {
+            await prisma.$executeRawUnsafe(
+              `UPDATE "Royalty" SET 
+                "totalRevenue" = $1,
+                "spotifyStreams" = $2,
+                "updatedAt" = NOW()
+               WHERE "id" = $3`,
+              Number(royaltyBalance),
+              totalStreams !== undefined ? Math.round(Number(totalStreams)) : 0,
+              existing[0].id
+            );
+          } else {
+            const newId = `roy_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            await prisma.$executeRawUnsafe(
+              `INSERT INTO "Royalty" ("id", "artistId", "songName", "month", "year", "totalRevenue", "spotifyStreams", "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
+              newId,
+              primaryArtistId,
+              "Royalti Digital Distribution",
+              curMonth,
+              curYear,
+              Number(royaltyBalance),
+              totalStreams !== undefined ? Math.round(Number(totalStreams)) : 0
+            );
+          }
+        }
+      } catch (eRoySync) {
+        // Abaikan jika tabel Royalty tidak ada
+      }
     }
 
     return NextResponse.json({ ok: true });
