@@ -350,7 +350,7 @@ export async function GET() {
       const rawWithdrawn = u.totalWithdrawn ?? u.totalwithdrawn ?? u.total_withdrawn;
 
       let royaltyBalance = 0;
-      if (rawBal !== undefined && rawBal !== null) {
+      if (rawBal !== undefined && rawBal !== null && Number(rawBal) > 0) {
         royaltyBalance = Number(rawBal);
       } else if (earnings.royalty > 0) {
         royaltyBalance = Math.max(0, earnings.royalty - totalWithdrawnFromRequests);
@@ -363,7 +363,7 @@ export async function GET() {
         totalStreams = earnings.streams;
       }
 
-      const royaltyPending = rawPend !== undefined && rawPend !== null ? Number(rawPend) : pendingWithdrawFromRequests;
+      const royaltyPending = rawPend !== undefined && rawPend !== null && Number(rawPend) > 0 ? Number(rawPend) : pendingWithdrawFromRequests;
       const totalWithdrawn = rawWithdrawn !== undefined && Number(rawWithdrawn) > 0 ? Number(rawWithdrawn) : totalWithdrawnFromRequests;
 
       const displayName = primaryArtist?.stageName || primaryArtist?.name || u.name || "User Musisi";
@@ -628,12 +628,21 @@ export async function PATCH(req: Request) {
         const primaryArtistId = artists[0]?.id;
 
         if (primaryArtistId && royaltyBalance !== undefined) {
-          const curMonth = royaltyMonth || "November";
+          const monthMap: Record<string, number> = {
+            Januari: 1, Februari: 2, Maret: 3, April: 4, Mei: 5, Juni: 6,
+            Juli: 7, Agustus: 8, September: 9, Oktober: 10, November: 11, Desember: 12,
+            January: 1, February: 2, March: 3, May: 5, June: 6,
+            July: 7, August: 8, October: 10, December: 12,
+          };
+          const curMonthStr = String(royaltyMonth || "November");
+          const monthNum = monthMap[curMonthStr] || (!isNaN(Number(curMonthStr)) ? Number(curMonthStr) : 11);
           const curYear = new Date().getFullYear();
+
           const existing = (await prisma.$queryRawUnsafe(
-            `SELECT id FROM "Royalty" WHERE "artistId" = $1 AND "month" = $2 LIMIT 1`,
+            `SELECT id FROM "Royalty" WHERE "artistId" = $1 AND ("month"::text = $2 OR "month"::text = $3) LIMIT 1`,
             primaryArtistId,
-            curMonth
+            String(monthNum),
+            curMonthStr
           )) as any[];
 
           if (existing && existing.length > 0) {
@@ -655,7 +664,7 @@ export async function PATCH(req: Request) {
               newId,
               primaryArtistId,
               "Royalti Digital Distribution",
-              curMonth,
+              monthNum,
               curYear,
               Number(royaltyBalance),
               totalStreams !== undefined ? Math.round(Number(totalStreams)) : 0
