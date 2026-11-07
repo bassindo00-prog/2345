@@ -210,6 +210,8 @@ export default function AdminDashboardPage() {
     driveLink: string;
   } | null>(null);
   const [savingCatalogEdit, setSavingCatalogEdit] = useState(false);
+  const [catLoading, setCatLoading] = useState(false);
+  const catAbortControllerRef = useRef<AbortController | null>(null);
 
   // Pagination State (5 items per page)
   const [pageReleases, setPageReleases] = useState(1);
@@ -456,7 +458,7 @@ export default function AdminDashboardPage() {
       if (!silent) {
         // Pastikan catalog selalu tersinkron penuh dengan endpoint master
         try {
-          const catRes = await fetch("/api/catalog?limit=3000");
+          const catRes = await fetch("/api/catalog?limit=1000");
           const catData = await catRes.json();
           if (typeof catData.total === "number") {
             setCatTotal(catData.total);
@@ -1178,20 +1180,49 @@ export default function AdminDashboardPage() {
   const handleAdminSelectPublisher = async (pub: string) => {
     setCatPublisherFilter(pub);
     setPageCatalog(1);
+    setCatLoading(true);
+
+    if (catAbortControllerRef.current) {
+      catAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    catAbortControllerRef.current = controller;
+
     try {
       const url =
         pub === "ALL"
-          ? `/api/catalog?limit=3000${catSearch ? `&search=${encodeURIComponent(catSearch)}` : ""}`
-          : `/api/catalog?publisher=${encodeURIComponent(pub)}&limit=3000${catSearch ? `&search=${encodeURIComponent(catSearch)}` : ""}`;
-      const res = await fetch(url);
+          ? `/api/catalog?limit=1000${catSearch ? `&search=${encodeURIComponent(catSearch)}` : ""}`
+          : `/api/catalog?publisher=${encodeURIComponent(pub)}&limit=1000${catSearch ? `&search=${encodeURIComponent(catSearch)}` : ""}`;
+      const res = await fetch(url, { signal: controller.signal });
       const d = await res.json();
       if (Array.isArray(d.items)) {
         setCatalogs(d.items);
       }
-    } catch (e) {
-      console.warn("Gagal filter publisher katalog di admin:", e);
+      if (typeof d.total === "number") {
+        setCatTotal(d.total);
+      }
+    } catch (e: any) {
+      if (e.name !== "AbortError") {
+        console.warn("Gagal filter publisher katalog di admin:", e);
+      }
+    } finally {
+      if (catAbortControllerRef.current === controller) {
+        setCatLoading(false);
+      }
     }
   };
+
+  const isFirstCatSearch = useRef(true);
+  useEffect(() => {
+    if (isFirstCatSearch.current) {
+      isFirstCatSearch.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      handleAdminSelectPublisher(catPublisherFilter);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [catSearch]);
 
   const handleUploadAdminAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -4084,7 +4115,7 @@ export default function AdminDashboardPage() {
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#c8f560] to-[#9de028] text-[#312042] text-xs font-black shadow-md hover:brightness-110 active:scale-95 transition-all cursor-pointer"
                   >
                     <Plus className="w-4 h-4 stroke-[3]" />
-                    <span>+ Upload Manual</span>
+                    <span>Upload Manual</span>
                   </button>
 
                   <button
@@ -4119,23 +4150,32 @@ export default function AdminDashboardPage() {
                       />
                     </div>
                     {(() => {
-                      const filteredCatalogs = catalogs.filter(
-                        (c) =>
-                          (!catSearch ||
-                            c.songId?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                            c.title?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                            c.artist?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                            c.publisher?.toLowerCase().includes(catSearch.toLowerCase())) &&
-                          (catPublisherFilter === "ALL" ||
-                            c.publisher?.toLowerCase() === catPublisherFilter.toLowerCase())
-                      );
-                      return (
+                      const filteredCatalogs = catalogs.filter((c) => {
+                        if (catSearch) {
+                          const q = catSearch.toLowerCase();
+                          const match =
+                            c.songId?.toLowerCase().includes(q) ||
+                            c.title?.toLowerCase().includes(q) ||
+                            c.artist?.toLowerCase().includes(q) ||
+                            c.publisher?.toLowerCase().includes(q);
+                          if (!match) return false;
+                        }
+                        if (catPublisherFilter !== "ALL") {
+                          const pubFilter = catPublisherFilter.toLowerCase();
+                          const cPub = (c.publisher || "").toLowerCase();
+                          return cPub.includes(pubFilter) || pubFilter.includes(cPub);
+                        }
+                        return true;
+                      });
+
+                      return catLoading ? (
+                        <span className="text-xs text-[#c8f560] flex items-center gap-1.5 animate-pulse font-medium">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Memuat lagu...</span>
+                        </span>
+                      ) : (
                         <span className="text-xs text-white/70">
-                          Menampilkan{" "}
-                          <strong className="text-white">
-                            {filteredCatalogs.length}
-                          </strong>{" "}
-                          lagu
+                          Menampilkan <strong className="text-white">{filteredCatalogs.length}</strong> lagu
                         </span>
                       );
                     })()}
@@ -4201,21 +4241,28 @@ export default function AdminDashboardPage() {
                 </div>
 
                 {(() => {
-                  const filteredCatalogs = catalogs.filter(
-                    (c) =>
-                      (!catSearch ||
-                        c.songId?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                        c.title?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                        c.artist?.toLowerCase().includes(catSearch.toLowerCase()) ||
-                        c.publisher?.toLowerCase().includes(catSearch.toLowerCase())) &&
-                      (catPublisherFilter === "ALL" ||
-                        c.publisher?.toLowerCase() === catPublisherFilter.toLowerCase())
-                  );
+                  const filteredCatalogs = catalogs.filter((c) => {
+                    if (catSearch) {
+                      const q = catSearch.toLowerCase();
+                      const match =
+                        c.songId?.toLowerCase().includes(q) ||
+                        c.title?.toLowerCase().includes(q) ||
+                        c.artist?.toLowerCase().includes(q) ||
+                        c.publisher?.toLowerCase().includes(q);
+                      if (!match) return false;
+                    }
+                    if (catPublisherFilter !== "ALL") {
+                      const pubFilter = catPublisherFilter.toLowerCase();
+                      const cPub = (c.publisher || "").toLowerCase();
+                      return cPub.includes(pubFilter) || pubFilter.includes(cPub);
+                    }
+                    return true;
+                  });
                   const paginatedCatalogs = filteredCatalogs.slice((pageCatalog - 1) * 10, pageCatalog * 10);
 
                   return (
                     <>
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto min-h-[300px]">
                         <table className="w-full text-left text-xs text-white">
                           <thead className="bg-[#312042]/60 border-b border-white/15 text-[11px] uppercase tracking-wider text-white/75">
                             <tr>
@@ -4229,99 +4276,143 @@ export default function AdminDashboardPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/10">
-                            {paginatedCatalogs.map((c) => (
-                              <tr key={c.id} className="hover:bg-white/5 transition-colors">
-                                <td className="py-3 px-4 font-mono font-bold text-[#c8f560] whitespace-nowrap">
-                                  {c.songId}
-                                </td>
-                                <td className="py-3 px-4 font-semibold text-white whitespace-nowrap">
-                                  {c.title}
-                                </td>
-                                <td className="py-3 px-4 text-white/90 whitespace-nowrap">
-                                  {c.artist}
-                                </td>
-                                <td className="py-3 px-4 text-white/80 whitespace-nowrap">
-                                  {c.publisher}
-                                </td>
-                                <td className="py-3 px-4 whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleCatalogStatus(c.id, c.status)}
-                                    title="Klik untuk mengubah status"
-                                    className={`px-3 py-0.5 rounded-full font-bold text-[10px] transition-all ${
-                                      c.status === "Aktif"
-                                        ? "bg-[#c8f560] text-[#312042] hover:bg-[#b0dc4c]"
-                                        : c.status === "Review"
-                                        ? "bg-[#fde08d] text-[#312042]"
-                                        : "bg-white/20 text-white"
-                                    }`}
-                                  >
-                                    {c.status}
-                                  </button>
-                                </td>
-                                <td className="py-3 px-4 text-center whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    {c.youtubeLink ? (
-                                      <a
-                                        href={c.youtubeLink}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="px-2 py-0.5 rounded bg-red-600/80 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1"
-                                      >
-                                        <Youtube className="w-3 h-3" />
-                                        <span>YT</span>
-                                      </a>
-                                    ) : (
-                                      <span className="text-[10px] text-white/40">-</span>
-                                    )}
-                                    {c.driveLink ? (
-                                      <a
-                                        href={c.driveLink}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="px-2 py-0.5 rounded bg-blue-600/80 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1"
-                                      >
-                                        <HardDrive className="w-3 h-3" />
-                                        <span>Drive</span>
-                                      </a>
-                                    ) : (
-                                      <span className="text-[10px] text-white/40">-</span>
-                                    )}
+                            {catLoading ? (
+                              <tr>
+                                <td colSpan={7} className="py-16 text-center">
+                                  <div className="flex flex-col items-center justify-center gap-2">
+                                    <RefreshCw className="w-7 h-7 animate-spin text-[#c8f560]" />
+                                    <p className="text-sm font-bold text-white tracking-wide">
+                                      Memuat daftar lagu...
+                                    </p>
+                                    <p className="text-xs text-white/50">
+                                      {catPublisherFilter !== "ALL"
+                                        ? `Mengambil data dari ${catPublisherFilter}`
+                                        : "Mengambil data katalog..."}
+                                    </p>
                                   </div>
                                 </td>
-                                <td className="py-3 px-4 text-right whitespace-nowrap">
-                                  <div className="flex items-center justify-end gap-1.5">
+                              </tr>
+                            ) : paginatedCatalogs.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="py-16 text-center text-white/60">
+                                  <div className="flex flex-col items-center justify-center gap-2">
+                                    <Music className="w-8 h-8 text-white/25" />
+                                    <p className="text-sm font-semibold text-white/80">
+                                      Tidak ada lagu yang ditemukan
+                                    </p>
+                                    <p className="text-xs text-white/40">
+                                      Coba pilih publisher lain atau ubah kata kunci pencarian.
+                                    </p>
                                     <button
                                       type="button"
-                                      onClick={() => handleOpenEditCatalog(c)}
-                                      title="Edit data lagu katalog"
-                                      className="p-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 transition-colors cursor-pointer"
+                                      onClick={() => {
+                                        setCatSearch("");
+                                        handleAdminSelectPublisher("ALL");
+                                      }}
+                                      className="mt-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-[#c8f560] text-xs font-semibold transition-all cursor-pointer"
                                     >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteCatalog(c.id)}
-                                      title="Hapus lagu dari katalog"
-                                      className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-colors cursor-pointer"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
+                                      Reset ke Semua Publisher
                                     </button>
                                   </div>
                                 </td>
                               </tr>
-                            ))}
+                            ) : (
+                              paginatedCatalogs.map((c) => (
+                                <tr key={c.id} className="hover:bg-white/5 transition-colors">
+                                  <td className="py-3 px-4 font-mono font-bold text-[#c8f560] whitespace-nowrap">
+                                    {c.songId}
+                                  </td>
+                                  <td className="py-3 px-4 font-semibold text-white whitespace-nowrap">
+                                    {c.title}
+                                  </td>
+                                  <td className="py-3 px-4 text-white/90 whitespace-nowrap">
+                                    {c.artist}
+                                  </td>
+                                  <td className="py-3 px-4 text-white/80 whitespace-nowrap">
+                                    {c.publisher}
+                                  </td>
+                                  <td className="py-3 px-4 whitespace-nowrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleCatalogStatus(c.id, c.status)}
+                                      title="Klik untuk mengubah status"
+                                      className={`px-3 py-0.5 rounded-full font-bold text-[10px] transition-all ${
+                                        c.status === "Aktif"
+                                          ? "bg-[#c8f560] text-[#312042] hover:bg-[#b0dc4c]"
+                                          : c.status === "Review"
+                                          ? "bg-[#fde08d] text-[#312042]"
+                                          : "bg-white/20 text-white"
+                                      }`}
+                                    >
+                                      {c.status}
+                                    </button>
+                                  </td>
+                                  <td className="py-3 px-4 text-center whitespace-nowrap">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {c.youtubeLink ? (
+                                        <a
+                                          href={c.youtubeLink}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="px-2 py-0.5 rounded bg-red-600/80 hover:bg-red-600 text-white font-bold text-[10px] flex items-center gap-1"
+                                        >
+                                          <Youtube className="w-3 h-3" />
+                                          <span>YT</span>
+                                        </a>
+                                      ) : (
+                                        <span className="text-[10px] text-white/40">-</span>
+                                      )}
+                                      {c.driveLink ? (
+                                        <a
+                                          href={c.driveLink}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="px-2 py-0.5 rounded bg-blue-600/80 hover:bg-blue-600 text-white font-bold text-[10px] flex items-center gap-1"
+                                        >
+                                          <HardDrive className="w-3 h-3" />
+                                          <span>Drive</span>
+                                        </a>
+                                      ) : (
+                                        <span className="text-[10px] text-white/40">-</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditCatalog(c)}
+                                        title="Edit data lagu katalog"
+                                        className="p-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 transition-colors cursor-pointer"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteCatalog(c.id)}
+                                        title="Hapus lagu dari katalog"
+                                        className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-colors cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
                           </tbody>
                         </table>
                       </div>
-                      <div className="p-4">
-                        <Pagination
-                          currentPage={pageCatalog}
-                          totalItems={filteredCatalogs.length}
-                          pageSize={10}
-                          onPageChange={setPageCatalog}
-                        />
-                      </div>
+                      {!catLoading && paginatedCatalogs.length > 0 && (
+                        <div className="p-4">
+                          <Pagination
+                            currentPage={pageCatalog}
+                            totalItems={filteredCatalogs.length}
+                            pageSize={10}
+                            onPageChange={setPageCatalog}
+                          />
+                        </div>
+                      )}
                     </>
                   );
                 })()}

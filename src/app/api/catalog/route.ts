@@ -34,6 +34,8 @@ export async function GET(req: Request) {
     const page = pageParam ? Math.max(parseInt(pageParam), 1) : 1;
     const skip = (page - 1) * limit;
 
+    const shouldFetchPublishers = !publisher || publisher === "ALL" || searchParams.get("withPublishers") === "true";
+
     const [items, total, publishersRaw] = await Promise.all([
       prisma.catalog.findMany({
         where: whereClause,
@@ -42,13 +44,15 @@ export async function GET(req: Request) {
         skip: skip,
       }),
       prisma.catalog.count({ where: whereClause }),
-      prisma.$queryRawUnsafe(`
-        SELECT "publisher", count(*)::int as count 
-        FROM "Catalog" 
-        WHERE "publisher" IS NOT NULL AND "publisher" != ''
-        GROUP BY "publisher" 
-        ORDER BY count DESC;
-      `) as Promise<Array<{ publisher: string; count: number }>>,
+      shouldFetchPublishers
+        ? (prisma.$queryRawUnsafe(`
+            SELECT "publisher", count(*)::int as count 
+            FROM "Catalog" 
+            WHERE "publisher" IS NOT NULL AND "publisher" != ''
+            GROUP BY "publisher" 
+            ORDER BY count DESC;
+          `) as Promise<Array<{ publisher: string; count: number }>>)
+        : Promise.resolve([]),
     ]);
 
     return NextResponse.json({
