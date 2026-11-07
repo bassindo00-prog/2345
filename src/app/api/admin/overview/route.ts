@@ -395,9 +395,25 @@ export async function GET() {
       driveUrl: c.driveLink || "",
     }));
 
+    let debugDbTables: any[] = [];
+    let debugDbRoyaltyCols: any[] = [];
+    try {
+      debugDbTables = (await prisma.$queryRawUnsafe(`
+        SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'
+      `)) as any[];
+      debugDbRoyaltyCols = (await prisma.$queryRawUnsafe(`
+        SELECT table_name, column_name FROM information_schema.columns 
+        WHERE table_schema = 'public' AND (column_name ILIKE '%royalty%' OR column_name ILIKE '%balance%' OR column_name ILIKE '%stream%')
+      `)) as any[];
+    } catch (eDb) {
+      console.warn("debug info failed:", eDb);
+    }
+
     return NextResponse.json(
       {
-        version: "2026-11-08-00-50-sync",
+        version: "2026-11-08-00-58-debug",
+        debugDbTables: debugDbTables.map((t: any) => t.table_name),
+        debugDbRoyaltyCols,
         debugRawUserError: rawUserError,
         debugRawUserKeys: rawUsers[0] ? Object.keys(rawUsers[0]) : [],
         debugRawReleaseKeys: rawReleases[0] ? Object.keys(rawReleases[0]) : [],
