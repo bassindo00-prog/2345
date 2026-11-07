@@ -255,6 +255,36 @@ export async function GET() {
       };
     });
 
+    // Pre-calculate user earnings from Royalty table if present
+    const userEarningsMap = new Map<string, { royalty: number; streams: number }>();
+    try {
+      const royalties = (await prisma.$queryRawUnsafe(`
+        SELECT "artistId", SUM("totalRevenue") as "sumRevenue",
+               SUM(COALESCE("spotifyStreams", 0) + COALESCE("appleMusicStreams", 0) + COALESCE("youtubeStreams", 0) + COALESCE("tiktokStreams", 0) + COALESCE("amazonStreams", 0) + COALESCE("otherStreams", 0)) as "sumStreams"
+        FROM "Royalty"
+        GROUP BY "artistId"
+      `)) as any[];
+
+      const artistUserMap = new Map<string, string>();
+      for (const a of dbArtists) {
+        const aId = a.id || a.ID;
+        const uId = a.userId || a.userid || a.user_id;
+        if (aId && uId) artistUserMap.set(aId, uId);
+      }
+
+      for (const r of royalties) {
+        const uId = artistUserMap.get(r.artistId);
+        if (uId) {
+          const cur = userEarningsMap.get(uId) || { royalty: 0, streams: 0 };
+          cur.royalty += Number(r.sumRevenue || 0);
+          cur.streams += Number(r.sumStreams || 0);
+          userEarningsMap.set(uId, cur);
+        }
+      }
+    } catch (eRoyCalc) {
+      console.warn("Royalty table aggregation fallback:", eRoyCalc);
+    }
+
     // Map users to the structure expected by the frontend
     const users = rawUsers.map((u: any) => {
       const uId = u.id || u.ID || "";
@@ -278,20 +308,39 @@ export async function GET() {
       );
 
       const totalWithdrawnFromRequests = (userWithdraws || [])
-        .filter((w: any) => w.status === "APPROVED" || w.status === "PAID")
+        .filter((w: any) => {
+          const s = String(w.status || "").toUpperCase();
+          return s === "APPROVED" || s === "PAID" || s === "DISETUJUI";
+        })
         .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
       const pendingWithdrawFromRequests = (userWithdraws || [])
-        .filter((w: any) => w.status === "PENDING")
+        .filter((w: any) => {
+          const s = String(w.status || "").toUpperCase();
+          return s === "PENDING" || s === "MENUNGGU";
+        })
         .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
-      const rawBal = u.royaltyBalance ?? u.royaltybalance ?? u.royalty_balance ?? u.balance ?? 0;
-      const rawStreams = u.totalStreams ?? u.totalstreams ?? u.total_streams ?? u.streams ?? 0;
+      const earnings = userEarningsMap.get(uId) || { royalty: 0, streams: 0 };
+      const rawBal = u.royaltyBalance ?? u.royaltybalance ?? u.royalty_balance ?? u.balance;
+      const rawStreams = u.totalStreams ?? u.totalstreams ?? u.total_streams ?? u.streams;
       const rawPend = u.royaltyPending ?? u.royaltypending ?? u.royalty_pending ?? u.pendingWithdraw ?? u.pendingwithdraw;
       const rawWithdrawn = u.totalWithdrawn ?? u.totalwithdrawn ?? u.total_withdrawn;
 
-      const royaltyBalance = Number(rawBal || 0);
-      const totalStreams = Number(rawStreams || 0);
+      let royaltyBalance = 0;
+      if (rawBal !== undefined && rawBal !== null && Number(rawBal) > 0) {
+        royaltyBalance = Number(rawBal);
+      } else if (earnings.royalty > 0) {
+        royaltyBalance = Math.max(0, earnings.royalty - totalWithdrawnFromRequests);
+      }
+
+      let totalStreams = 0;
+      if (rawStreams !== undefined && rawStreams !== null && Number(rawStreams) > 0) {
+        totalStreams = Number(rawStreams);
+      } else if (earnings.streams > 0) {
+        totalStreams = earnings.streams;
+      }
+
       const royaltyPending = rawPend !== undefined && rawPend !== null ? Number(rawPend) : pendingWithdrawFromRequests;
       const totalWithdrawn = rawWithdrawn !== undefined && Number(rawWithdrawn) > 0 ? Number(rawWithdrawn) : totalWithdrawnFromRequests;
 
