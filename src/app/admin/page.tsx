@@ -29,6 +29,7 @@ import {
   X,
   TrendingUp,
   Banknote,
+  Coins,
   Music,
   ExternalLink,
   ListMusic,
@@ -94,6 +95,56 @@ const parseFormattedNumber = (val: string | number) => {
   return clean ? Number(clean) : 0;
 };
 
+const MONTH_NAMES_ID = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+];
+
+const getWithdrawalPeriodHelper = (w: any) => {
+  let y = new Date().getFullYear();
+  let mIdx = new Date().getMonth();
+
+  if (w?.date && typeof w.date === "string") {
+    const parts = w.date.split("-");
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        y = parseInt(parts[0], 10);
+        mIdx = parseInt(parts[1], 10) - 1;
+      } else {
+        y = parseInt(parts[2], 10);
+        mIdx = parseInt(parts[1], 10) - 1;
+      }
+    }
+  } else if (w?.createdAt) {
+    const d = new Date(w.createdAt);
+    if (!isNaN(d.getTime())) {
+      y = d.getFullYear();
+      mIdx = d.getMonth();
+    }
+  }
+
+  if (isNaN(mIdx) || mIdx < 0 || mIdx > 11) mIdx = new Date().getMonth();
+  if (isNaN(y) || y < 2000) y = new Date().getFullYear();
+
+  const monthName = MONTH_NAMES_ID[mIdx] || "November";
+  return {
+    key: `${y}-${String(mIdx + 1).padStart(2, "0")}`,
+    label: `${monthName} ${y}`,
+    month: monthName,
+    year: String(y),
+  };
+};
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
@@ -104,6 +155,7 @@ export default function AdminDashboardPage() {
     | "my-reject"
     | "catalog"
     | "cms"
+    | "artist-royalties"
     | "withdrawals"
     | "users"
     | "inbox"
@@ -237,6 +289,12 @@ export default function AdminDashboardPage() {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [withdrawalTab, setWithdrawalTab] = useState<"Pending" | "Approved" | "Rejected" | "All">("Pending");
 
+  // Artis Royalty Tab State
+  const [artistRoyaltySubTab, setArtistRoyaltySubTab] = useState<"with-royalty" | "no-royalty" | "approved-periods">("with-royalty");
+  const [artistRoyaltySearch, setArtistRoyaltySearch] = useState("");
+  const [artistRoyaltyPeriodFilter, setArtistRoyaltyPeriodFilter] = useState("ALL");
+  const [pageArtistRoyalty, setPageArtistRoyalty] = useState(1);
+
   // Track Detail Modal State
   const [selectedRelease, setSelectedRelease] = useState<any | null>(null);
 
@@ -311,6 +369,122 @@ export default function AdminDashboardPage() {
       return u.artists[0].name;
     }
     return u.name || "Artis";
+  };
+
+  // Helper Export CSV untuk Artis Royalty (Support UTF-8 BOM untuk Excel)
+  const handleExportRoyaltyCsv = (
+    subTab: "with-royalty" | "no-royalty" | "approved-periods",
+    dataList: any[]
+  ) => {
+    let filename = "";
+    let headers: string[] = [];
+    let rows: string[][] = [];
+
+    const escapeCsv = (str: any) => {
+      if (str === null || str === undefined) return '""';
+      const s = String(str).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    if (subTab === "with-royalty") {
+      filename = `Breakout_Artis_Ada_Royalti_${todayStr}.csv`;
+      headers = [
+        "No",
+        "Nama Musisi / Stage Name",
+        "Nama User",
+        "Email",
+        "Saldo Royalti Aktif (IDR)",
+        "Royalti Pending (IDR)",
+        "Total Ditarik (IDR)",
+        "Total Streams",
+        "Bulan Royalti",
+        "Status Akun",
+      ];
+      rows = dataList.map((u, idx) => [
+        String(idx + 1),
+        getArtistDisplayName(u),
+        u.name || "-",
+        u.email || "-",
+        String(Number(u.royaltyBalance || 0)),
+        String(Number(u.royaltyPending || 0)),
+        String(Number(u.totalWithdrawn || 0)),
+        String(Number(u.totalStreams || 0)),
+        u.royaltyMonth || "November",
+        u.status || "ACTIVE",
+      ]);
+    } else if (subTab === "no-royalty") {
+      filename = `Breakout_Artis_Belum_Ada_Royalti_${todayStr}.csv`;
+      headers = [
+        "No",
+        "Nama Musisi / Stage Name",
+        "Nama User",
+        "Email",
+        "Kontak WhatsApp",
+        "Jumlah Rilisan",
+        "Saldo Saat Ini (IDR)",
+        "Status Akun",
+      ];
+      rows = dataList.map((u, idx) => [
+        String(idx + 1),
+        getArtistDisplayName(u),
+        u.name || "-",
+        u.email || "-",
+        u.whatsapp || "-",
+        String(u.releasesCount ?? (Array.isArray(u.releases) ? u.releases.length : 0)),
+        "0",
+        u.status || "ACTIVE",
+      ]);
+    } else {
+      const periodLabel =
+        artistRoyaltyPeriodFilter === "ALL"
+          ? "Semua_Periode"
+          : artistRoyaltyPeriodFilter.replace(/\s+/g, "_");
+      filename = `Breakout_Royalti_ACC_${periodLabel}_${todayStr}.csv`;
+      headers = [
+        "No",
+        "Tanggal ACC",
+        "Periode Bulan Tahun",
+        "Nama Musisi",
+        "Email Musisi",
+        "Penerima Rekening",
+        "Metode Pembayaran",
+        "Nomor Rekening",
+        "Nominal Dicairkan (IDR)",
+        "Status",
+      ];
+      rows = dataList.map((w, idx) => [
+        String(idx + 1),
+        w.date || "-",
+        getWithdrawalPeriodHelper(w).label,
+        w.user?.name || getArtistDisplayName(w.user) || "-",
+        w.user?.email || "-",
+        w.accountHolder || "-",
+        w.method || "-",
+        w.accountNumber || "-",
+        String(Number(w.amount || 0)),
+        "Approved",
+      ]);
+    }
+
+    const csvContent =
+      "\uFEFF" +
+      [
+        headers.map(escapeCsv).join(","),
+        ...rows.map((r) => r.map(escapeCsv).join(",")),
+      ].join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showNotice(`Laporan CSV (${filename}) berhasil didownload`);
   };
 
   // Mobile / Browser Back Button Protection & Tab/Modal State Management
@@ -2775,6 +2949,7 @@ export default function AdminDashboardPage() {
                     { id: "my-reject", label: "My Reject (Revisi)", icon: XCircle },
                     { id: "catalog", label: "Daftar Katalog Musik", icon: ListMusic },
                     { id: "cms", label: "Web CMS Landing Page", icon: Globe },
+                    { id: "artist-royalties", label: "Artis Royalty (Rekap & ACC)", icon: Coins },
                     { id: "royalty-input", label: "Input Royalty & Streams", icon: Banknote },
                     { id: "withdrawals", label: "Payouts & VISA ACC", icon: Wallet },
                     { id: "inbox", label: "Inbox & Broadcast", icon: Mail },
@@ -6013,6 +6188,641 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           )}
+
+          {/* =========================================================
+              ADMIN VIEW: ARTIS ROYALTY (REKAP SALDO, MUSISI, & RIWAYAT ACC PER PERIODE)
+             ========================================================= */}
+          {activeTab === "artist-royalties" && (() => {
+            const allArtists = users.filter((u) => u.role !== "ADMIN");
+
+            const hasRoyalty = (u: any) =>
+              Number(u.royaltyBalance || 0) > 0 ||
+              Number(u.totalWithdrawn || 0) > 0 ||
+              Number(u.royaltyPending || 0) > 0 ||
+              Number(u.totalStreams || 0) > 0;
+
+            const artistsWithRoyalty = allArtists.filter((u) => hasRoyalty(u));
+            const artistsWithoutRoyalty = allArtists.filter((u) => !hasRoyalty(u));
+
+            const approvedWithdrawals = withdrawals.filter((w) => isApprovedWithdrawal(w.status));
+
+            // Extract distinct periods
+            const availablePeriods = Array.from(
+              new Set(approvedWithdrawals.map((w) => getWithdrawalPeriodHelper(w).label))
+            ).filter(Boolean);
+
+            // Filter approved withdrawals by period
+            const periodFilteredWithdrawals = approvedWithdrawals.filter((w) => {
+              if (artistRoyaltyPeriodFilter === "ALL") return true;
+              return getWithdrawalPeriodHelper(w).label === artistRoyaltyPeriodFilter;
+            });
+
+            // Summary metrics
+            const totalSaldoEndap = artistsWithRoyalty.reduce(
+              (acc, u) => acc + Number(u.royaltyBalance || 0),
+              0
+            );
+            const totalAllRoyaltyApproved = approvedWithdrawals.reduce(
+              (acc, w) => acc + Number(w.amount || 0),
+              0
+            );
+            const totalPeriodRoyaltyApproved = periodFilteredWithdrawals.reduce(
+              (acc, w) => acc + Number(w.amount || 0),
+              0
+            );
+
+            // Search query
+            const q = artistRoyaltySearch.toLowerCase().trim();
+
+            let currentList: any[] = [];
+            if (artistRoyaltySubTab === "with-royalty") {
+              currentList = artistsWithRoyalty.filter((u) => {
+                if (!q) return true;
+                const dName = getArtistDisplayName(u).toLowerCase();
+                const uName = (u.name || "").toLowerCase();
+                const email = (u.email || "").toLowerCase();
+                return dName.includes(q) || uName.includes(q) || email.includes(q);
+              });
+            } else if (artistRoyaltySubTab === "no-royalty") {
+              currentList = artistsWithoutRoyalty.filter((u) => {
+                if (!q) return true;
+                const dName = getArtistDisplayName(u).toLowerCase();
+                const uName = (u.name || "").toLowerCase();
+                const email = (u.email || "").toLowerCase();
+                return dName.includes(q) || uName.includes(q) || email.includes(q);
+              });
+            } else {
+              currentList = periodFilteredWithdrawals.filter((w) => {
+                if (!q) return true;
+                const aName = (w.user?.name || getArtistDisplayName(w.user) || "").toLowerCase();
+                const holder = (w.accountHolder || "").toLowerCase();
+                const num = (w.accountNumber || "").toLowerCase();
+                const method = (w.method || "").toLowerCase();
+                return (
+                  aName.includes(q) ||
+                  holder.includes(q) ||
+                  num.includes(q) ||
+                  method.includes(q)
+                );
+              });
+            }
+
+            const pageSize = 10;
+            const paginatedList = currentList.slice(
+              (pageArtistRoyalty - 1) * pageSize,
+              pageArtistRoyalty * pageSize
+            );
+
+            return (
+              <div className="space-y-6 animate-card-enter">
+                {/* Header & Main Actions */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
+                      <span className="p-2 rounded-xl bg-[#c8f560]/20 text-[#c8f560]">
+                        <Coins className="w-5 h-5" />
+                      </span>
+                      <span>Artis Royalty — Rekap Saldo & Riwayat ACC</span>
+                    </h2>
+                    <p className="text-xs text-white/75 mt-1">
+                      Monitoring musisi beroyalti, musisi tanpa royalti, serta riwayat pencairan yang sudah di-ACC per periode bulan & tahun.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* CSV Export Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleExportRoyaltyCsv(artistRoyaltySubTab, currentList)}
+                      className="px-4 py-2 rounded-xl bg-[#312042] border border-[#c8f560]/50 hover:bg-[#432d5b] text-[#c8f560] text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95"
+                      title="Download Laporan Format CSV (Support Excel)"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Laporan CSV</span>
+                    </button>
+
+                    {/* Quick Add Royalty Button */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("royalty-input")}
+                      className="px-4 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all cursor-pointer active:scale-95"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Input Royalti Baru</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Top 4 Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Card 1: Saldo Endap */}
+                  <div className="p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md shadow-sm">
+                    <div className="flex items-center justify-between pb-2">
+                      <span className="text-xs text-white/70 font-semibold uppercase tracking-wider">
+                        Total Saldo Endap
+                      </span>
+                      <span className="p-2 rounded-xl bg-[#c8f560]/20 text-[#c8f560]">
+                        <Wallet className="w-4 h-4" />
+                      </span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-[#c8f560]">
+                      Rp {totalSaldoEndap.toLocaleString("id-ID")}
+                    </div>
+                    <div className="text-[11px] text-white/60 mt-1">
+                      Saldo aktif di {artistsWithRoyalty.length} akun musisi
+                    </div>
+                  </div>
+
+                  {/* Card 2: Total Royalti Di-ACC */}
+                  <div className="p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md shadow-sm">
+                    <div className="flex items-center justify-between pb-2">
+                      <span className="text-xs text-white/70 font-semibold uppercase tracking-wider">
+                        Total Royalti Di-ACC
+                      </span>
+                      <span className="p-2 rounded-xl bg-emerald-400/20 text-emerald-300">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-white">
+                      Rp {totalAllRoyaltyApproved.toLocaleString("id-ID")}
+                    </div>
+                    <div className="text-[11px] text-emerald-300/80 mt-1">
+                      {approvedWithdrawals.length} transaksi pencairan selesai
+                    </div>
+                  </div>
+
+                  {/* Card 3: Artis Ada Royalti */}
+                  <div className="p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md shadow-sm">
+                    <div className="flex items-center justify-between pb-2">
+                      <span className="text-xs text-white/70 font-semibold uppercase tracking-wider">
+                        Artis Ada Royalti
+                      </span>
+                      <span className="p-2 rounded-xl bg-purple-400/20 text-purple-300">
+                        <Coins className="w-4 h-4" />
+                      </span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-white">
+                      {artistsWithRoyalty.length}{" "}
+                      <span className="text-xs font-normal text-white/60">Musisi</span>
+                    </div>
+                    <div className="text-[11px] text-white/60 mt-1">
+                      Sudah diinput saldo / riwayat royalti
+                    </div>
+                  </div>
+
+                  {/* Card 4: Artis Belum Ada Royalti */}
+                  <div className="p-5 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-md shadow-sm">
+                    <div className="flex items-center justify-between pb-2">
+                      <span className="text-xs text-white/70 font-semibold uppercase tracking-wider">
+                        Belum Ada Royalti
+                      </span>
+                      <span className="p-2 rounded-xl bg-amber-400/20 text-amber-300">
+                        <Users className="w-4 h-4" />
+                      </span>
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-white">
+                      {artistsWithoutRoyalty.length}{" "}
+                      <span className="text-xs font-normal text-white/60">Musisi</span>
+                    </div>
+                    <div className="text-[11px] text-amber-300/80 mt-1">
+                      Musisi aktif belum diinput royalti
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sub-Tabs & Filtering Container */}
+                <div className={`${ROYALTY_CARD} space-y-4`}>
+                  {/* Sub-Tabs Selector */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/15">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Sub-Tab 1: Artis Ada Royalti */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setArtistRoyaltySubTab("with-royalty");
+                          setPageArtistRoyalty(1);
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm ${
+                          artistRoyaltySubTab === "with-royalty"
+                            ? "bg-[#c8f560] text-[#312042] font-extrabold ring-2 ring-[#c8f560]/50 scale-102"
+                            : "bg-white/10 hover:bg-white/15 text-white/90 border border-white/15"
+                        }`}
+                      >
+                        <Coins className="w-3.5 h-3.5" />
+                        <span>Artis Ada Royalti</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            artistRoyaltySubTab === "with-royalty"
+                              ? "bg-[#312042] text-[#c8f560]"
+                              : "bg-[#c8f560]/20 text-[#c8f560]"
+                          }`}
+                        >
+                          {artistsWithRoyalty.length}
+                        </span>
+                      </button>
+
+                      {/* Sub-Tab 2: Artis Belum Ada Royalti */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setArtistRoyaltySubTab("no-royalty");
+                          setPageArtistRoyalty(1);
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm ${
+                          artistRoyaltySubTab === "no-royalty"
+                            ? "bg-amber-300 text-[#312042] font-extrabold ring-2 ring-amber-300/50 scale-102"
+                            : "bg-white/10 hover:bg-white/15 text-white/90 border border-white/15"
+                        }`}
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Artis Belum Ada Royalti</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            artistRoyaltySubTab === "no-royalty"
+                              ? "bg-[#312042] text-amber-300"
+                              : "bg-amber-300/20 text-amber-200"
+                          }`}
+                        >
+                          {artistsWithoutRoyalty.length}
+                        </span>
+                      </button>
+
+                      {/* Sub-Tab 3: Royalti Di-ACC per Periode */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setArtistRoyaltySubTab("approved-periods");
+                          setPageArtistRoyalty(1);
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm ${
+                          artistRoyaltySubTab === "approved-periods"
+                            ? "bg-[#c8f560] text-[#312042] font-extrabold ring-2 ring-[#c8f560]/50 scale-102"
+                            : "bg-white/10 hover:bg-white/15 text-white/90 border border-white/15"
+                        }`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Royalti Di-ACC per Periode</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            artistRoyaltySubTab === "approved-periods"
+                              ? "bg-[#312042] text-[#c8f560]"
+                              : "bg-[#c8f560]/20 text-[#c8f560]"
+                          }`}
+                        >
+                          {approvedWithdrawals.length}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Total info badge */}
+                    <div className="text-[11px] text-white/70 font-medium">
+                      Menampilkan <strong className="text-white">{currentList.length}</strong> data
+                    </div>
+                  </div>
+
+                  {/* Filter Toolbar: Search Input & Period Dropdown */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl bg-white/5 border border-white/10">
+                    {/* Search Bar */}
+                    <div className="relative flex-1 min-w-[240px]">
+                      <Search className="w-4 h-4 text-white/50 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={artistRoyaltySearch}
+                        onChange={(e) => {
+                          setArtistRoyaltySearch(e.target.value);
+                          setPageArtistRoyalty(1);
+                        }}
+                        placeholder={
+                          artistRoyaltySubTab === "approved-periods"
+                            ? "Cari nama musisi, rekening, bank..."
+                            : "Cari nama musisi, stage name, email..."
+                        }
+                        className="w-full pl-9 pr-8 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#c8f560] transition-colors"
+                      />
+                      {artistRoyaltySearch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setArtistRoyaltySearch("");
+                            setPageArtistRoyalty(1);
+                          }}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Period Selector (Tampil di Sub-Tab Royalti Di-ACC) */}
+                    {artistRoyaltySubTab === "approved-periods" && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Calendar className="w-4 h-4 text-[#c8f560] shrink-0" />
+                        <select
+                          value={artistRoyaltyPeriodFilter}
+                          onChange={(e) => {
+                            setArtistRoyaltyPeriodFilter(e.target.value);
+                            setPageArtistRoyalty(1);
+                          }}
+                          className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white focus:outline-none focus:border-[#c8f560] cursor-pointer"
+                        >
+                          <option value="ALL" className="bg-[#271f37] text-white">
+                            Semua Periode ({approvedWithdrawals.length})
+                          </option>
+                          {availablePeriods.map((period) => {
+                            const count = approvedWithdrawals.filter(
+                              (w) => getWithdrawalPeriodHelper(w).label === period
+                            ).length;
+                            return (
+                              <option key={period} value={period} className="bg-[#271f37] text-white">
+                                {period} ({count})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Highlight Banner Periode Jika Dipilih */}
+                  {artistRoyaltySubTab === "approved-periods" && artistRoyaltyPeriodFilter !== "ALL" && (
+                    <div className="p-3 px-4 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-between text-xs text-emerald-200">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-[#c8f560]" />
+                        <span>
+                          Periode Terpilih: <strong>{artistRoyaltyPeriodFilter}</strong>
+                        </span>
+                      </div>
+                      <div className="font-bold text-white">
+                        Total ACC: Rp {totalPeriodRoyaltyApproved.toLocaleString("id-ID")}{" "}
+                        <span className="text-[11px] font-normal text-emerald-200">
+                          ({periodFilteredWithdrawals.length} Transaksi)
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List / Table Content */}
+                  <div className="divide-y divide-white/10 text-xs">
+                    {currentList.length === 0 ? (
+                      <div className="py-14 text-center text-white/70">
+                        <Coins className="w-12 h-12 mx-auto text-[#c8f560]/60 mb-2" />
+                        <p className="font-semibold text-base text-white">
+                          Tidak Ada Data Ditemukan
+                        </p>
+                        <p className="text-xs text-white/60 mt-1 max-w-sm mx-auto">
+                          {artistRoyaltySearch
+                            ? `Tidak ada hasil untuk pencarian "${artistRoyaltySearch}". Coba kata kunci lain.`
+                            : "Belum ada data untuk kategori ini."}
+                        </p>
+                      </div>
+                    ) : artistRoyaltySubTab === "with-royalty" ? (
+                      /* ================= TABLE: ARTIS ADA ROYALTI ================= */
+                      paginatedList.map((u, idx) => (
+                        <div
+                          key={u.id}
+                          className="py-3.5 px-3 sm:px-4 my-1.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:bg-white/10 bg-white/5 border border-white/10 rounded-2xl transition-all"
+                        >
+                          {/* Musisi Info */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-[11px] font-mono text-white/40 w-6 shrink-0 text-center">
+                              #{(pageArtistRoyalty - 1) * pageSize + idx + 1}
+                            </span>
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-[#c8f560]/40 flex items-center justify-center font-bold text-sm text-[#c8f560] shadow-sm shrink-0 overflow-hidden">
+                              {u.avatar ? (
+                                <img
+                                  src={u.avatar}
+                                  alt={getArtistDisplayName(u)}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span>{getArtistDisplayName(u).slice(0, 2).toUpperCase()}</span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-sm text-white truncate flex items-center gap-2">
+                                <span>{getArtistDisplayName(u)}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/15 text-white/80 font-normal">
+                                  {u.royaltyMonth || "November"}
+                                </span>
+                              </h4>
+                              <p className="text-[11px] text-white/70 truncate">
+                                {u.name || "-"} • {u.email || "-"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Finansial & Streams Info */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10 text-right lg:text-left">
+                            <div>
+                              <span className="text-[10px] text-white/60 block">Saldo Aktif:</span>
+                              <span className="font-bold text-sm text-[#c8f560]">
+                                Rp {Number(u.royaltyBalance || 0).toLocaleString("id-ID")}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-white/60 block">Total Ditarik:</span>
+                              <span className="font-bold text-xs text-white">
+                                Rp {Number(u.totalWithdrawn || 0).toLocaleString("id-ID")}
+                              </span>
+                            </div>
+                            <div className="col-span-2 sm:col-span-1">
+                              <span className="text-[10px] text-white/60 block">Total Streams:</span>
+                              <span className="font-bold text-xs text-[#fde08d]">
+                                {Number(u.totalStreams || 0).toLocaleString("id-ID")} Streams
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center justify-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedArtistDetail(u)}
+                              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Lihat Detail Musisi"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Detail</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                selectedUserForRoyaltyRef.current = u.id;
+                                setSelectedUserForRoyalty(u.id);
+                                setInputRoyaltyBalance(u.royaltyBalance || 0);
+                                setInputRoyaltyPending(u.royaltyPending || 0);
+                                setInputTotalStreams(u.totalStreams || 0);
+                                setInputRoyaltyMonth(u.royaltyMonth || "November");
+                                setActiveTab("royalty-input");
+                              }}
+                              className="px-3.5 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer shadow-sm active:scale-95"
+                              title="Edit Saldo & Streams Musisi Ini"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              <span>Edit Saldo</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : artistRoyaltySubTab === "no-royalty" ? (
+                      /* ================= TABLE: ARTIS BELUM ADA ROYALTI ================= */
+                      paginatedList.map((u, idx) => (
+                        <div
+                          key={u.id}
+                          className="py-3.5 px-3 sm:px-4 my-1.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:bg-white/10 bg-white/5 border border-white/10 rounded-2xl transition-all"
+                        >
+                          {/* Musisi Info */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-[11px] font-mono text-white/40 w-6 shrink-0 text-center">
+                              #{(pageArtistRoyalty - 1) * pageSize + idx + 1}
+                            </span>
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-amber-300/40 flex items-center justify-center font-bold text-sm text-amber-200 shadow-sm shrink-0 overflow-hidden">
+                              {u.avatar ? (
+                                <img
+                                  src={u.avatar}
+                                  alt={getArtistDisplayName(u)}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span>{getArtistDisplayName(u).slice(0, 2).toUpperCase()}</span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-sm text-white truncate flex items-center gap-2">
+                                <span>{getArtistDisplayName(u)}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-semibold">
+                                  Belum Ada Royalti
+                                </span>
+                              </h4>
+                              <p className="text-[11px] text-white/70 truncate">
+                                {u.name || "-"} • {u.email || "-"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Detail Rilisan & Saldo Saat Ini */}
+                          <div className="flex items-center gap-6 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10 text-left">
+                            <div>
+                              <span className="text-[10px] text-white/60 block">Jumlah Rilisan:</span>
+                              <span className="font-bold text-xs text-white">
+                                {u.releasesCount ?? (Array.isArray(u.releases) ? u.releases.length : 0)} Rilisan
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-white/60 block">Saldo Royalti:</span>
+                              <span className="font-bold text-xs text-white/50">Rp 0</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-white/60 block">Status:</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/15 text-white font-medium">
+                                {u.status || "ACTIVE"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center justify-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedArtistDetail(u)}
+                              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Lihat Detail Musisi"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Detail</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                selectedUserForRoyaltyRef.current = u.id;
+                                setSelectedUserForRoyalty(u.id);
+                                setInputRoyaltyBalance(0);
+                                setInputRoyaltyPending(0);
+                                setInputTotalStreams(0);
+                                setInputRoyaltyMonth("November");
+                                setActiveTab("royalty-input");
+                              }}
+                              className="px-3.5 py-1.5 rounded-xl bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] font-extrabold text-xs flex items-center gap-1 transition-colors cursor-pointer shadow-sm active:scale-95"
+                              title="Input Royalti Pertama Kali untuk Musisi Ini"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ Input Royalti</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      /* ================= TABLE: ROYALTI DI-ACC PER PERIODE ================= */
+                      paginatedList.map((w, idx) => {
+                        const period = getWithdrawalPeriodHelper(w);
+                        return (
+                          <div
+                            key={w.id}
+                            onClick={() => setSelectedWithdrawalForVisaModal(w)}
+                            className="py-3.5 px-3 sm:px-4 my-1.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 hover:bg-white/10 bg-white/5 border border-white/10 rounded-2xl transition-all cursor-pointer group"
+                          >
+                            {/* Left: Avatar & Info */}
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="text-[11px] font-mono text-white/40 w-6 shrink-0 text-center">
+                                #{(pageArtistRoyalty - 1) * pageSize + idx + 1}
+                              </span>
+                              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#312042] to-[#483363] border border-emerald-400/40 flex items-center justify-center font-bold text-sm text-[#c8f560] shadow-sm shrink-0 overflow-hidden">
+                                {w.user?.avatar ? (
+                                  <img
+                                    src={w.user.avatar}
+                                    alt={w.user.name || "Artist"}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span>{(w.user?.name || "A").slice(0, 2).toUpperCase()}</span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-sm text-white group-hover:text-[#c8f560] transition-colors truncate">
+                                    {w.accountHolder || w.user?.name || "Artist Account"}
+                                  </h4>
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold shrink-0">
+                                    {period.label}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-white/70 truncate">
+                                  Artis: {w.user?.name || getArtistDisplayName(w.user) || "-"} • {w.method} - <span className="font-mono text-white/90">{w.accountNumber}</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Middle & Right: Nominal & Status */}
+                            <div className="flex items-center justify-between lg:justify-end gap-4 pt-2 lg:pt-0 border-t lg:border-t-0 border-white/10">
+                              <div className="text-left lg:text-right">
+                                <span className="text-[10px] text-white/60 block">{w.date || "Tanggal ACC"}</span>
+                                <span className="font-bold text-sm text-[#c8f560]">
+                                  Rp {Number(w.amount || 0).toLocaleString("id-ID")}
+                                </span>
+                              </div>
+
+                              <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-[#c8f560] text-[#312042] flex items-center gap-1 shrink-0">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approved</span>
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Pagination */}
+                  <Pagination
+                    currentPage={pageArtistRoyalty}
+                    totalItems={currentList.length}
+                    pageSize={pageSize}
+                    onPageChange={setPageArtistRoyalty}
+                  />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* =========================================================
               ADMIN VIEW: INBOX & KIRIM PESAN KE USER / ALL USERS
