@@ -1694,11 +1694,15 @@ export default function AdminDashboardPage() {
     return Math.max(approvedReleases.length * 15400, 3372600);
   }, [users, approvedReleases]);
 
-  const totalGlobalRoyalty = useMemo(() => {
+  const totalGlobalRevenue = useMemo(() => 29500000, []); // Sekitar Rp 29,5 Juta Total Gross Royalti Label
+
+  const saldoEndap = useMemo(() => {
     const fromUsers = users.reduce((acc, u) => acc + (Number(u.royaltyBalance) || 0), 0);
     if (fromUsers > 0) return fromUsers;
-    return totalPayoutAmount > 0 ? totalPayoutAmount : 841296;
-  }, [users, totalPayoutAmount]);
+    return Math.max(2053510, totalGlobalRevenue - totalPayoutAmount - totalPendingAmount); // Sekitar Rp 2.053.510 (~2 Juta Saldo Endap)
+  }, [users, totalGlobalRevenue, totalPayoutAmount, totalPendingAmount]);
+
+  const totalGlobalRoyalty = saldoEndap;
 
   const hasGlobalData = totalGlobalStreams > 0 || totalGlobalRoyalty > 0;
 
@@ -2986,11 +2990,11 @@ export default function AdminDashboardPage() {
             >
             {/* Card 1: Luxury VISA Card for Total Royalty Musisi */}
             <VisaMetricCard
-              title="TOTAL ROYALTY MUSISI"
-              value={`Rp ${totalGlobalRoyalty.toLocaleString("id-ID")}`}
+              title="TOTAL ROYALTY MUSISI (SALDO ENDAP)"
+              value={`Rp ${saldoEndap.toLocaleString("id-ID")}`}
               valueColor="text-[#c8f560]"
               valueSize="text-2xl sm:text-3xl lg:text-3xl"
-              subtitle={`${releasedArtists.length} Musisi Aktif • Saldo Endap`}
+              subtitle={`${releasedArtists.length} Musisi Aktif • Total Label Rp ${totalGlobalRevenue.toLocaleString("id-ID")}`}
               dotColor="bg-[#c8f560]"
               cardNumber="4532 •••• •••• 9924"
               holderName="BREAKOUT LABEL • EXECUTIVE"
@@ -3040,7 +3044,7 @@ export default function AdminDashboardPage() {
 
                 <div className="flex-1 relative h-full">
                   <div className="absolute left-[64%] -top-1 -translate-x-1/2 bg-[#312042] border border-[#c8f560]/60 text-[#c8f560] px-3 py-1 rounded-xl text-xs font-bold shadow-md animate-tooltip-float tabular-nums">
-                    Rp {Math.round(totalGlobalRoyalty * animProgress).toLocaleString("id-ID")}
+                    Rp {Math.round(totalGlobalRevenue * animProgress).toLocaleString("id-ID")}
                     <div className="w-2 h-2 bg-[#312042] rotate-45 absolute -bottom-1 left-1/2 -translate-x-1/2" />
                   </div>
 
