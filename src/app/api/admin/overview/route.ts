@@ -15,6 +15,32 @@ async function ensureRoyaltyColumns() {
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "royaltyPending" double precision DEFAULT 0`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "totalStreams" integer DEFAULT 0`,
     `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "royaltyMonth" text DEFAULT 'November'`,
+    `ALTER TABLE "Artist" ADD COLUMN IF NOT EXISTS "stageName" TEXT`,
+    `ALTER TABLE "Artist" ADD COLUMN IF NOT EXISTS "avatarUrl" TEXT`,
+    `UPDATE "Artist" SET "stageName" = "name" WHERE "stageName" IS NULL OR "stageName" = ''`,
+    `CREATE TABLE IF NOT EXISTS "Royalty" (
+      "id" TEXT PRIMARY KEY,
+      "artistId" TEXT NOT NULL,
+      "songName" TEXT NOT NULL,
+      "month" INTEGER NOT NULL,
+      "year" INTEGER NOT NULL,
+      "spotifyStreams" INTEGER DEFAULT 0,
+      "appleMusicStreams" INTEGER DEFAULT 0,
+      "youtubeStreams" INTEGER DEFAULT 0,
+      "tiktokStreams" INTEGER DEFAULT 0,
+      "amazonStreams" INTEGER DEFAULT 0,
+      "otherStreams" INTEGER DEFAULT 0,
+      "platformData" JSONB,
+      "totalRevenue" DOUBLE PRECISION DEFAULT 0,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `ALTER TABLE "Royalty" ADD COLUMN IF NOT EXISTS "platformData" JSONB`,
+    `ALTER TABLE "Royalty" ADD COLUMN IF NOT EXISTS "appleMusicStreams" INTEGER DEFAULT 0`,
+    `ALTER TABLE "Royalty" ADD COLUMN IF NOT EXISTS "youtubeStreams" INTEGER DEFAULT 0`,
+    `ALTER TABLE "Royalty" ADD COLUMN IF NOT EXISTS "tiktokStreams" INTEGER DEFAULT 0`,
+    `ALTER TABLE "Royalty" ADD COLUMN IF NOT EXISTS "amazonStreams" INTEGER DEFAULT 0`,
+    `ALTER TABLE "Royalty" ADD COLUMN IF NOT EXISTS "otherStreams" INTEGER DEFAULT 0`,
   ];
   for (const sql of statements) {
     try {
@@ -501,7 +527,7 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        version: "2026-11-08-01-03-tables",
+        version: "2026-11-08-03-45-sync",
         debugUsersTableCols: debugUsersTableCols.map((c: any) => c.column_name),
         debugRoyaltyTableCols: debugRoyaltyTableCols.map((c: any) => c.column_name),
         debugSampleRoyalty,
@@ -548,7 +574,7 @@ export async function GET() {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { userId, role, royaltyBalance, royaltyPending, totalStreams, royaltyMonth } = body;
+    const { userId, role, royaltyBalance, royaltyPending, totalStreams, royaltyMonth, grossRevenue, cutPercentage } = body;
 
     if (!userId) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
@@ -650,14 +676,32 @@ export async function PATCH(req: Request) {
         }
       }
 
-      // Sinkronkan juga ke tabel "Royalty" jika tabel tersebut ada di database produksi
+      // Sinkronkan juga ke tabel "Royalty"
       if (!primaryArtistId && actualUserId) {
         try {
           const artists = (await prisma.$queryRawUnsafe(
             `SELECT id FROM "Artist" WHERE "userId" = $1 LIMIT 1`,
             actualUserId
           )) as any[];
-          primaryArtistId = artists[0]?.id || null;
+          if (artists && artists.length > 0) {
+            primaryArtistId = artists[0].id;
+          } else {
+            const uInfo = (await prisma.$queryRawUnsafe(
+              `SELECT id, name, avatar, image FROM "User" WHERE "id" = $1 LIMIT 1`,
+              actualUserId
+            )) as any[];
+            if (uInfo && uInfo[0]) {
+              const newArtId = `art_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+              await prisma.$executeRawUnsafe(
+                `INSERT INTO "Artist" ("id", "name", "userId", "genre", "createdAt") VALUES ($1, $2, $3, $4, NOW())`,
+                newArtId,
+                uInfo[0].name || "Musisi",
+                actualUserId,
+                "Pop"
+              ).catch(() => {});
+              primaryArtistId = newArtId;
+            }
+          }
         } catch {}
       }
 
@@ -673,6 +717,37 @@ export async function PATCH(req: Request) {
           const monthNum = monthMap[curMonthStr] || (!isNaN(Number(curMonthStr)) ? Number(curMonthStr) : 11);
           const curYear = new Date().getFullYear();
 
+          let resolvedSongName = "Royalti Musik Digital";
+          try {
+            const userReleases = (await prisma.$queryRawUnsafe(
+              `SELECT title FROM "Release" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 1`,
+              actualUserId
+            )) as any[];
+            if (userReleases && userReleases[0]?.title) {
+              resolvedSongName = userReleases[0].title;
+            }
+          } catch {}
+
+          const streamVal = totalStreams !== undefined ? Math.round(Number(totalStreams)) : 0;
+          const spVal = Math.round(streamVal * 0.7);
+          const apVal = Math.round(streamVal * 0.15);
+          const ytVal = Math.round(streamVal * 0.10);
+          const ttVal = Math.round(streamVal * 0.05);
+          const netVal = royaltyBalance !== undefined ? Number(royaltyBalance) : 0;
+          const grossVal = grossRevenue !== undefined ? Number(grossRevenue) : netVal;
+          const cutVal = cutPercentage !== undefined ? Number(cutPercentage) : 0;
+
+          const pData = JSON.stringify({
+            rawTotalRevenue: grossVal,
+            cutPercentage: cutVal,
+            spotify: spVal,
+            apple: apVal,
+            youtube: ytVal,
+            tiktok: ttVal,
+            facebook: 0,
+            instagram: 0,
+          });
+
           const existing = (await prisma.$queryRawUnsafe(
             `SELECT id FROM "Royalty" WHERE "artistId" = $1 AND ("month"::text = $2 OR "month"::text = $3) LIMIT 1`,
             primaryArtistId,
@@ -684,25 +759,39 @@ export async function PATCH(req: Request) {
             await prisma.$executeRawUnsafe(
               `UPDATE "Royalty" SET 
                 "totalRevenue" = CASE WHEN $1::float IS NOT NULL THEN $1::float ELSE "totalRevenue" END,
-                "spotifyStreams" = CASE WHEN $2::int IS NOT NULL THEN $2::int ELSE "spotifyStreams" END,
+                "spotifyStreams" = $2::int,
+                "appleMusicStreams" = $3::int,
+                "youtubeStreams" = $4::int,
+                "tiktokStreams" = $5::int,
+                "songName" = CASE WHEN "songName" = 'Royalti Digital Distribution' THEN $6::text ELSE "songName" END,
+                "platformData" = $7::jsonb,
                 "updatedAt" = NOW()
-               WHERE "id" = $3`,
+               WHERE "id" = $8`,
               royaltyBalance !== undefined ? Number(royaltyBalance) : null,
-              totalStreams !== undefined ? Math.round(Number(totalStreams)) : null,
+              spVal,
+              apVal,
+              ytVal,
+              ttVal,
+              resolvedSongName,
+              pData,
               existing[0].id
             );
           } else {
             const newId = `roy_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
             await prisma.$executeRawUnsafe(
-              `INSERT INTO "Royalty" ("id", "artistId", "songName", "month", "year", "totalRevenue", "spotifyStreams", "createdAt", "updatedAt")
-               VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
+              `INSERT INTO "Royalty" ("id", "artistId", "songName", "month", "year", "totalRevenue", "spotifyStreams", "appleMusicStreams", "youtubeStreams", "tiktokStreams", "platformData", "createdAt", "updatedAt")
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, NOW(), NOW())`,
               newId,
               primaryArtistId,
-              "Royalti Digital Distribution",
+              resolvedSongName,
               monthNum,
               curYear,
-              royaltyBalance !== undefined ? Number(royaltyBalance) : 0,
-              totalStreams !== undefined ? Math.round(Number(totalStreams)) : 0
+              netVal,
+              spVal,
+              apVal,
+              ytVal,
+              ttVal,
+              pData
             );
           }
         } catch (eRoySync) {

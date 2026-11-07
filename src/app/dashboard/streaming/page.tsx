@@ -7,32 +7,81 @@ const prisma = new PrismaClient();
 
 export default async function UserStreamingPage() {
   const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id && !session?.user?.email) redirect("/login");
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    include: {
-      artists: {
-        include: {
-          releases: {
-            include: { tracks: true },
-            orderBy: { createdAt: "desc" },
-          },
-        },
-      },
-    },
-  });
+  const userId = session?.user?.id || "";
+  const userEmail = session?.user?.email || "";
 
-  const rawUserRes = session?.user?.id ? (await prisma.$queryRawUnsafe(
-    `SELECT "royaltyBalance", "totalStreams", "royaltyMonth" FROM "User" WHERE id = $1 LIMIT 1`,
-    session.user.id
-  ).catch(() => [])) as any[] : [];
+  const [rawUserRes, rawArtistsRes, rawReleasesRes, rawTracksRes]: [any[], any[], any[], any[]] = await Promise.all([
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "User" WHERE ("id" = $1 OR "email" = $2) LIMIT 1`,
+      userId,
+      userEmail
+    ).catch(() => []),
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "Artist" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+      userId
+    ).catch(() => []),
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "Release" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+      userId
+    ).catch(() => []),
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "Track" ORDER BY "createdAt" DESC`
+    ).catch(() => []),
+  ]);
+
   const rawUser = rawUserRes[0] || null;
+  const actualUserId = rawUser?.id || userId;
+  const primaryArtist = rawArtistsRes[0] || { id: "art_" + actualUserId, name: rawUser?.name || "Musisi", stageName: rawUser?.name || "Musisi" };
+  const artistIds = rawArtistsRes.map((a: any) => a.id).filter(Boolean);
 
-  const artistIds = user?.artists.map((a) => a.id) || [];
-  const allRoyalties = artistIds.length > 0 ? await prisma.royalty.findMany({
-    where: { artistId: { in: artistIds } },
-  }) : [];
+  let allRoyalties: any[] = [];
+  if (artistIds.length > 0) {
+    try {
+      allRoyalties = (await prisma.$queryRawUnsafe(
+        `SELECT * FROM "Royalty" WHERE "artistId" = ANY($1::text[]) ORDER BY "createdAt" DESC`,
+        artistIds
+      )) as any[];
+    } catch {}
+  }
+
+  const uStreams = Number(rawUser?.totalStreams || 0);
+  const uBal = Number(rawUser?.royaltyBalance || 0);
+
+  // Fallback royalty jika user memiliki balance / stream dari admin input
+  if (allRoyalties.length === 0 && (uStreams > 0 || uBal > 0)) {
+    const spVal = Math.round(uStreams * 0.7);
+    const apVal = Math.round(uStreams * 0.15);
+    const ytVal = Math.round(uStreams * 0.10);
+    const ttVal = Math.round(uStreams * 0.05);
+    const latestSongTitle = rawReleasesRes[0]?.title || "Royalti Musik Digital";
+
+    allRoyalties.push({
+      id: "roy_synced_" + actualUserId,
+      artistId: primaryArtist.id,
+      songName: latestSongTitle,
+      month: 11,
+      year: new Date().getFullYear(),
+      spotifyStreams: spVal,
+      appleMusicStreams: apVal,
+      youtubeStreams: ytVal,
+      tiktokStreams: ttVal,
+      amazonStreams: 0,
+      otherStreams: 0,
+      platformData: {
+        rawTotalRevenue: uBal,
+        cutPercentage: 0,
+        spotify: spVal,
+        apple: apVal,
+        youtube: ytVal,
+        tiktok: ttVal,
+      },
+      totalRevenue: uBal,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
 
   let realTotal = 0;
   let realRevenue = 0;
@@ -62,8 +111,6 @@ export default async function UserStreamingPage() {
     }
   });
 
-  const uStreams = Number(rawUser?.totalStreams || 0);
-  const uBal = Number(rawUser?.royaltyBalance || 0);
   if (realTotal === 0 && uStreams > 0) {
     realTotal = uStreams;
     globalPlatformMap['Spotify'] = uStreams;
@@ -79,15 +126,15 @@ export default async function UserStreamingPage() {
     color: COLORS[i % COLORS.length]
   }));
 
-  const approvedReleases = artistIds.length > 0
-    ? await prisma.release.count({ where: { artistId: { in: artistIds }, status: "APPROVED" } })
-    : 0;
+  const approvedReleases = rawReleasesRes.filter(
+    (r: any) => String(r.status || "").toUpperCase() === "APPROVED" || String(r.status || "").toUpperCase() === "RELEASED"
+  ).length;
 
   const royaltyBySong: Record<string, { platforms: Record<string, number>; revenue: number; totalStreams: number }> = {};
   const monthlyMap: Record<string, { label: string; streams: number; revenue: number }> = {};
 
   allRoyalties.forEach((r) => {
-    const key = r.songName.trim().toLowerCase();
+    const key = (r.songName || "").trim().toLowerCase();
     if (!royaltyBySong[key]) royaltyBySong[key] = { platforms: {}, revenue: 0, totalStreams: 0 };
     royaltyBySong[key].revenue += r.totalRevenue;
     
@@ -129,46 +176,25 @@ export default async function UserStreamingPage() {
   const allTracks: TrackData[] = [];
   const now = new Date();
 
-  for (const artist of (user?.artists || [])) {
-    for (const release of artist.releases) {
-      const relDate = new Date(release.releaseDate);
-      const daysSince = Math.floor((now.getTime() - relDate.getTime()) / 86_400_000);
-      const releaseKey = release.title.trim().toLowerCase();
+  const tracksByRelease = new Map<string, any[]>();
+  for (const t of rawTracksRes) {
+    const rId = t.releaseId || t.releaseid || t.release_id || "";
+    if (rId) {
+      if (!tracksByRelease.has(rId)) tracksByRelease.set(rId, []);
+      tracksByRelease.get(rId)!.push(t);
+    }
+  }
 
-      if (release.tracks.length > 0) {
-        for (const track of release.tracks) {
-          const trackKey = track.title.trim().toLowerCase();
-          const roy = royaltyBySong[trackKey] || royaltyBySong[releaseKey] || null;
+  for (const release of rawReleasesRes) {
+    const relDate = release.releaseDate ? new Date(release.releaseDate) : new Date();
+    const daysSince = Math.floor((now.getTime() - relDate.getTime()) / 86_400_000);
+    const releaseKey = (release.title || "").trim().toLowerCase();
+    const relTracks = tracksByRelease.get(release.id) || [];
 
-          const total = roy?.totalStreams ?? 0;
-          const revenue = roy?.revenue ?? 0;
-          const spotify = roy?.platforms['Spotify'] ?? 0;
-          const apple = roy?.platforms['Apple Music'] ?? 0;
-
-          allTracks.push({
-            id:           track.id,
-            rank:         allTracks.length + 1,
-            title:        track.title,
-            artist:       release.primaryArtist,
-            isrc:         track.isrc || `IDZ${String(allTracks.length + 1).padStart(9, "0")}`,
-            album:        release.title,
-            releaseDate:  relDate.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
-            cover:        release.coverArtworkUrl,
-            isNew:        daysSince <= 30,
-            isTrending:   false,
-            totalStreams: total,
-            revenue,
-            listeners:    Math.round((spotify + apple) * 0.7),
-            saves:        Math.round(spotify * 0.05),
-            hasRealData:  !!roy,
-            platforms:    roy ? Object.entries(roy.platforms).map(([n,v]) => ({name: n, value: v})) : [],
-            dailyStreams: buildDailyFromTotal(total, 30),
-            countries:    buildCountries(total),
-            cities:       buildCities(total),
-          });
-        }
-      } else {
-        const roy = royaltyBySong[releaseKey] || null;
+    if (relTracks.length > 0) {
+      for (const track of relTracks) {
+        const trackKey = (track.title || "").trim().toLowerCase();
+        const roy = royaltyBySong[trackKey] || royaltyBySong[releaseKey] || null;
 
         const total = roy?.totalStreams ?? 0;
         const revenue = roy?.revenue ?? 0;
@@ -176,14 +202,14 @@ export default async function UserStreamingPage() {
         const apple = roy?.platforms['Apple Music'] ?? 0;
 
         allTracks.push({
-          id:           release.id,
+          id:           track.id,
           rank:         allTracks.length + 1,
-          title:        release.title,
-          artist:       release.primaryArtist,
-          isrc:         `IDZ${String(allTracks.length + 1).padStart(9, "0")}`,
+          title:        track.title || release.title,
+          artist:       release.artist || primaryArtist.stageName || primaryArtist.name || "Musisi",
+          isrc:         track.isrc || release.isrc || `IDZ${String(allTracks.length + 1).padStart(9, "0")}`,
           album:        release.title,
           releaseDate:  relDate.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
-          cover:        release.coverArtworkUrl,
+          cover:        release.coverUrl || release.coverArtworkUrl || "/logo.png",
           isNew:        daysSince <= 30,
           isTrending:   false,
           totalStreams: total,
@@ -197,6 +223,35 @@ export default async function UserStreamingPage() {
           cities:       buildCities(total),
         });
       }
+    } else {
+      const roy = royaltyBySong[releaseKey] || null;
+
+      const total = roy?.totalStreams ?? 0;
+      const revenue = roy?.revenue ?? 0;
+      const spotify = roy?.platforms['Spotify'] ?? 0;
+      const apple = roy?.platforms['Apple Music'] ?? 0;
+
+      allTracks.push({
+        id:           release.id,
+        rank:         allTracks.length + 1,
+        title:        release.title,
+        artist:       release.artist || primaryArtist.stageName || primaryArtist.name || "Musisi",
+        isrc:         release.isrc || `IDZ${String(allTracks.length + 1).padStart(9, "0")}`,
+        album:        release.title,
+        releaseDate:  relDate.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
+        cover:        release.coverUrl || release.coverArtworkUrl || "/logo.png",
+        isNew:        daysSince <= 30,
+        isTrending:   false,
+        totalStreams: total,
+        revenue,
+        listeners:    Math.round((spotify + apple) * 0.7),
+        saves:        Math.round(spotify * 0.05),
+        hasRealData:  !!roy,
+        platforms:    roy ? Object.entries(roy.platforms).map(([n,v]) => ({name: n, value: v})) : [],
+        dailyStreams: buildDailyFromTotal(total, 30),
+        countries:    buildCountries(total),
+        cities:       buildCities(total),
+      });
     }
   }
 

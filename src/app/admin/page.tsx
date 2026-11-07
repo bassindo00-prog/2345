@@ -774,7 +774,7 @@ export default function AdminDashboardPage() {
             appArt[0] ||
             data.users.find((u: any) => u.role !== "ADMIN") ||
             data.users[0];
-          if (target) {
+          if (target && !selectedUserForRoyaltyRef.current) {
             selectedUserForRoyaltyRef.current = target.id;
             setSelectedUserForRoyalty(target.id);
             setInputRoyaltyBalance(target.royaltyBalance || 0);
@@ -1032,6 +1032,8 @@ export default function AdminDashboardPage() {
     const savedPending = inputRoyaltyPending;
     const savedStreams = inputTotalStreams;
     const savedMonth = inputRoyaltyMonth;
+    const savedGross = grossRoyaltyInput;
+    const savedCut = cutPercentage;
 
     setSavingRoyalty(true);
     try {
@@ -1044,6 +1046,8 @@ export default function AdminDashboardPage() {
           royaltyPending: savedPending,
           totalStreams: savedStreams,
           royaltyMonth: savedMonth,
+          grossRevenue: savedGross,
+          cutPercentage: savedCut,
         }),
       });
       const data = await res.json();

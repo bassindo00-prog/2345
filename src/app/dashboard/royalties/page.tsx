@@ -9,19 +9,94 @@ const prisma = new PrismaClient();
 
 export default async function UserRoyaltiesPage() {
   const session = await auth();
-  
-  const user = await prisma.user.findUnique({
-    where: { id: session?.user?.id },
-    include: { artists: { include: { royalties: { orderBy: { createdAt: 'desc' } } } } }
-  });
+  const userId = session?.user?.id || "";
+  const userEmail = session?.user?.email || "";
 
-  const rawUserRes = session?.user?.id ? (await prisma.$queryRawUnsafe(
-    `SELECT "royaltyBalance", "totalStreams", "royaltyMonth" FROM "User" WHERE id = $1 LIMIT 1`,
-    session.user.id
-  ).catch(() => [])) as any[] : [];
+  const [rawUserRes, rawArtistsRes, rawReleasesRes]: [any[], any[], any[]] = await Promise.all([
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "User" WHERE ("id" = $1 OR "email" = $2) LIMIT 1`,
+      userId,
+      userEmail
+    ).catch(() => []),
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "Artist" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+      userId
+    ).catch(() => []),
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "Release" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+      userId
+    ).catch(() => []),
+  ]);
+
   const rawUser = rawUserRes[0] || null;
+  const actualUserId = rawUser?.id || userId;
+  const primaryArtist = rawArtistsRes[0] || { id: "art_" + actualUserId, name: rawUser?.name || "Musisi", stageName: rawUser?.name || "Musisi" };
+  const artistIds = rawArtistsRes.map((a: any) => a.id).filter(Boolean);
 
-  const royalties = user?.artists?.flatMap(a => a.royalties.map(r => ({ ...r, artist: a }))).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) || [];
+  let rawRoyaltiesRes: any[] = [];
+  if (artistIds.length > 0) {
+    try {
+      rawRoyaltiesRes = (await prisma.$queryRawUnsafe(
+        `SELECT * FROM "Royalty" WHERE "artistId" = ANY($1::text[]) ORDER BY "createdAt" DESC`,
+        artistIds
+      )) as any[];
+    } catch {}
+  }
+
+  // Map royalties with artist relation
+  let royalties = rawRoyaltiesRes.map((r: any) => ({
+    ...r,
+    artist: {
+      id: r.artistId,
+      stageName: primaryArtist.stageName || primaryArtist.name || rawUser?.name || "Musisi",
+      avatarUrl: primaryArtist.avatarUrl || primaryArtist.photoUrl,
+      user: rawUser
+    }
+  }));
+
+  const uBal = Number(rawUser?.royaltyBalance || 0);
+  const uStreams = Number(rawUser?.totalStreams || 0);
+  const uMonth = rawUser?.royaltyMonth || "November";
+
+  // Fallback: jika royalties kosong tapi user punya saldo / stream dari admin input
+  if (royalties.length === 0 && (uBal > 0 || uStreams > 0)) {
+    const spVal = Math.round(uStreams * 0.7);
+    const apVal = Math.round(uStreams * 0.15);
+    const ytVal = Math.round(uStreams * 0.10);
+    const ttVal = Math.round(uStreams * 0.05);
+    const latestSongTitle = rawReleasesRes[0]?.title || "Royalti Musik Digital";
+
+    royalties.push({
+      id: "roy_synced_" + actualUserId,
+      artistId: primaryArtist.id,
+      songName: latestSongTitle,
+      month: 11,
+      year: new Date().getFullYear(),
+      spotifyStreams: spVal,
+      appleMusicStreams: apVal,
+      youtubeStreams: ytVal,
+      tiktokStreams: ttVal,
+      amazonStreams: 0,
+      otherStreams: 0,
+      platformData: {
+        rawTotalRevenue: uBal,
+        cutPercentage: 0,
+        spotify: spVal,
+        apple: apVal,
+        youtube: ytVal,
+        tiktok: ttVal,
+      },
+      totalRevenue: uBal,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      artist: {
+        id: primaryArtist.id,
+        stageName: primaryArtist.stageName || primaryArtist.name || rawUser?.name || "Musisi",
+        avatarUrl: primaryArtist.avatarUrl || primaryArtist.photoUrl,
+        user: rawUser
+      }
+    });
+  }
   let totalRevenue = royalties.reduce((acc, curr) => acc + curr.totalRevenue, 0);
 
   let totalSpotify = royalties.reduce((acc, curr) => acc + curr.spotifyStreams, 0);
@@ -33,8 +108,6 @@ export default async function UserRoyaltiesPage() {
   
   let totalStreams = totalSpotify + totalApple + totalYoutube + totalTiktok + totalFacebook + totalInstagram + royalties.reduce((acc, curr) => acc + curr.amazonStreams + curr.otherStreams, 0);
 
-  const uBal = Number(rawUser?.royaltyBalance || 0);
-  const uStreams = Number(rawUser?.totalStreams || 0);
   if (totalRevenue === 0 && uBal > 0) {
     totalRevenue = uBal;
   }
