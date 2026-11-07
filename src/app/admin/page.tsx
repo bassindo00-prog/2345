@@ -56,6 +56,7 @@ import {
   Save,
   Plus,
   Pencil,
+  Loader2,
 } from "lucide-react";
 import VisaWithdrawalCardModal from "@/components/VisaWithdrawalCardModal";
 import VisaMetricCard from "@/components/VisaMetricCard";
@@ -330,7 +331,8 @@ export default function AdminDashboardPage() {
   const [inputTotalStreams, setInputTotalStreams] = useState<number>(0);
   const [inputRoyaltyMonth, setInputRoyaltyMonth] = useState<string>("November");
   const [savingRoyalty, setSavingRoyalty] = useState(false);
-  const [grossRoyaltyInput, setGrossRoyaltyInput] = useState<number>(100000);
+  const [royaltySaveSuccess, setRoyaltySaveSuccess] = useState(false);
+  const [grossRoyaltyInput, setGrossRoyaltyInput] = useState<number>(0);
   const [cutPercentage, setCutPercentage] = useState<number>(30);
 
   // Admin Settings State
@@ -1009,7 +1011,8 @@ export default function AdminDashboardPage() {
     setSelectedUserForRoyalty(uId);
     const u = users.find((x) => x.id === uId);
     if (u) {
-      setInputRoyaltyBalance(u.royaltyBalance || 0);
+      setGrossRoyaltyInput(0);
+      setInputRoyaltyBalance(0);
       setInputRoyaltyPending(u.royaltyPending || 0);
       setInputTotalStreams(u.totalStreams || 0);
       setInputRoyaltyMonth(u.royaltyMonth || "November");
@@ -1023,6 +1026,13 @@ export default function AdminDashboardPage() {
       showNotice("⚠️ Pilih akun musisi terlebih dahulu!");
       return;
     }
+    if (savingRoyalty || royaltySaveSuccess) return;
+
+    const savedAmount = inputRoyaltyBalance;
+    const savedPending = inputRoyaltyPending;
+    const savedStreams = inputTotalStreams;
+    const savedMonth = inputRoyaltyMonth;
+
     setSavingRoyalty(true);
     try {
       const res = await fetch("/api/admin/overview", {
@@ -1030,10 +1040,10 @@ export default function AdminDashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: selectedUserForRoyalty,
-          royaltyBalance: inputRoyaltyBalance,
-          royaltyPending: inputRoyaltyPending,
-          totalStreams: inputTotalStreams,
-          royaltyMonth: inputRoyaltyMonth,
+          royaltyBalance: savedAmount,
+          royaltyPending: savedPending,
+          totalStreams: savedStreams,
+          royaltyMonth: savedMonth,
         }),
       });
       const data = await res.json();
@@ -1043,15 +1053,28 @@ export default function AdminDashboardPage() {
             usr.id === selectedUserForRoyalty
               ? {
                   ...usr,
-                  royaltyBalance: inputRoyaltyBalance,
-                  royaltyPending: inputRoyaltyPending,
-                  totalStreams: inputTotalStreams,
-                  royaltyMonth: inputRoyaltyMonth,
+                  royaltyBalance: savedAmount,
+                  royaltyPending: savedPending,
+                  totalStreams: savedStreams,
+                  royaltyMonth: savedMonth,
                 }
               : usr
           )
         );
-        showNotice(`✅ Berhasil! Saldo Rp ${inputRoyaltyBalance.toLocaleString("id-ID")} Bulan ${inputRoyaltyMonth} berhasil disimpan & langsung tersinkron!`);
+        showNotice(`✅ Berhasil! Saldo Rp ${savedAmount.toLocaleString("id-ID")} Bulan ${savedMonth} berhasil disimpan & langsung tersinkron!`);
+
+        // Reset form inputs di atasnya agar siap untuk input baru & tidak terjadi klik dobel
+        setGrossRoyaltyInput(0);
+        setInputRoyaltyBalance(0);
+        setInputRoyaltyPending(0);
+        setInputTotalStreams(0);
+
+        // Kunci tombol & aktifkan status sukses (3 detik)
+        setRoyaltySaveSuccess(true);
+        setTimeout(() => {
+          setRoyaltySaveSuccess(false);
+        }, 3000);
+
         await fetchAdminData();
       } else {
         showNotice(`❌ Gagal menyimpan royalti: ${data.message || data.error || "Kesalahan server"}`);
@@ -6301,6 +6324,7 @@ export default function AdminDashboardPage() {
                   <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
                     <button
                       type="button"
+                      disabled={savingRoyalty || royaltySaveSuccess || !selectedUserForRoyalty || grossRoyaltyInput <= 0}
                       onClick={() => {
                         const net = Math.max(0, grossRoyaltyInput - Math.round(grossRoyaltyInput * (cutPercentage / 100)));
                         const curr = users.find((u) => u.id === selectedUserForRoyalty);
@@ -6308,22 +6332,44 @@ export default function AdminDashboardPage() {
                         setInputRoyaltyBalance(curBal + net);
                         showNotice(`+Rp ${net.toLocaleString("id-ID")} ditambahkan ke saldo berjalan artis!`);
                       }}
-                      className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white font-medium text-xs transition-colors flex items-center gap-1.5"
+                      className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <span>+ Tambah ke Saldo Berjalan</span>
                     </button>
 
                     <button
                       type="submit"
-                      disabled={savingRoyalty || !selectedUserForRoyalty}
-                      className="px-6 py-2.5 rounded-xl bg-[#c8f560] hover:opacity-90 text-[#312042] font-bold text-xs flex items-center gap-2 shadow"
+                      disabled={savingRoyalty || royaltySaveSuccess || !selectedUserForRoyalty || (inputRoyaltyBalance <= 0 && inputTotalStreams <= 0 && grossRoyaltyInput <= 0)}
+                      className={`px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 shadow transition-all ${
+                        royaltySaveSuccess
+                          ? "bg-emerald-500 text-white cursor-default scale-102"
+                          : savingRoyalty
+                          ? "bg-[#c8f560]/70 text-[#312042] cursor-not-allowed opacity-80"
+                          : !selectedUserForRoyalty || (inputRoyaltyBalance <= 0 && inputTotalStreams <= 0 && grossRoyaltyInput <= 0)
+                          ? "bg-white/10 text-white/40 cursor-not-allowed"
+                          : "bg-[#c8f560] hover:bg-[#b8e450] text-[#312042] cursor-pointer active:scale-95"
+                      }`}
                     >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>
-                        {savingRoyalty
-                          ? "Menyimpan..."
-                          : `Input Saldo Rp ${inputRoyaltyBalance.toLocaleString("id-ID")}`}
-                      </span>
+                      {savingRoyalty ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-[#312042]" />
+                          <span>Menyimpan & Sinkronisasi...</span>
+                        </>
+                      ) : royaltySaveSuccess ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-white" />
+                          <span>✅ Berhasil Disimpan & Tersinkron!</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>
+                            {inputRoyaltyBalance > 0
+                              ? `Input Saldo Rp ${inputRoyaltyBalance.toLocaleString("id-ID")}`
+                              : "Input Saldo Rp 0"}
+                          </span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
