@@ -23,14 +23,26 @@ export async function GET() {
 
     // 2. Query rawUsers
     let rawUsers: any[] = [];
+    let rawUserError: string | null = null;
     try {
       rawUsers = (await prisma.$queryRawUnsafe(
         `SELECT * FROM "User" ORDER BY "createdAt" DESC`
       )) as any[];
-    } catch {
-      rawUsers = (await prisma.user.findMany({
-        orderBy: { createdAt: "desc" },
-      })) as any[];
+    } catch (eU1: any) {
+      rawUserError = "attempt1: " + (eU1?.message || String(eU1));
+      try {
+        rawUsers = (await prisma.$queryRawUnsafe(`SELECT * FROM "User"`)) as any[];
+      } catch (eU2: any) {
+        rawUserError += " | attempt2: " + (eU2?.message || String(eU2));
+        try {
+          rawUsers = (await prisma.$queryRawUnsafe(`SELECT * FROM "user"`)) as any[];
+        } catch (eU3: any) {
+          rawUserError += " | attempt3: " + (eU3?.message || String(eU3));
+          rawUsers = (await prisma.user.findMany({
+            orderBy: { createdAt: "desc" },
+          })) as any[];
+        }
+      }
     }
 
     // 3. Query withdrawals and catalogs
@@ -273,10 +285,10 @@ export async function GET() {
         .filter((w: any) => w.status === "PENDING")
         .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
-      const rawBal = u.royaltyBalance ?? u.royaltybalance ?? 0;
-      const rawStreams = u.totalStreams ?? u.totalstreams ?? 0;
-      const rawPend = u.royaltyPending ?? u.royaltypending;
-      const rawWithdrawn = u.totalWithdrawn ?? u.totalwithdrawn;
+      const rawBal = u.royaltyBalance ?? u.royaltybalance ?? u.royalty_balance ?? u.balance ?? 0;
+      const rawStreams = u.totalStreams ?? u.totalstreams ?? u.total_streams ?? u.streams ?? 0;
+      const rawPend = u.royaltyPending ?? u.royaltypending ?? u.royalty_pending ?? u.pendingWithdraw ?? u.pendingwithdraw;
+      const rawWithdrawn = u.totalWithdrawn ?? u.totalwithdrawn ?? u.total_withdrawn;
 
       const royaltyBalance = Number(rawBal || 0);
       const totalStreams = Number(rawStreams || 0);
@@ -385,7 +397,9 @@ export async function GET() {
 
     return NextResponse.json(
       {
-        version: "2026-11-07-21-55-universal",
+        version: "2026-11-08-00-50-sync",
+        debugRawUserError: rawUserError,
+        debugRawUserKeys: rawUsers[0] ? Object.keys(rawUsers[0]) : [],
         debugRawReleaseKeys: rawReleases[0] ? Object.keys(rawReleases[0]) : [],
         debugSampleRelease: rawReleases[0] ? {
           id: rawReleases[0].id,
