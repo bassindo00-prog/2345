@@ -5120,11 +5120,8 @@ export default function UserDashboardPage() {
                     <span className="p-2 rounded-xl bg-[#c8f560] text-[#312042] shadow-md">
                       <ListMusic className="w-5 h-5" />
                     </span>
-                    <span>Official Music Catalog & Publisher Directory</span>
+                    <span>Catalog Music</span>
                   </h2>
-                  <p className="text-xs text-white/75 mt-1 max-w-2xl leading-relaxed">
-                    Pilih publisher resmi di bawah ini (RPH, Halo Entertainment, Khana Music, Damarlangit, Sony Music, Universal, Warner Chappell, dll) untuk melihat katalog lagu, mendengarkan referensi YouTube, mengunduh master di Google Drive, dan 1-klik mengajukan rilis cover.
-                  </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
