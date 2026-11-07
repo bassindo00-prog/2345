@@ -7,12 +7,24 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    // 1. Query users, withdrawals, catalogs secara aman
+    // 1. Query users, withdrawals, catalogs, artists secara aman dan independen
+    let dbArtists: any[] = [];
+    try {
+      dbArtists = (await prisma.$queryRawUnsafe(
+        `SELECT * FROM "Artist" ORDER BY "createdAt" DESC`
+      )) as any[];
+    } catch (eArt) {
+      try {
+        dbArtists = (await prisma.artist.findMany()) as any[];
+      } catch (eArt2) {
+        console.warn("Artist query fallback in overview:", eArt2);
+      }
+    }
+
     const [rawUsers, rawWithdrawals, rawCatalogSongs] = await Promise.all([
       prisma.user.findMany({
         orderBy: { createdAt: "desc" },
         include: {
-          artists: true,
           withdrawRequests: true,
         },
       }),
@@ -46,13 +58,14 @@ export async function GET() {
 
     // Map users to the structure expected by the frontend
     const users = rawUsers.map((u: any) => {
-      const primaryArtist = (u.artists && u.artists[0]) || null;
+      const userArtists = (dbArtists || []).filter((a: any) => a.userId === u.id);
+      const primaryArtist = userArtists[0] || null;
       const artistSpotify =
-        u.artists.find((a: any) => a.spotifyId && a.spotifyId.trim())?.spotifyId ||
+        userArtists.find((a: any) => a.spotifyId && a.spotifyId.trim())?.spotifyId ||
         primaryArtist?.spotifyId ||
         "";
       const artistApple =
-        u.artists.find((a: any) => a.appleId && a.appleId.trim())?.appleId ||
+        userArtists.find((a: any) => a.appleId && a.appleId.trim())?.appleId ||
         primaryArtist?.appleId ||
         "";
 
@@ -69,9 +82,11 @@ export async function GET() {
       const totalStreams =
         typeof u.totalStreams === "number" ? u.totalStreams : 15400;
 
+      const displayName = primaryArtist?.stageName || primaryArtist?.name || u.name || "User Musisi";
+
       return {
         id: u.id,
-        name: u.name || primaryArtist?.stageName || "User Musisi",
+        name: displayName,
         email: u.email,
         role: u.role,
         status: u.status || "APPROVED",
@@ -85,28 +100,28 @@ export async function GET() {
         nik: u.nik || "",
         ktpUrl: resolveMediaUrl(u.ktpUrl) || "",
         createdAt: u.createdAt,
-        avatar: resolveMediaUrl(u.image || u.avatar) || "/logo.png",
+        avatar: resolveMediaUrl(u.image || u.avatar || primaryArtist?.avatarUrl || primaryArtist?.photoUrl) || "/logo.png",
         totalStreams,
         royaltyBalance,
         royaltyPending: typeof u.royaltyPending === "number" ? u.royaltyPending : pendingWithdraw,
         totalWithdrawn: typeof u.totalWithdrawn === "number" ? u.totalWithdrawn : totalWithdrawn,
         pendingWithdraw,
         royaltyMonth: u.royaltyMonth || "November",
-        artists: (u.artists || []).map((a: any) => ({
+        artists: userArtists.map((a: any) => ({
           id: a.id,
-          name: a.stageName,
-          stageName: a.stageName,
+          name: a.stageName || a.name || displayName,
+          stageName: a.stageName || a.name || displayName,
           genre: a.genre || "Pop",
           spotifyId: a.spotifyId || "",
           appleId: a.appleId || "",
           bio: a.bio || "",
-          photoUrl: resolveMediaUrl(a.avatarUrl),
-          avatarUrl: resolveMediaUrl(a.avatarUrl),
+          photoUrl: resolveMediaUrl(a.avatarUrl || a.photoUrl),
+          avatarUrl: resolveMediaUrl(a.avatarUrl || a.photoUrl),
         })),
         _count: {
           releases: rawReleases.filter((r) => r.userId === u.id).length,
           withdrawals: (u.withdrawRequests && u.withdrawRequests.length) || 0,
-          artists: (u.artists && u.artists.length) || 0,
+          artists: userArtists.length,
         },
       };
     });

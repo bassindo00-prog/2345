@@ -49,11 +49,10 @@ export async function GET() {
       return NextResponse.json({ user: null, authenticated: false });
     }
 
-    const [u, rawReleases]: [any, any[]] = await Promise.all([
+    const [u, rawReleases, dbArtists]: [any, any[], any[]] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         include: {
-          artists: true,
           withdrawRequests: {
             orderBy: { createdAt: "desc" },
           },
@@ -63,6 +62,10 @@ export async function GET() {
         `SELECT * FROM "Release" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
         userId
       ).catch(() => []),
+      prisma.$queryRawUnsafe(
+        `SELECT * FROM "Artist" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+        userId
+      ).catch(() => []),
     ]);
 
     if (!u) {
@@ -70,7 +73,7 @@ export async function GET() {
     }
 
     const allReleases: any[] = [];
-    const primaryArtist = (u.artists && u.artists[0]) || null;
+    const primaryArtist = (dbArtists && dbArtists[0]) || null;
 
     (rawReleases || []).forEach((r: any) => {
       let releaseDateStr = "-";
@@ -164,16 +167,16 @@ export async function GET() {
       royaltyMonth: u.royaltyMonth || "November",
       releases: allReleases,
       withdrawals,
-      artists: (u.artists || []).map((a: any) => ({
+      artists: (dbArtists || []).map((a: any) => ({
         id: a.id,
-        name: a.stageName,
-        stageName: a.stageName,
+        name: a.stageName || a.name || u.name,
+        stageName: a.stageName || a.name || u.name,
         genre: a.genre || "Pop",
         spotifyId: a.spotifyId || "",
         appleId: a.appleId || "",
         bio: a.bio || "",
-        avatarUrl: resolveMediaUrl(a.avatarUrl),
-        photoUrl: resolveMediaUrl(a.avatarUrl),
+        avatarUrl: resolveMediaUrl(a.avatarUrl || a.photoUrl),
+        photoUrl: resolveMediaUrl(a.avatarUrl || a.photoUrl),
       })),
     };
 

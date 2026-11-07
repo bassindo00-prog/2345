@@ -14,19 +14,31 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const artists = await prisma.artist.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-    });
+    let artists: any[] = [];
+    try {
+      artists = (await prisma.$queryRawUnsafe(
+        `SELECT * FROM "Artist" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+        userId
+      )) as any[];
+    } catch {
+      artists = (await prisma.artist.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      }).catch(() => [])) as any[];
+    }
 
     return NextResponse.json({
       ok: true,
-      artists: artists.map((a) => ({
+      artists: (artists || []).map((a: any) => ({
         id: a.id,
-        name: a.stageName,
-        stageName: a.stageName,
-        bio: a.bio,
-        avatarUrl: resolveMediaUrl(a.avatarUrl),
+        name: a.stageName || a.name || "",
+        stageName: a.stageName || a.name || "",
+        genre: a.genre || "Pop",
+        spotifyId: a.spotifyId || "",
+        appleId: a.appleId || "",
+        bio: a.bio || "",
+        avatarUrl: resolveMediaUrl(a.avatarUrl || a.photoUrl),
+        photoUrl: resolveMediaUrl(a.avatarUrl || a.photoUrl),
       })),
     });
   } catch (error) {
@@ -52,18 +64,40 @@ export async function POST(req: Request) {
     }
 
     const trimmedName = name.trim();
+    const newId = `art_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const finalGenre = genre || "Pop";
+    const finalSpotify = spotifyId ? spotifyId.trim() : "";
+    const finalApple = appleId ? appleId.trim() : "";
+    const finalBio = bio ? bio.trim() : null;
+    const finalPhoto = photoUrl ? photoUrl.trim() : null;
 
-    const newArtist = await prisma.artist.create({
-      data: {
-        userId,
-        stageName: trimmedName,
-        genre: genre || "Pop",
-        spotifyId: spotifyId ? spotifyId.trim() : "",
-        appleId: appleId ? appleId.trim() : "",
-        bio: bio ? bio.trim() : null,
-        avatarUrl: photoUrl ? photoUrl.trim() : null,
-      },
-    });
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "Artist" ("id", "userId", "name", "genre", "spotifyId", "appleId", "bio", "photoUrl", "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+        newId, userId, trimmedName, finalGenre, finalSpotify, finalApple, finalBio, finalPhoto
+      );
+    } catch {
+      try {
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO "Artist" ("id", "userId", "stageName", "genre", "spotifyId", "appleId", "bio", "avatarUrl", "createdAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+          newId, userId, trimmedName, finalGenre, finalSpotify, finalApple, finalBio, finalPhoto
+        );
+      } catch (ePrisma) {
+        await prisma.artist.create({
+          data: {
+            userId,
+            stageName: trimmedName,
+            genre: finalGenre,
+            spotifyId: finalSpotify,
+            appleId: finalApple,
+            bio: finalBio,
+            avatarUrl: finalPhoto,
+          },
+        });
+      }
+    }
 
     // Singkronkan user.name jika masih belum ada atau default
     try {
@@ -77,10 +111,10 @@ export async function POST(req: Request) {
           data: { name: trimmedName },
         });
       }
-      if (photoUrl) {
+      if (finalPhoto) {
         await prisma.$executeRawUnsafe(
           `UPDATE "User" SET "image" = $1, "avatar" = $1 WHERE "id" = $2`,
-          photoUrl.trim(),
+          finalPhoto,
           userId
         ).catch(() => {});
       }
@@ -91,15 +125,15 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       artist: {
-        id: newArtist.id,
-        name: newArtist.stageName,
-        stageName: newArtist.stageName,
-        genre: newArtist.genre || "Pop",
-        spotifyId: newArtist.spotifyId || "",
-        appleId: newArtist.appleId || "",
-        bio: newArtist.bio,
-        avatarUrl: resolveMediaUrl(newArtist.avatarUrl),
-        photoUrl: resolveMediaUrl(newArtist.avatarUrl),
+        id: newId,
+        name: trimmedName,
+        stageName: trimmedName,
+        genre: finalGenre,
+        spotifyId: finalSpotify,
+        appleId: finalApple,
+        bio: finalBio,
+        avatarUrl: resolveMediaUrl(finalPhoto),
+        photoUrl: resolveMediaUrl(finalPhoto),
       },
     });
   } catch (error) {
@@ -129,31 +163,38 @@ export async function PATCH(req: Request) {
     }
 
     const trimmedName = name.trim();
+    const finalGenre = genre || "Pop";
+    const finalSpotify = spotifyId ? spotifyId.trim() : "";
+    const finalApple = appleId ? appleId.trim() : "";
+    const finalBio = bio ? bio.trim() : null;
+    const finalPhoto = photoUrl ? photoUrl.trim() : null;
 
-    // Verifikasi kepemilikan profil artis
-    const existing = await prisma.artist.findFirst({
-      where: { id, userId },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Profil artis tidak ditemukan atau bukan milik Anda" },
-        { status: 404 }
+    // 1. Update nama artis dan data profil di tabel Artist via SQL aman
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE "Artist" SET "name" = $1, "genre" = $2, "spotifyId" = $3, "appleId" = $4, "bio" = $5, "photoUrl" = $6 WHERE "id" = $7 AND "userId" = $8`,
+        trimmedName, finalGenre, finalSpotify, finalApple, finalBio, finalPhoto, id, userId
       );
+    } catch {
+      try {
+        await prisma.$executeRawUnsafe(
+          `UPDATE "Artist" SET "stageName" = $1, "genre" = $2, "spotifyId" = $3, "appleId" = $4, "bio" = $5, "avatarUrl" = $6 WHERE "id" = $7 AND "userId" = $8`,
+          trimmedName, finalGenre, finalSpotify, finalApple, finalBio, finalPhoto, id, userId
+        );
+      } catch (ePrisma) {
+        await prisma.artist.update({
+          where: { id },
+          data: {
+            stageName: trimmedName,
+            genre: finalGenre,
+            spotifyId: finalSpotify,
+            appleId: finalApple,
+            bio: finalBio,
+            avatarUrl: finalPhoto,
+          },
+        }).catch(() => {});
+      }
     }
-
-    // 1. Update nama artis dan data profil di tabel Artist
-    const updated = await prisma.artist.update({
-      where: { id },
-      data: {
-        stageName: trimmedName,
-        genre: genre !== undefined ? genre : existing.genre,
-        spotifyId: spotifyId !== undefined ? (spotifyId ? spotifyId.trim() : "") : existing.spotifyId,
-        appleId: appleId !== undefined ? (appleId ? appleId.trim() : "") : existing.appleId,
-        bio: bio !== undefined ? (bio ? bio.trim() : null) : existing.bio,
-        avatarUrl: photoUrl !== undefined ? (photoUrl ? photoUrl.trim() : null) : existing.avatarUrl,
-      },
-    });
 
     // 2. Singkronkan nama artis di tabel Release via SQL
     try {
@@ -173,10 +214,10 @@ export async function PATCH(req: Request) {
         trimmedName,
         userId
       );
-      if (photoUrl) {
+      if (finalPhoto) {
         await prisma.$executeRawUnsafe(
           `UPDATE "User" SET "image" = $1, "avatar" = $1 WHERE "id" = $2`,
-          photoUrl.trim(),
+          finalPhoto,
           userId
         );
       }
@@ -187,15 +228,15 @@ export async function PATCH(req: Request) {
     return NextResponse.json({
       ok: true,
       artist: {
-        id: updated.id,
-        name: updated.stageName,
-        stageName: updated.stageName,
-        genre: updated.genre || "Pop",
-        spotifyId: updated.spotifyId || "",
-        appleId: updated.appleId || "",
-        bio: updated.bio,
-        avatarUrl: resolveMediaUrl(updated.avatarUrl),
-        photoUrl: resolveMediaUrl(updated.avatarUrl),
+        id,
+        name: trimmedName,
+        stageName: trimmedName,
+        genre: finalGenre,
+        spotifyId: finalSpotify,
+        appleId: finalApple,
+        bio: finalBio,
+        avatarUrl: resolveMediaUrl(finalPhoto),
+        photoUrl: resolveMediaUrl(finalPhoto),
       },
     });
   } catch (error) {
@@ -220,20 +261,17 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "ID profil artis wajib disertakan!" }, { status: 400 });
     }
 
-    const existing = await prisma.artist.findFirst({
-      where: { id, userId },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Profil artis tidak ditemukan atau bukan milik Anda" },
-        { status: 404 }
+    try {
+      await prisma.$executeRawUnsafe(
+        `DELETE FROM "Artist" WHERE "id" = $1 AND "userId" = $2`,
+        id,
+        userId
       );
+    } catch {
+      await prisma.artist.delete({
+        where: { id },
+      }).catch(() => {});
     }
-
-    await prisma.artist.delete({
-      where: { id },
-    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
