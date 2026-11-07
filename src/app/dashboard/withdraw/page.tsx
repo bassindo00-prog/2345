@@ -12,26 +12,36 @@ export default async function WithdrawPage() {
   const withdrawSetting = await prisma.settings.findUnique({ where: { key: 'withdrawals_enabled' } });
   const withdrawalsEnabled = withdrawSetting?.value !== "false";
 
-  const user = await prisma.user.findUnique({
-    where: { id: session?.user?.id },
-    include: { 
-      artists: {
-        include: { royalties: true }
-      },
-      withdrawRequests: {
-        orderBy: { createdAt: 'desc' }
-      }
-    }
-  });
+  const [rawUsers, rawW]: [any[], any[]] = await Promise.all([
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "User" WHERE "id" = $1 LIMIT 1`,
+      session?.user?.id
+    ).catch(() => []),
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "Withdrawal" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+      session?.user?.id
+    ).catch(() => []),
+  ]);
 
-  const artistName = user?.artists?.[0]?.stageName || user?.name || "Artist";
+  const user = rawUsers?.[0] || null;
+  const artistName = user?.name || "Artist";
   const profileImage = user?.image ? resolveMediaUrl(user.image) : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'default'}`;
 
-  const totalRevenue = user?.artists?.reduce((acc, curr) => acc + curr.royalties.reduce((sum, r) => sum + r.totalRevenue, 0), 0) || 0;
-  const totalWithdrawn = user?.withdrawRequests.filter(w => w.status === 'PAID').reduce((acc, curr) => acc + curr.amount, 0) || 0;
-  const pendingWithdrawal = user?.withdrawRequests.filter(w => w.status === 'PENDING' || w.status === 'APPROVED').reduce((acc, curr) => acc + curr.amount, 0) || 0;
-  
-  const availableBalance = totalRevenue - totalWithdrawn - pendingWithdrawal;
+  const royaltyBalance = Number(user?.royaltyBalance ?? user?.royaltybalance ?? 0);
+  const totalWithdrawn = (rawW || [])
+    .filter((w: any) => {
+      const s = String(w.status || "").toUpperCase();
+      return s === "APPROVED" || s === "PAID" || s === "DISETUJUI";
+    })
+    .reduce((acc: number, curr: any) => acc + (Number(curr.amount) || 0), 0);
+  const pendingWithdrawal = (rawW || [])
+    .filter((w: any) => {
+      const s = String(w.status || "").toUpperCase();
+      return s === "PENDING" || s === "MENUNGGU";
+    })
+    .reduce((acc: number, curr: any) => acc + (Number(curr.amount) || 0), 0);
+
+  const availableBalance = Math.max(0, royaltyBalance);
 
   const last4 = (user?.id || "0000").slice(-4).toUpperCase();
 
@@ -154,18 +164,19 @@ export default async function WithdrawPage() {
             Recent Requests
           </h2>
           <div className="space-y-3">
-            {user?.withdrawRequests.length === 0 ? (
+            {(rawW || []).length === 0 ? (
               <div className="glass-card p-8 text-center">
                 <p className="text-gray-400">No withdrawal requests yet.</p>
               </div>
             ) : (
-              user?.withdrawRequests.map((req) => {
-                const isPaid = req.status === 'PAID';
-                const isRejected = req.status === 'REJECTED';
-                const isPending = req.status === 'PENDING';
-                const dateStr = new Date(req.createdAt).toLocaleDateString('id-ID', {
+              (rawW || []).map((req: any) => {
+                const s = String(req.status || "").toUpperCase();
+                const isPaid = s === 'PAID' || s === 'APPROVED' || s === 'DISETUJUI';
+                const isRejected = s === 'REJECTED' || s === 'DITOLAK';
+                const isPending = s === 'PENDING' || s === 'MENUNGGU';
+                const dateStr = req.date || (req.createdAt ? new Date(req.createdAt).toLocaleDateString('id-ID', {
                   day: 'numeric', month: 'short', year: 'numeric'
-                });
+                }) : "-");
 
                 return (
                   <div key={req.id} className={`glass-card p-4 sm:p-5 border-l-4 transition hover:scale-[1.01] ${

@@ -54,10 +54,15 @@ export async function GET() {
         `SELECT * FROM "User" WHERE "id" = $1 LIMIT 1`,
         userId
       ).catch(() => []),
-      prisma.withdrawRequest.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-      }).catch(() => []),
+      prisma.$queryRawUnsafe(
+        `SELECT * FROM "Withdrawal" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+        userId
+      ).catch(async () => {
+        return prisma.withdrawRequest.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+        }).catch(() => []);
+      }),
       prisma.$queryRawUnsafe(
         `SELECT * FROM "Release" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
         userId
@@ -118,27 +123,36 @@ export async function GET() {
       typeof u.totalWithdrawn === "number" && u.totalWithdrawn > 0
         ? u.totalWithdrawn
         : (rawWithdraws || [])
-            .filter((w: any) => w.status === "APPROVED" || w.status === "PAID")
-            .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
+            .filter((w: any) => {
+              const s = String(w.status || "").toUpperCase();
+              return s === "APPROVED" || s === "PAID" || s === "DISETUJUI";
+            })
+            .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
     const pendingWithdraw =
       typeof u.pendingWithdraw === "number" && u.pendingWithdraw > 0
         ? u.pendingWithdraw
         : (rawWithdraws || [])
-            .filter((w: any) => w.status === "PENDING")
-            .reduce((sum: number, w: any) => sum + (w.amount || 0), 0);
+            .filter((w: any) => {
+              const s = String(w.status || "").toUpperCase();
+              return s === "PENDING" || s === "MENUNGGU";
+            })
+            .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
-    const royaltyBalance = Number(u.royaltyBalance || 0);
+    const royaltyBalance = Number(u.royaltyBalance ?? u.royaltybalance ?? 0);
     const royaltyPending = typeof u.royaltyPending === "number" ? u.royaltyPending : pendingWithdraw;
-    const totalStreams = Number(u.totalStreams || 0);
+    const totalStreams = Number(u.totalStreams ?? u.totalstreams ?? 0);
 
     const withdrawals = (rawWithdraws || []).map((w: any) => {
       let statusUi = "Pending";
-      if (w.status === "APPROVED" || w.status === "PAID") statusUi = "Approved";
-      else if (w.status === "REJECTED") statusUi = "Rejected";
+      const s = String(w.status || "").toUpperCase();
+      if (s === "APPROVED" || s === "PAID" || s === "DISETUJUI") statusUi = "Approved";
+      else if (s === "REJECTED" || s === "DITOLAK") statusUi = "Rejected";
 
       const dateStr =
-        w.createdAt instanceof Date
+        w.date && typeof w.date === "string"
+          ? w.date
+          : w.createdAt instanceof Date
           ? `${String(w.createdAt.getDate()).padStart(2, "0")}-${String(
               w.createdAt.getMonth() + 1
             ).padStart(2, "0")}-${w.createdAt.getFullYear()}`
@@ -147,10 +161,10 @@ export async function GET() {
       return {
         id: w.id,
         date: dateStr,
-        amount: w.amount,
-        method: w.bankName || "Bank BCA",
+        amount: Number(w.amount || 0),
+        method: w.method || w.bankName || "Bank BCA",
         accountNumber: w.accountNumber || "1234 5678 9012",
-        accountHolder: w.accountName || u.name || "Musisi",
+        accountHolder: w.accountHolder || w.accountName || u.name || "Musisi",
         status: statusUi,
       };
     });

@@ -32,33 +32,50 @@ export async function withdrawAction(formData: FormData) {
     return { error: "Invalid form data or amount too low" };
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    include: {
-      artists: { include: { royalties: true } },
-      withdrawRequests: true
-    }
-  });
+  const [rawUsers, rawW]: [any[], any[]] = await Promise.all([
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "User" WHERE "id" = $1 LIMIT 1`,
+      session.user.id
+    ).catch(() => []),
+    prisma.$queryRawUnsafe(
+      `SELECT * FROM "Withdrawal" WHERE "userId" = $1`,
+      session.user.id
+    ).catch(() => []),
+  ]);
 
-  if (!user || user.artists.length === 0) {
-    return { error: "User or artists not found" };
+  const user = rawUsers?.[0];
+  if (!user) {
+    return { error: "User tidak ditemukan" };
   }
 
-  let totalRevenue = 0;
-  user.artists.forEach(artist => {
-    totalRevenue += artist.royalties.reduce((acc, curr) => acc + curr.totalRevenue, 0);
-  });
-  
-  const totalWithdrawn = user.withdrawRequests.filter(w => w.status === 'PAID').reduce((acc, curr) => acc + curr.amount, 0);
-  const pendingWithdrawal = user.withdrawRequests.filter(w => w.status === 'PENDING' || w.status === 'APPROVED').reduce((acc, curr) => acc + curr.amount, 0);
-  
-  const availableBalance = totalRevenue - totalWithdrawn - pendingWithdrawal;
+  const royaltyBalance = Number(user.royaltyBalance ?? user.royaltybalance ?? 0);
+  const pendingWithdrawal = (rawW || [])
+    .filter((w: any) => String(w.status || "").toUpperCase() === "PENDING" || String(w.status || "").toUpperCase() === "MENUNGGU")
+    .reduce((acc: number, curr: any) => acc + (Number(curr.amount) || 0), 0);
+
+  const availableBalance = Math.max(0, royaltyBalance - pendingWithdrawal);
 
   if (amount > availableBalance) {
-    return { error: "Insufficient balance" };
+    return { error: `Saldo tidak mencukupi! Saldo tersedia Anda Rp ${availableBalance.toLocaleString("id-ID")}` };
   }
 
   try {
+    const newId = `cmw${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const todayStr = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-");
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "Withdrawal" ("id", "userId", "amount", "method", "accountNumber", "accountHolder", "status", "date", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+      newId,
+      user.id,
+      amount,
+      bankName,
+      accountNumber,
+      accountName,
+      "Pending",
+      todayStr
+    ).catch((err) => console.warn("Failed to insert into Withdrawal table:", err));
+
     await prisma.withdrawRequest.create({
       data: {
         userId: user.id,
@@ -68,7 +85,7 @@ export async function withdrawAction(formData: FormData) {
         accountNumber,
         status: "PENDING"
       }
-    });
+    }).catch(() => {});
 
     // Notify Admins
     const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });

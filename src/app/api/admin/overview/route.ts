@@ -34,18 +34,33 @@ export async function GET() {
     }
 
     // 3. Query withdrawals and catalogs
-    const [rawWithdrawals, rawCatalogSongs] = await Promise.all([
-      prisma.withdrawRequest.findMany({
-        orderBy: { createdAt: "desc" },
-        include: {
-          user: { select: { id: true, name: true, email: true, image: true } },
-        },
-      }).catch(() => []),
-      prisma.catalog.findMany({
+    let rawWithdrawals: any[] = [];
+    try {
+      rawWithdrawals = (await prisma.$queryRawUnsafe(
+        `SELECT w.*, u.name as "userName", u.email as "userEmail", u.image as "userImage"
+         FROM "Withdrawal" w
+         LEFT JOIN "User" u ON u.id = w."userId"
+         ORDER BY w."createdAt" DESC`
+      )) as any[];
+    } catch {
+      try {
+        rawWithdrawals = (await prisma.withdrawRequest.findMany({
+          orderBy: { createdAt: "desc" },
+          include: {
+            user: { select: { id: true, name: true, email: true, image: true } },
+          },
+        })) as any[];
+      } catch {
+        rawWithdrawals = [];
+      }
+    }
+
+    const rawCatalogSongs = await prisma.catalog
+      .findMany({
         orderBy: { createdAt: "desc" },
         take: 3000,
-      }).catch(() => []),
-    ]);
+      })
+      .catch(() => []);
 
     // 4. Query releases (support both raw SQL and Prisma findMany with artist include)
     let rawReleases: any[] = [];
@@ -328,7 +343,9 @@ export async function GET() {
       }
 
       const dateStr =
-        w.createdAt instanceof Date
+        w.date && typeof w.date === "string"
+          ? w.date
+          : w.createdAt instanceof Date
           ? `${String(w.createdAt.getDate()).padStart(2, "0")}-${String(
               w.createdAt.getMonth() + 1
             ).padStart(2, "0")}-${w.createdAt.getFullYear()}`
@@ -338,16 +355,16 @@ export async function GET() {
         id: w.id,
         date: dateStr,
         amount: Number(w.amount || 0),
-        method: w.bankName || "Bank BCA",
+        method: w.method || w.bankName || "Bank BCA",
         accountNumber: w.accountNumber || "1234 5678 9012",
-        accountHolder: w.accountName || w.user?.name || "Musisi",
+        accountHolder: w.accountHolder || w.accountName || w.user?.name || w.userName || "Musisi",
         status: statusUi,
         userId: w.userId,
         user: {
           id: w.user?.id || w.userId,
-          name: w.user?.name || "Musisi",
-          email: w.user?.email || "",
-          avatar: resolveMediaUrl(w.user?.image) || "/logo.png",
+          name: w.user?.name || w.userName || "Musisi",
+          email: w.user?.email || w.userEmail || "",
+          avatar: resolveMediaUrl(w.user?.image || w.userImage) || "/logo.png",
         },
       };
     });
