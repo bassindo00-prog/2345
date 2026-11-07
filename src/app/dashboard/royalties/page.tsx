@@ -15,17 +15,33 @@ export default async function UserRoyaltiesPage() {
     include: { artists: { include: { royalties: { orderBy: { createdAt: 'desc' } } } } }
   });
 
-  const royalties = user?.artists?.flatMap(a => a.royalties.map(r => ({ ...r, artist: a }))).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) || [];
-  const totalRevenue = royalties.reduce((acc, curr) => acc + curr.totalRevenue, 0);
+  const rawUserRes = session?.user?.id ? (await prisma.$queryRawUnsafe(
+    `SELECT "royaltyBalance", "totalStreams", "royaltyMonth" FROM "User" WHERE id = $1 LIMIT 1`,
+    session.user.id
+  ).catch(() => [])) as any[] : [];
+  const rawUser = rawUserRes[0] || null;
 
-  const totalSpotify = royalties.reduce((acc, curr) => acc + curr.spotifyStreams, 0);
-  const totalApple = royalties.reduce((acc, curr) => acc + curr.appleMusicStreams, 0);
-  const totalYoutube = royalties.reduce((acc, curr) => acc + curr.youtubeStreams, 0);
-  const totalTiktok = royalties.reduce((acc, curr) => acc + curr.tiktokStreams, 0);
-  const totalFacebook = royalties.reduce((acc, curr) => acc + (((curr.platformData as any)?.facebook) || 0), 0);
-  const totalInstagram = royalties.reduce((acc, curr) => acc + (((curr.platformData as any)?.instagram) || 0), 0);
+  const royalties = user?.artists?.flatMap(a => a.royalties.map(r => ({ ...r, artist: a }))).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) || [];
+  let totalRevenue = royalties.reduce((acc, curr) => acc + curr.totalRevenue, 0);
+
+  let totalSpotify = royalties.reduce((acc, curr) => acc + curr.spotifyStreams, 0);
+  let totalApple = royalties.reduce((acc, curr) => acc + curr.appleMusicStreams, 0);
+  let totalYoutube = royalties.reduce((acc, curr) => acc + curr.youtubeStreams, 0);
+  let totalTiktok = royalties.reduce((acc, curr) => acc + curr.tiktokStreams, 0);
+  let totalFacebook = royalties.reduce((acc, curr) => acc + (((curr.platformData as any)?.facebook) || 0), 0);
+  let totalInstagram = royalties.reduce((acc, curr) => acc + (((curr.platformData as any)?.instagram) || 0), 0);
   
-  const totalStreams = totalSpotify + totalApple + totalYoutube + totalTiktok + totalFacebook + totalInstagram + royalties.reduce((acc, curr) => acc + curr.amazonStreams + curr.otherStreams, 0);
+  let totalStreams = totalSpotify + totalApple + totalYoutube + totalTiktok + totalFacebook + totalInstagram + royalties.reduce((acc, curr) => acc + curr.amazonStreams + curr.otherStreams, 0);
+
+  const uBal = Number(rawUser?.royaltyBalance || 0);
+  const uStreams = Number(rawUser?.totalStreams || 0);
+  if (totalRevenue === 0 && uBal > 0) {
+    totalRevenue = uBal;
+  }
+  if (totalStreams === 0 && uStreams > 0) {
+    totalStreams = uStreams;
+    totalSpotify = uStreams;
+  }
 
   const getPercent = (value: number) => {
     if (totalStreams === 0) return 0;

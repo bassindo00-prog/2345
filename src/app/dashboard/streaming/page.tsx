@@ -23,6 +23,12 @@ export default async function UserStreamingPage() {
     },
   });
 
+  const rawUserRes = session?.user?.id ? (await prisma.$queryRawUnsafe(
+    `SELECT "royaltyBalance", "totalStreams", "royaltyMonth" FROM "User" WHERE id = $1 LIMIT 1`,
+    session.user.id
+  ).catch(() => [])) as any[] : [];
+  const rawUser = rawUserRes[0] || null;
+
   const artistIds = user?.artists.map((a) => a.id) || [];
   const allRoyalties = artistIds.length > 0 ? await prisma.royalty.findMany({
     where: { artistId: { in: artistIds } },
@@ -55,6 +61,16 @@ export default async function UserStreamingPage() {
       realTotal += r.spotifyStreams + r.appleMusicStreams + r.youtubeStreams + r.tiktokStreams + r.amazonStreams + r.otherStreams;
     }
   });
+
+  const uStreams = Number(rawUser?.totalStreams || 0);
+  const uBal = Number(rawUser?.royaltyBalance || 0);
+  if (realTotal === 0 && uStreams > 0) {
+    realTotal = uStreams;
+    globalPlatformMap['Spotify'] = uStreams;
+  }
+  if (realRevenue === 0 && uBal > 0) {
+    realRevenue = uBal;
+  }
 
   const COLORS = ['#1DB954', '#FC3C44', '#FF0000', '#69C9D0', '#00A8E1', '#7000FF', '#00F0FF', '#FF0055'];
   const globalPlatforms = Object.entries(globalPlatformMap).map(([n, v], i) => ({ 

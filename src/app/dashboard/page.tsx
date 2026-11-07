@@ -2680,13 +2680,13 @@ export default function UserDashboardPage() {
                   <div>
                     <p className="text-xs text-white/80">Total Streams</p>
                     <p className="text-2xl sm:text-3xl font-semibold text-white mt-0.5 tabular-nums">
-                      {animatedStreamsToday > 0 ? `${animatedStreamsToday.toLocaleString()}K` : "0"}
+                      {animatedStreamsToday > 0 ? (animatedStreamsToday >= 1000 ? `${(animatedStreamsToday / 1000).toFixed(0)}K` : animatedStreamsToday.toLocaleString("id-ID")) : "0"}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-white/80">Royalty</p>
                     <p className="text-2xl sm:text-3xl font-semibold text-white mt-0.5 tabular-nums">
-                      Rp {animatedRoyaltyPending.toLocaleString("id-ID")}
+                      Rp {(animatedRoyaltyBalance > 0 ? animatedRoyaltyBalance : animatedRoyaltyPending).toLocaleString("id-ID")}
                     </p>
                   </div>
                   <div>

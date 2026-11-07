@@ -44,39 +44,64 @@ export async function GET() {
   try {
     const session = await auth();
     const userId = session?.user?.id;
+    const userEmail = session?.user?.email;
 
-    if (!userId) {
+    if (!userId && !userEmail) {
       return NextResponse.json({ user: null, authenticated: false });
     }
 
-    const [rawUsers, rawWithdraws, rawReleases, dbArtists]: [any[], any[], any[], any[]] = await Promise.all([
+    let [rawUsers, rawWithdraws, rawReleases, dbArtists]: [any[], any[], any[], any[]] = await Promise.all([
       prisma.$queryRawUnsafe(
-        `SELECT * FROM "User" WHERE "id" = $1 LIMIT 1`,
-        userId
+        `SELECT * FROM "User" WHERE ("id" = $1 OR "email" = $2) LIMIT 1`,
+        userId || "",
+        userEmail || ""
       ).catch(() => []),
       prisma.$queryRawUnsafe(
         `SELECT * FROM "Withdrawal" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
-        userId
+        userId || ""
       ).catch(async () => {
         return prisma.withdrawRequest.findMany({
-          where: { userId },
+          where: { userId: userId || "" },
           orderBy: { createdAt: "desc" },
         }).catch(() => []);
       }),
       prisma.$queryRawUnsafe(
         `SELECT * FROM "Release" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
-        userId
+        userId || ""
       ).catch(() => []),
       prisma.$queryRawUnsafe(
         `SELECT * FROM "Artist" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
-        userId
+        userId || ""
       ).catch(() => []),
     ]);
 
-    const u = (rawUsers && rawUsers[0]) || (await prisma.user.findUnique({ where: { id: userId } }));
+    let u = (rawUsers && rawUsers[0]) || null;
+    if (!u) {
+      try {
+        u = await prisma.user.findFirst({
+          where: {
+            OR: [
+              ...(userId ? [{ id: userId }] : []),
+              ...(userEmail ? [{ email: userEmail }] : []),
+            ],
+          },
+        });
+      } catch {}
+    }
 
     if (!u) {
       return NextResponse.json({ user: null, authenticated: false });
+    }
+
+    const resolvedUserId = u.id || userId;
+
+    if (!dbArtists || dbArtists.length === 0) {
+      try {
+        dbArtists = (await prisma.$queryRawUnsafe(
+          `SELECT * FROM "Artist" WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+          resolvedUserId
+        )) as any[];
+      } catch {}
     }
 
     const allReleases: any[] = [];
@@ -139,9 +164,48 @@ export async function GET() {
             })
             .reduce((sum: number, w: any) => sum + (Number(w.amount) || 0), 0);
 
-    const royaltyBalance = Number(u.royaltyBalance ?? u.royaltybalance ?? 0);
-    const royaltyPending = typeof u.royaltyPending === "number" ? u.royaltyPending : pendingWithdraw;
-    const totalStreams = Number(u.totalStreams ?? u.totalstreams ?? 0);
+    // Query akumulasi dari tabel Royalty jika ada data artis
+    let dbRoyaltySum = 0;
+    let dbStreamsSum = 0;
+    try {
+      const userArtistIds = (dbArtists || []).map((a: any) => a.id).filter(Boolean);
+      if (userArtistIds.length > 0) {
+        const royRows = (await prisma.$queryRawUnsafe(`
+          SELECT SUM("totalRevenue") as "sumRevenue",
+                 SUM(COALESCE("spotifyStreams", 0) + COALESCE("appleMusicStreams", 0) + COALESCE("youtubeStreams", 0) + COALESCE("tiktokStreams", 0) + COALESCE("amazonStreams", 0) + COALESCE("otherStreams", 0)) as "sumStreams"
+          FROM "Royalty"
+          WHERE "artistId" = ANY($1::text[])
+        `, userArtistIds)) as any[];
+        if (royRows && royRows[0]) {
+          dbRoyaltySum = Number(royRows[0].sumRevenue || 0);
+          dbStreamsSum = Number(royRows[0].sumStreams || 0);
+        }
+      }
+    } catch {
+      // fallback
+    }
+
+    const rawBal = u.royaltyBalance ?? u.royaltybalance ?? u.royalty_balance;
+    const rawStreams = u.totalStreams ?? u.totalstreams ?? u.total_streams;
+    const rawPend = u.royaltyPending ?? u.royaltypending ?? u.royalty_pending;
+
+    let royaltyBalance = 0;
+    if (rawBal !== undefined && rawBal !== null && Number(rawBal) > 0) {
+      royaltyBalance = Number(rawBal);
+    } else if (dbRoyaltySum > 0) {
+      royaltyBalance = Math.max(0, dbRoyaltySum - totalWithdrawn);
+    }
+
+    let totalStreams = 0;
+    if (rawStreams !== undefined && rawStreams !== null && Number(rawStreams) > 0) {
+      totalStreams = Number(rawStreams);
+    } else if (dbStreamsSum > 0) {
+      totalStreams = dbStreamsSum;
+    }
+
+    const royaltyPending = rawPend !== undefined && rawPend !== null && Number(rawPend) > 0 
+      ? Number(rawPend) 
+      : pendingWithdraw;
 
     const withdrawals = (rawWithdraws || []).map((w: any) => {
       let statusUi = "Pending";

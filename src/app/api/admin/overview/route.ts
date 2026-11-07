@@ -557,18 +557,49 @@ export async function PATCH(req: Request) {
     // Pastikan kolom-kolom saldo ada di tabel "User" & "users" dengan eksekusi satu per satu
     await ensureRoyaltyColumns();
 
+    // Resolusi ID: Pastikan kita mengenali apakah parameter yang dikirim adalah User ID atau Artist ID
+    let actualUserId = userId;
+    let primaryArtistId: string | null = null;
+
+    try {
+      const userCheck = (await prisma.$queryRawUnsafe(
+        `SELECT id FROM "User" WHERE "id" = $1 LIMIT 1`,
+        userId
+      )) as any[];
+
+      if (userCheck && userCheck.length > 0) {
+        actualUserId = userCheck[0].id;
+        const artistCheck = (await prisma.$queryRawUnsafe(
+          `SELECT id FROM "Artist" WHERE "userId" = $1 LIMIT 1`,
+          actualUserId
+        )) as any[];
+        primaryArtistId = artistCheck[0]?.id || null;
+      } else {
+        const artistCheck = (await prisma.$queryRawUnsafe(
+          `SELECT id, "userId" FROM "Artist" WHERE "id" = $1 LIMIT 1`,
+          userId
+        )) as any[];
+        if (artistCheck && artistCheck.length > 0) {
+          primaryArtistId = artistCheck[0].id;
+          actualUserId = artistCheck[0].userId;
+        }
+      }
+    } catch (eResolve) {
+      console.warn("ID resolution warning:", eResolve);
+    }
+
     if (role) {
       try {
         await prisma.$executeRawUnsafe(
           `UPDATE "User" SET "role" = $1 WHERE "id" = $2`,
           role,
-          userId
+          actualUserId
         );
       } catch {
         await prisma.$executeRawUnsafe(
           `UPDATE "users" SET "role" = $1 WHERE "id" = $2`,
           role,
-          userId
+          actualUserId
         ).catch(() => {});
       }
     }
@@ -593,7 +624,7 @@ export async function PATCH(req: Request) {
           royaltyPending !== undefined ? Number(royaltyPending) : null,
           totalStreams !== undefined ? Math.round(Number(totalStreams)) : null,
           royaltyMonth !== undefined ? String(royaltyMonth) : null,
-          userId
+          actualUserId
         );
         updateSuccess = true;
       } catch (errUser) {
@@ -611,7 +642,7 @@ export async function PATCH(req: Request) {
             royaltyPending !== undefined ? Number(royaltyPending) : null,
             totalStreams !== undefined ? Math.round(Number(totalStreams)) : null,
             royaltyMonth !== undefined ? String(royaltyMonth) : null,
-            userId
+            actualUserId
           );
           updateSuccess = true;
         } catch (errUsersLower) {
@@ -620,14 +651,18 @@ export async function PATCH(req: Request) {
       }
 
       // Sinkronkan juga ke tabel "Royalty" jika tabel tersebut ada di database produksi
-      try {
-        const artists = (await prisma.$queryRawUnsafe(
-          `SELECT id FROM "Artist" WHERE "userId" = $1 LIMIT 1`,
-          userId
-        )) as any[];
-        const primaryArtistId = artists[0]?.id;
+      if (!primaryArtistId && actualUserId) {
+        try {
+          const artists = (await prisma.$queryRawUnsafe(
+            `SELECT id FROM "Artist" WHERE "userId" = $1 LIMIT 1`,
+            actualUserId
+          )) as any[];
+          primaryArtistId = artists[0]?.id || null;
+        } catch {}
+      }
 
-        if (primaryArtistId && royaltyBalance !== undefined) {
+      if (primaryArtistId && (royaltyBalance !== undefined || totalStreams !== undefined)) {
+        try {
           const monthMap: Record<string, number> = {
             Januari: 1, Februari: 2, Maret: 3, April: 4, Mei: 5, Juni: 6,
             Juli: 7, Agustus: 8, September: 9, Oktober: 10, November: 11, Desember: 12,
@@ -648,12 +683,12 @@ export async function PATCH(req: Request) {
           if (existing && existing.length > 0) {
             await prisma.$executeRawUnsafe(
               `UPDATE "Royalty" SET 
-                "totalRevenue" = $1,
-                "spotifyStreams" = $2,
+                "totalRevenue" = CASE WHEN $1::float IS NOT NULL THEN $1::float ELSE "totalRevenue" END,
+                "spotifyStreams" = CASE WHEN $2::int IS NOT NULL THEN $2::int ELSE "spotifyStreams" END,
                 "updatedAt" = NOW()
                WHERE "id" = $3`,
-              Number(royaltyBalance),
-              totalStreams !== undefined ? Math.round(Number(totalStreams)) : 0,
+              royaltyBalance !== undefined ? Number(royaltyBalance) : null,
+              totalStreams !== undefined ? Math.round(Number(totalStreams)) : null,
               existing[0].id
             );
           } else {
@@ -666,13 +701,13 @@ export async function PATCH(req: Request) {
               "Royalti Digital Distribution",
               monthNum,
               curYear,
-              Number(royaltyBalance),
+              royaltyBalance !== undefined ? Number(royaltyBalance) : 0,
               totalStreams !== undefined ? Math.round(Number(totalStreams)) : 0
             );
           }
+        } catch (eRoySync) {
+          console.warn("Royalty table sync error:", eRoySync);
         }
-      } catch (eRoySync) {
-        // Abaikan jika tabel Royalty tidak ada
       }
     }
 
