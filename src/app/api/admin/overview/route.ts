@@ -409,9 +409,32 @@ export async function GET() {
       console.warn("debug info failed:", eDb);
     }
 
+    let debugUsersTableCols: any[] = [];
+    let debugRoyaltyTableCols: any[] = [];
+    let debugSampleRoyalty: any = null;
+    let debugSampleUsersLower: any = null;
+    try {
+      debugUsersTableCols = (await prisma.$queryRawUnsafe(`
+        SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'users'
+      `)) as any[];
+      debugRoyaltyTableCols = (await prisma.$queryRawUnsafe(`
+        SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'Royalty'
+      `)) as any[];
+      const rSample = (await prisma.$queryRawUnsafe(`SELECT * FROM "Royalty" LIMIT 1`)) as any[];
+      debugSampleRoyalty = rSample[0] || null;
+      const uSample = (await prisma.$queryRawUnsafe(`SELECT * FROM users LIMIT 1`)) as any[];
+      debugSampleUsersLower = uSample[0] || null;
+    } catch (eInspect) {
+      console.warn("inspect tables failed:", eInspect);
+    }
+
     return NextResponse.json(
       {
-        version: "2026-11-08-00-58-debug",
+        version: "2026-11-08-01-03-tables",
+        debugUsersTableCols: debugUsersTableCols.map((c: any) => c.column_name),
+        debugRoyaltyTableCols: debugRoyaltyTableCols.map((c: any) => c.column_name),
+        debugSampleRoyalty,
+        debugSampleUsersLower,
         debugDbTables: debugDbTables.map((t: any) => t.table_name),
         debugDbRoyaltyCols,
         debugRawUserError: rawUserError,
