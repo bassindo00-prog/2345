@@ -53,6 +53,7 @@ import {
   Upload,
   Save,
   Plus,
+  Pencil,
 } from "lucide-react";
 import VisaWithdrawalCardModal from "@/components/VisaWithdrawalCardModal";
 import VisaMetricCard from "@/components/VisaMetricCard";
@@ -174,6 +175,17 @@ export default function AdminDashboardPage() {
   const [catDefaultPublisher, setCatDefaultPublisher] = useState("BREAKOUT Publishing");
   const [catDefaultStatus, setCatDefaultStatus] = useState("Aktif");
   const catFileInputRef = useRef<HTMLInputElement>(null);
+  const [editingCatalog, setEditingCatalog] = useState<{
+    id: string;
+    songId: string;
+    title: string;
+    artist: string;
+    publisher: string;
+    status: string;
+    youtubeLink: string;
+    driveLink: string;
+  } | null>(null);
+  const [savingCatalogEdit, setSavingCatalogEdit] = useState(false);
 
   // Pagination State (5 items per page)
   const [pageReleases, setPageReleases] = useState(1);
@@ -1065,6 +1077,74 @@ export default function AdminDashboardPage() {
     if (res.ok) {
       await fetchAdminData();
       showNotice(`Status lagu diubah menjadi ${nextStatus}`);
+    }
+  };
+
+  const handleOpenEditCatalog = (item: any) => {
+    setEditingCatalog({
+      id: item.id,
+      songId: item.songId || "",
+      title: item.title || "",
+      artist: item.artist || "",
+      publisher: item.publisher || "",
+      status: item.status || "Aktif",
+      youtubeLink: item.youtubeLink || "",
+      driveLink: item.driveLink || "",
+    });
+  };
+
+  const handleSaveCatalogEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCatalog || !editingCatalog.id) return;
+    if (!editingCatalog.title) {
+      showNotice("Judul lagu wajib diisi!");
+      return;
+    }
+
+    setSavingCatalogEdit(true);
+    try {
+      const res = await fetch("/api/catalog", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingCatalog.id,
+          songId: editingCatalog.songId,
+          title: editingCatalog.title,
+          artist: editingCatalog.artist,
+          publisher: editingCatalog.publisher,
+          status: editingCatalog.status,
+          youtubeLink: editingCatalog.youtubeLink,
+          driveLink: editingCatalog.driveLink,
+        }),
+      });
+
+      if (res.ok) {
+        setCatalogs((prev) =>
+          prev.map((c) =>
+            c.id === editingCatalog.id
+              ? {
+                  ...c,
+                  songId: editingCatalog.songId,
+                  title: editingCatalog.title,
+                  artist: editingCatalog.artist,
+                  publisher: editingCatalog.publisher,
+                  status: editingCatalog.status,
+                  youtubeLink: editingCatalog.youtubeLink,
+                  driveLink: editingCatalog.driveLink,
+                }
+              : c
+          )
+        );
+        setEditingCatalog(null);
+        showNotice("Lagu katalog berhasil diperbarui & otomatis tersinkron ke akun user!");
+      } else {
+        const d = await res.json().catch(() => ({}));
+        showNotice(d.error || "Gagal memperbarui lagu");
+      }
+    } catch (err: any) {
+      showNotice(err.message || "Terjadi kesalahan saat mengupdate lagu");
+    } finally {
+      setSavingCatalogEdit(false);
     }
   };
 
@@ -4132,14 +4212,24 @@ export default function AdminDashboardPage() {
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 text-right whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteCatalog(c.id)}
-                                    title="Hapus lagu dari katalog"
-                                    className="p-1 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-colors"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditCatalog(c)}
+                                      title="Edit data lagu katalog"
+                                      className="p-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300 transition-colors cursor-pointer"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteCatalog(c.id)}
+                                      title="Hapus lagu dari katalog"
+                                      className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300 transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -4481,6 +4571,174 @@ export default function AdminDashboardPage() {
                         {catImportResult?.success ? "Tutup & Selesai" : "Batal"}
                       </button>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ================= MODAL EDIT LAGU KATALOG ================= */}
+              {editingCatalog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+                  <div className="relative w-full max-w-lg rounded-2xl bg-[#1b1226] border border-white/20 p-6 shadow-2xl space-y-5 text-white max-h-[90vh] overflow-y-auto">
+                    {/* Header Modal */}
+                    <div className="flex items-center justify-between pb-3 border-b border-white/15">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-yellow-400/20 border border-yellow-400/30 text-yellow-300">
+                          <Pencil className="w-5 h-5 stroke-[2.5]" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-white">Edit Lagu Katalog</h3>
+                          <p className="text-[11px] text-white/60">Perubahan akan langsung tersinkronisasi ke seluruh akun user</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCatalog(null)}
+                        className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Form Edit */}
+                    <form onSubmit={handleSaveCatalogEdit} className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                            Song ID <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={editingCatalog.songId}
+                            onChange={(e) =>
+                              setEditingCatalog({ ...editingCatalog, songId: e.target.value })
+                            }
+                            className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs font-mono focus:outline-none focus:border-[#c8f560]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                            Status Katalog <span className="text-red-400">*</span>
+                          </label>
+                          <select
+                            value={editingCatalog.status}
+                            onChange={(e) =>
+                              setEditingCatalog({ ...editingCatalog, status: e.target.value })
+                            }
+                            className="w-full px-3 py-2 rounded-xl bg-[#2a1b3d] border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                          >
+                            <option value="Aktif">Aktif</option>
+                            <option value="Review">Review</option>
+                            <option value="Nonaktif">Nonaktif</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                          Judul Lagu <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editingCatalog.title}
+                          onChange={(e) =>
+                            setEditingCatalog({ ...editingCatalog, title: e.target.value })
+                          }
+                          className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                            Nama Artis / Vokal <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={editingCatalog.artist}
+                            onChange={(e) =>
+                              setEditingCatalog({ ...editingCatalog, artist: e.target.value })
+                            }
+                            className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                            Publisher / Label <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={editingCatalog.publisher}
+                            onChange={(e) =>
+                              setEditingCatalog({ ...editingCatalog, publisher: e.target.value })
+                            }
+                            className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                          Link YouTube (Opsional)
+                        </label>
+                        <input
+                          type="url"
+                          value={editingCatalog.youtubeLink}
+                          onChange={(e) =>
+                            setEditingCatalog({ ...editingCatalog, youtubeLink: e.target.value })
+                          }
+                          placeholder="https://youtube.com/watch?v=..."
+                          className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-white/80 mb-1">
+                          Link Google Drive / Master Audio (Opsional)
+                        </label>
+                        <input
+                          type="url"
+                          value={editingCatalog.driveLink}
+                          onChange={(e) =>
+                            setEditingCatalog({ ...editingCatalog, driveLink: e.target.value })
+                          }
+                          placeholder="https://drive.google.com/..."
+                          className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-[#c8f560]"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/15">
+                        <button
+                          type="button"
+                          onClick={() => setEditingCatalog(null)}
+                          className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all cursor-pointer"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={savingCatalogEdit}
+                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#c8f560] hover:bg-[#b0dc4c] text-[#312042] text-xs font-bold transition-all disabled:opacity-50 shadow-md cursor-pointer"
+                        >
+                          {savingCatalogEdit ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Menyimpan...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Simpan Perubahan</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 </div>
               )}

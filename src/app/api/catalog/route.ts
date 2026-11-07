@@ -162,6 +162,23 @@ export async function PATCH(req: Request) {
       },
     });
 
+    // Otomatis sinkronisasi ke tabel CatalogSong jika judul sama
+    try {
+      if (updated.title) {
+        await prisma.catalogSong.updateMany({
+          where: { title: { equals: updated.title, mode: "insensitive" } },
+          data: {
+            artist: updated.artist,
+            publisher: updated.publisher,
+            driveLink: updated.driveLink || undefined,
+            isActive: updated.status === "Aktif",
+          },
+        });
+      }
+    } catch (eSync) {
+      console.warn("Sync to CatalogSong skipped:", eSync);
+    }
+
     return NextResponse.json({ ok: true, success: true, catalog: updated });
   } catch (error: any) {
     console.error("PATCH /api/catalog error:", error);
