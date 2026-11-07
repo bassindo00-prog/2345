@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight, Layers, LayoutGrid, Sparkles } from "lucide-react";
 import {
   DEFAULT_LANDING_DATA,
   DEFAULT_PLATFORMS,
@@ -797,6 +798,9 @@ const STYLES = `
     transform: translateY(100px) scale(0.8) rotate(0deg); 
     overflow: hidden;
     border: 1px solid rgba(255,255,255,0.2);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
   }
   
   .release-card img {
@@ -919,6 +923,173 @@ const STYLES = `
   .releases-deck.in-view .card-center .side-info {
     opacity: 0;
     pointer-events: none;
+  }
+
+  .releases-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 24px;
+    position: relative;
+    z-index: 20;
+  }
+
+  .control-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(20, 17, 20, 0.1);
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(20, 17, 20, 0.08);
+    transition: all 0.25s ease;
+  }
+
+  .control-btn:hover {
+    background: #ff7fab;
+    color: #fff;
+    transform: scale(1.08);
+    box-shadow: 0 6px 18px rgba(255, 127, 171, 0.4);
+  }
+
+  .control-btn:active {
+    transform: scale(0.95);
+  }
+
+  .releases-dots {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dot-btn {
+    width: 10px;
+    height: 10px;
+    border-radius: 99px;
+    background: rgba(20, 17, 20, 0.2);
+    border: none;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+
+  .dot-btn.active {
+    width: 26px;
+    background: #ff7fab;
+    box-shadow: 0 2px 8px rgba(255, 127, 171, 0.4);
+  }
+
+  /* SPREAD OUT (MENJAJAR) STYLES */
+  .spread-toggle-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 30;
+  }
+
+  .spread-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 20px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(255, 127, 171, 0.4);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(20, 17, 20, 0.08);
+    transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .spread-toggle-btn:hover {
+    background: #ff7fab;
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 127, 171, 0.4);
+  }
+
+  .spread-toggle-btn:active {
+    transform: translateY(0) scale(0.97);
+  }
+
+  .releases-deck.spread-out {
+    position: relative;
+    height: auto;
+    min-height: 440px;
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 20px;
+    padding: 20px 20px 32px 20px;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    transform-style: flat;
+    justify-content: flex-start;
+  }
+
+  @media (min-width: 1024px) {
+    .releases-deck.spread-out {
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+  }
+
+  .releases-deck.spread-out::-webkit-scrollbar {
+    height: 8px;
+  }
+  .releases-deck.spread-out::-webkit-scrollbar-track {
+    background: rgba(20, 17, 20, 0.05);
+    border-radius: 99px;
+  }
+  .releases-deck.spread-out::-webkit-scrollbar-thumb {
+    background: #ff7fab;
+    border-radius: 99px;
+  }
+
+  .releases-deck.spread-out .release-card {
+    position: relative;
+    flex: 0 0 270px;
+    width: 270px;
+    height: 390px;
+    transform: none !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    scroll-snap-align: center;
+    box-shadow: 0 10px 25px rgba(20, 17, 20, 0.12);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .releases-deck.spread-out .release-card:hover {
+    transform: translateY(-8px) scale(1.02) !important;
+    box-shadow: 0 18px 35px rgba(255, 127, 171, 0.3);
+  }
+
+  .releases-deck.spread-out .release-card .tag-live {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .releases-deck.spread-out .release-card .release-bottom {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .releases-deck.spread-out .release-card .side-info {
+    display: none !important;
   }
   
   .side-info h4 {
@@ -1253,11 +1424,57 @@ export default function BreakoutApp({
     };
   }, [data?.heroBgImage, data?.heroBackImage]);
 
-  // --- Coverflow & Observer Logic for New Releases ---
+  const platforms: string[] = data?.platforms || DEFAULT_PLATFORMS;
+  const releases: ReleaseItem[] = data?.releases || DEFAULT_RELEASES;
+  const features: FeatureItem[] = data?.features || DEFAULT_FEATURES;
+  const faqs: FaqItem[] = data?.faqs || DEFAULT_FAQS;
+  const testimonials: TestiItem[] = data?.testimonials || DEFAULT_TESTIMONIALS_LIST;
+  const roster: RosterArtist[] = data?.roster || DEFAULT_ROSTER;
+  const contact: ContactSectionData = data?.contact || DEFAULT_CONTACT_DATA;
+
+  // State for active release in 3D Coverflow
+  const [activeReleaseIndex, setActiveReleaseIndex] = useState(2);
+  const [isSpreadOut, setIsSpreadOut] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+
+  // Sync initial center index when releases change
+  useEffect(() => {
+    if (releases.length > 0) {
+      setActiveReleaseIndex(Math.min(2, Math.floor(releases.length / 2)));
+    }
+  }, [releases.length]);
+
+  // Desktop cursor hover tracking when in 3D Deck mode
+  useEffect(() => {
+    const releasesSection = releasesSectionRef.current;
+    const releasesDeck = releasesDeckRef.current;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isSpreadOut || !releasesDeck?.classList.contains("in-view") || !releasesSection) return;
+      const rect = releasesSection.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const count = releases.length;
+      if (count <= 1) return;
+      let hoveredIndex = Math.round((x / rect.width) * (count - 1));
+      if (hoveredIndex < 0) hoveredIndex = 0;
+      if (hoveredIndex >= count) hoveredIndex = count - 1;
+      setActiveReleaseIndex(hoveredIndex);
+    };
+
+    if (releasesSection && !isSpreadOut) {
+      releasesSection.addEventListener("mousemove", handleMouseMove);
+    }
+
+    return () => {
+      if (releasesSection) {
+        releasesSection.removeEventListener("mousemove", handleMouseMove);
+      }
+    };
+  }, [isSpreadOut, releases.length]);
+
+  // --- Observer for New Releases in-view animation ---
   useEffect(() => {
     const releasesDeck = releasesDeckRef.current;
-    const releasesSection = releasesSectionRef.current;
-
     if (releasesDeck) {
       const observer = new IntersectionObserver(
         (entries) => {
@@ -1268,83 +1485,15 @@ export default function BreakoutApp({
             }
           });
         },
-        { threshold: 0.3 }
+        { threshold: 0.2 }
       );
       observer.observe(releasesDeck);
+      return () => observer.disconnect();
     }
+  }, []);
 
-    let activeIndex = 2; // Default Center
-
-    function updateCoverflow(index: number) {
-      if (index === activeIndex) return;
-      activeIndex = index;
-      cardsRef.current.forEach((card, i) => {
-        if (!card) return;
-        card.className = "release-card";
-        const diff = i - activeIndex;
-        if (diff === 0) card.classList.add("card-center");
-        else if (diff === -1) card.classList.add("card-l1");
-        else if (diff === -2) card.classList.add("card-l2");
-        else if (diff === -3) card.classList.add("card-l3");
-        else if (diff <= -4) card.classList.add("card-l4");
-        else if (diff === 1) card.classList.add("card-r1");
-        else if (diff === 2) card.classList.add("card-r2");
-        else if (diff === 3) card.classList.add("card-r3");
-        else if (diff >= 4) card.classList.add("card-r4");
-      });
-    }
-
-    const handleMove = (clientX: number) => {
-      if (!releasesDeck?.classList.contains("in-view") || !releasesSection) return;
-
-      const rect = releasesSection.getBoundingClientRect();
-      const x = clientX - rect.left;
-      const count = cardsRef.current.length;
-      if (count <= 1) return;
-      let hoveredIndex = Math.round((x / rect.width) * (count - 1));
-
-      if (hoveredIndex < 0) hoveredIndex = 0;
-      if (hoveredIndex >= count) hoveredIndex = count - 1;
-
-      updateCoverflow(hoveredIndex);
-    };
-
-    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientX);
-    const handleTouchMove = (e: TouchEvent) => handleMove(e.touches[0].clientX);
-    const handleTouchStart = (e: TouchEvent) => handleMove(e.touches[0].clientX);
-
-    const handleMouseLeave = () => {
-      updateCoverflow(2);
-    };
-
-    if (releasesSection && releasesDeck) {
-      releasesSection.addEventListener("mousemove", handleMouseMove);
-      releasesSection.addEventListener("mouseleave", handleMouseLeave);
-      releasesSection.addEventListener("touchmove", handleTouchMove, { passive: true });
-      releasesSection.addEventListener("touchstart", handleTouchStart, { passive: true });
-    }
-
-    return () => {
-      if (releasesSection) {
-        releasesSection.removeEventListener("mousemove", handleMouseMove);
-        releasesSection.removeEventListener("mouseleave", handleMouseLeave);
-        releasesSection.removeEventListener("touchmove", handleTouchMove);
-        releasesSection.removeEventListener("touchstart", handleTouchStart);
-      }
-    };
-  }, [data?.releases?.length]);
-
-  const platforms: string[] = data?.platforms || DEFAULT_PLATFORMS;
-  const releases: ReleaseItem[] = data?.releases || DEFAULT_RELEASES;
-  const features: FeatureItem[] = data?.features || DEFAULT_FEATURES;
-  const faqs: FaqItem[] = data?.faqs || DEFAULT_FAQS;
-  const testimonials: TestiItem[] = data?.testimonials || DEFAULT_TESTIMONIALS_LIST;
-  const roster: RosterArtist[] = data?.roster || DEFAULT_ROSTER;
-  const contact: ContactSectionData = data?.contact || DEFAULT_CONTACT_DATA;
-
-  // Initial card class assigner
-  const getInitialCardClass = (idx: number, centerIdx: number = 2) => {
-    const diff = idx - centerIdx;
+  const getCardClass = (idx: number) => {
+    const diff = idx - activeReleaseIndex;
     if (diff === 0) return "card-center";
     if (diff === -1) return "card-l1";
     if (diff === -2) return "card-l2";
@@ -1540,15 +1689,64 @@ export default function BreakoutApp({
       {/* BAR 3: NEW RELEASES DECK (COVERFLOW 3D SYNC CMS) */}
       <section className="releases-section" id="rilisan" ref={releasesSectionRef}>
         <h2 className="section-title">NEW RELEASES</h2>
-        <div className="releases-deck" id="releasesDeck" ref={releasesDeckRef}>
+
+        {/* TOGGLE MENJAJAR / TUMPUK DECK 3D */}
+        <div className="spread-toggle-container">
+          <button
+            type="button"
+            onClick={() => setIsSpreadOut((prev) => !prev)}
+            className="spread-toggle-btn"
+            title={isSpreadOut ? "Tumpuk Kembali" : "Klik untuk Menjajar"}
+          >
+            {isSpreadOut ? (
+              <>
+                <Layers className="w-4 h-4 text-[#ff7fab]" />
+                <span>Tumpuk 3D Deck</span>
+              </>
+            ) : (
+              <>
+                <LayoutGrid className="w-4 h-4 text-[#ff7fab]" />
+                <span>Ketuk untuk Menjajar ({releases.length} Rilisan)</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        <div
+          className={`releases-deck ${isSpreadOut ? "spread-out" : ""}`}
+          id="releasesDeck"
+          ref={releasesDeckRef}
+          onTouchStart={(e) => {
+            if (isSpreadOut) return;
+            touchStartXRef.current = e.touches[0].clientX;
+          }}
+          onTouchEnd={(e) => {
+            if (isSpreadOut || touchStartXRef.current === null) return;
+            const diff = touchStartXRef.current - e.changedTouches[0].clientX;
+            if (diff > 35) {
+              // Swipe Left -> Rilisan Berikutnya
+              setActiveReleaseIndex((prev) => (prev < releases.length - 1 ? prev + 1 : 0));
+            } else if (diff < -35) {
+              // Swipe Right -> Rilisan Sebelumnya
+              setActiveReleaseIndex((prev) => (prev > 0 ? prev - 1 : releases.length - 1));
+            }
+            touchStartXRef.current = null;
+          }}
+        >
           {releases.map((rel, idx) => {
-            const cardClass = getInitialCardClass(idx, Math.min(2, Math.floor(releases.length / 2)));
+            const cardClass = isSpreadOut ? "" : getCardClass(idx);
+            const isCenter = idx === activeReleaseIndex;
+
             return (
               <div
                 key={rel.id || idx}
                 className={`release-card ${cardClass}`}
-                ref={(el) => {
-                  cardsRef.current[idx] = el;
+                onClick={() => {
+                  if (!isSpreadOut) {
+                    // Tap card to spread out (menjajar) immediately!
+                    setIsSpreadOut(true);
+                    setActiveReleaseIndex(idx);
+                  }
                 }}
               >
                 <div className="tag-live">
@@ -1579,7 +1777,7 @@ export default function BreakoutApp({
 
                     if (isInternal) {
                       return (
-                        <Link href={cleanHref} className="btn-listen">
+                        <Link href={cleanHref} className="btn-listen" onClick={(e) => e.stopPropagation()}>
                           ♪ Dengarkan di DSP <span aria-hidden="true">↗</span>
                         </Link>
                       );
@@ -1591,6 +1789,7 @@ export default function BreakoutApp({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn-listen"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         ♪ Dengarkan di DSP <span aria-hidden="true">↗</span>
                       </a>
@@ -1601,6 +1800,47 @@ export default function BreakoutApp({
             );
           })}
         </div>
+
+        {/* CONTROLS: Panah Geser & Indikator Titik (Hanya tampil saat mode 3D Deck) */}
+        {!isSpreadOut && releases.length > 1 && (
+          <div className="releases-controls">
+            <button
+              type="button"
+              onClick={() =>
+                setActiveReleaseIndex((prev) => (prev > 0 ? prev - 1 : releases.length - 1))
+              }
+              className="control-btn"
+              aria-label="Rilisan Sebelumnya"
+              title="Sebelumnya"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            <div className="releases-dots">
+              {releases.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActiveReleaseIndex(i)}
+                  className={`dot-btn ${i === activeReleaseIndex ? "active" : ""}`}
+                  aria-label={`Lihat Rilisan ${i + 1}`}
+                />
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setActiveReleaseIndex((prev) => (prev < releases.length - 1 ? prev + 1 : 0))
+              }
+              className="control-btn"
+              aria-label="Rilisan Berikutnya"
+              title="Berikutnya"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </section>
 
       {/* BAR 4: FITUR & LAYANAN (SYNC DENGAN CMS) */}
