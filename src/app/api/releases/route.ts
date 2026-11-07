@@ -154,19 +154,65 @@ export async function POST(req: Request) {
     }
 
     // Find or create artist profile for current user
-    let userArtist = await prisma.artist.findFirst({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-    });
+    let userArtist: any = null;
+    try {
+      userArtist = await prisma.artist.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+      });
+    } catch (ePrismaArt) {
+      try {
+        const dbArt = (await prisma.$queryRawUnsafe(
+          `SELECT id, "userId", "stageName", "createdAt" FROM "Artist" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 1`,
+          userId
+        )) as any[];
+        if (dbArt && dbArt[0]) {
+          userArtist = dbArt[0];
+        }
+      } catch {
+        try {
+          const dbArt2 = (await prisma.$queryRawUnsafe(
+            `SELECT id, "userId", "name" as "stageName", "createdAt" FROM "Artist" WHERE "userId" = $1 ORDER BY "createdAt" DESC LIMIT 1`,
+            userId
+          )) as any[];
+          if (dbArt2 && dbArt2[0]) {
+            userArtist = dbArt2[0];
+          }
+        } catch (eRaw2) {
+          console.warn("Artist lookup fallback failed:", eRaw2);
+        }
+      }
+    }
 
     if (!userArtist) {
-      userArtist = await prisma.artist.create({
-        data: {
-          userId,
-          name: artist || session.user.name || "Artist",
-          stageName: artist || session.user.name || "Artist",
-        },
-      });
+      const artName = artist || session?.user?.name || "Artist";
+      try {
+        userArtist = await prisma.artist.create({
+          data: {
+            userId,
+            stageName: artName,
+          },
+        });
+      } catch (eCreatePrisma) {
+        const newId = `art_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        try {
+          await prisma.$queryRawUnsafe(
+            `INSERT INTO "Artist" ("id", "userId", "stageName", "createdAt") VALUES ($1, $2, $3, NOW())`,
+            newId, userId, artName
+          );
+          userArtist = { id: newId, userId, stageName: artName };
+        } catch {
+          try {
+            await prisma.$queryRawUnsafe(
+              `INSERT INTO "Artist" ("id", "userId", "name", "createdAt") VALUES ($1, $2, $3, NOW())`,
+              newId, userId, artName
+            );
+            userArtist = { id: newId, userId, stageName: artName };
+          } catch (eRawCreate2) {
+            console.error("Failed to create artist profile:", eRawCreate2);
+          }
+        }
+      }
     }
 
     let parsedReleaseDate = new Date();

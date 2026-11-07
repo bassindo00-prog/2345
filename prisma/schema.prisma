@@ -63,9 +63,6 @@ model Artist {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   stageName String
-  genre     String?
-  spotifyId String?
-  appleId   String?
   bio       String?
   avatarUrl String?
   
