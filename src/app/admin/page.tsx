@@ -2181,6 +2181,208 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
+            {/* DSP Links & Social Channels (Spotify, YouTube, WhatsApp, Apple Music) */}
+            {(() => {
+              const rawSpotify =
+                selectedArtistDetail.spotifyUrl ||
+                selectedArtistDetail.spotifyId ||
+                (selectedArtistDetail.artists &&
+                  selectedArtistDetail.artists.find((a: any) => a.spotifyId && a.spotifyId.trim())?.spotifyId) ||
+                (selectedArtistDetail.artists && selectedArtistDetail.artists[0]?.spotifyId) ||
+                (releases.find((r) => r.userId === selectedArtistDetail.id && r.spotifyUrl)?.spotifyUrl) ||
+                "";
+
+              const formatSpotifyUrl = (raw: string) => {
+                if (!raw || !raw.trim()) return "";
+                const s = raw.trim();
+                if (s.startsWith("http://") || s.startsWith("https://")) return s;
+                if (s.startsWith("spotify:artist:")) {
+                  return `https://open.spotify.com/artist/${s.replace("spotify:artist:", "")}`;
+                }
+                if (s.startsWith("spotify:track:")) {
+                  return `https://open.spotify.com/track/${s.replace("spotify:track:", "")}`;
+                }
+                return `https://open.spotify.com/artist/${s}`;
+              };
+
+              const artistSpotifyUrl = formatSpotifyUrl(rawSpotify);
+
+              const rawApple =
+                selectedArtistDetail.appleMusicUrl ||
+                selectedArtistDetail.appleId ||
+                (selectedArtistDetail.artists &&
+                  selectedArtistDetail.artists.find((a: any) => a.appleId && a.appleId.trim())?.appleId) ||
+                (selectedArtistDetail.artists && selectedArtistDetail.artists[0]?.appleId) ||
+                "";
+              const artistAppleUrl = rawApple
+                ? rawApple.startsWith("http")
+                  ? rawApple
+                  : `https://music.apple.com/artist/${rawApple}`
+                : "";
+
+              return (
+                <div className="mb-5 p-4 rounded-2xl bg-black/25 border border-white/15 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-[#c8f560]" />
+                      <span>Kanal Resmi & Link DSP Artis</span>
+                    </span>
+                    <span className="text-[10px] text-white/60">
+                      Klik tombol untuk langsung membuka profil / kontak
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    {/* 1. SPOTIFY ARTIST PROFILE */}
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-[#1DB954]/20 border border-[#1DB954]/40 flex items-center justify-center shrink-0">
+                          <svg className="w-5 h-5 text-[#1DB954] fill-current" viewBox="0 0 24 24">
+                            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.494 17.306c-.215.353-.674.464-1.026.248-2.812-1.718-6.353-2.107-10.523-1.155-.403.092-.806-.16-.898-.564-.092-.402.16-.806.563-.898 4.567-1.044 8.5-1.002 11.636 1.343.352.216.463.674.248 1.026zm1.467-3.262c-.27.44-.847.578-1.287.308-3.22-1.979-8.128-2.552-11.936-1.396-.496.15-1.026-.134-1.176-.63-.15-.496.134-1.026.63-1.176 4.356-1.322 9.775-.684 13.461 1.607.44.27.578.847.308 1.287zm.126-3.41c-3.86-2.292-10.228-2.503-13.918-1.383-.593.18-1.22-.162-1.4-.755-.18-.593.162-1.22.755-1.4 4.244-1.288 11.278-1.042 15.717 1.593.533.316.707 1.01.39 1.543-.316.533-1.01.707-1.544.402z"/>
+                          </svg>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-white flex items-center gap-1.5">
+                            <span>Spotify Profil Artis</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954]" />
+                          </p>
+                          <p className="text-[11px] text-white/60 truncate max-w-[170px]">
+                            {artistSpotifyUrl ? artistSpotifyUrl : "Belum ada link Spotify"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {artistSpotifyUrl ? (
+                        <a
+                          href={artistSpotifyUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs flex items-center gap-1 shrink-0 transition-transform active:scale-95 shadow cursor-pointer"
+                        >
+                          <span>Buka</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      ) : (
+                        <a
+                          href={`https://open.spotify.com/search/${encodeURIComponent(getArtistDisplayName(selectedArtistDetail))}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-[#1DB954] font-semibold text-[11px] flex items-center gap-1 shrink-0 transition-colors"
+                        >
+                          <span>Cari Spotify</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+
+                    {/* 2. YOUTUBE CHANNEL / VIDEO ARTIS */}
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-red-600/20 border border-red-500/40 flex items-center justify-center shrink-0">
+                          <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 24 24">
+                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                          </svg>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-white flex items-center gap-1.5">
+                            <span>YouTube Artis</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          </p>
+                          <p className="text-[11px] text-white/60 truncate max-w-[170px]">
+                            {selectedArtistDetail.youtubeUrl || "Belum ada link YouTube"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {selectedArtistDetail.youtubeUrl ? (
+                        <a
+                          href={selectedArtistDetail.youtubeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1 shrink-0 transition-transform active:scale-95 shadow cursor-pointer"
+                        >
+                          <span>Buka</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-white/40 italic px-2 py-1 bg-white/5 rounded-lg shrink-0">
+                          Tidak Ada
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 3. WHATSAPP MUSISI */}
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-emerald-600/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                          <Phone className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-white flex items-center gap-1.5">
+                            <span>WhatsApp Musisi</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          </p>
+                          <p className="text-[11px] text-white/60 truncate max-w-[170px]">
+                            {selectedArtistDetail.whatsapp || "Tidak ada nomor WhatsApp"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {selectedArtistDetail.whatsapp ? (
+                        <a
+                          href={`https://wa.me/${selectedArtistDetail.whatsapp.replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shrink-0 transition-transform active:scale-95 shadow cursor-pointer"
+                        >
+                          <span>Chat WA</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-white/40 italic px-2 py-1 bg-white/5 rounded-lg shrink-0">
+                          Tidak Ada
+                        </span>
+                      )}
+                    </div>
+
+                    {/* 4. APPLE MUSIC */}
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-[#FC3C44]/20 border border-[#FC3C44]/40 flex items-center justify-center shrink-0">
+                          <Music className="w-4 h-4 text-[#FC3C44]" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-white flex items-center gap-1.5">
+                            <span>Apple Music</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#FC3C44]" />
+                          </p>
+                          <p className="text-[11px] text-white/60 truncate max-w-[170px]">
+                            {artistAppleUrl ? artistAppleUrl : "Auto Generate"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {artistAppleUrl ? (
+                        <a
+                          href={artistAppleUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-xl bg-[#FC3C44] hover:bg-[#ff4e56] text-white font-bold text-xs flex items-center gap-1 shrink-0 transition-transform active:scale-95 shadow cursor-pointer"
+                        >
+                          <span>Buka</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-white/40 italic px-2 py-1 bg-white/5 rounded-lg shrink-0">
+                          Auto Generate
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Quick Financial & Stream Stats Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
               <div className="p-3.5 rounded-2xl bg-[#312042]/80 border border-[#c8f560]/35">
