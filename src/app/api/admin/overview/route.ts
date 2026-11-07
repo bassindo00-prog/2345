@@ -195,10 +195,10 @@ export async function GET() {
         status: statusUi,
         userId: w.userId,
         user: {
-          id: w.user.id,
-          name: w.user.name || "Musisi",
-          email: w.user.email,
-          avatar: resolveMediaUrl(w.user.image) || "/logo.png",
+          id: w.user?.id || w.userId,
+          name: w.user?.name || "Musisi",
+          email: w.user?.email || "",
+          avatar: resolveMediaUrl(w.user?.image) || "/logo.png",
         },
       };
     });
@@ -218,7 +218,7 @@ export async function GET() {
     }));
 
     return NextResponse.json(
-      { users, releases, withdrawals, catalogs },
+      { version: "2026-11-07-21-20", users, releases, withdrawals, catalogs },
       {
         headers: {
           "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -227,10 +227,15 @@ export async function GET() {
         },
       }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Admin overview error:", error);
     return NextResponse.json(
-      { error: "Failed to load admin data" },
+      { 
+        error: "Failed to load admin data",
+        message: error?.message || String(error),
+        code: error?.code,
+        meta: error?.meta,
+      },
       { status: 500 }
     );
   }
