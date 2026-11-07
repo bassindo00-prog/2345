@@ -311,6 +311,7 @@ export default function AdminDashboardPage() {
   const selectedWithdrawalForVisaModalRef = useRef(selectedWithdrawalForVisaModal);
   const selectedArtistDetailRef = useRef(selectedArtistDetail);
   const rejectingUserIdRef = useRef(rejectingUserId);
+  const selectedUserForRoyaltyRef = useRef(selectedUserForRoyalty);
   const isPopstateNavigationRef = useRef(false);
   const prevPendingCountRef = useRef<number | null>(null);
   const isFetchingRef = useRef(false);
@@ -321,6 +322,7 @@ export default function AdminDashboardPage() {
   useEffect(() => { selectedWithdrawalForVisaModalRef.current = selectedWithdrawalForVisaModal; }, [selectedWithdrawalForVisaModal]);
   useEffect(() => { selectedArtistDetailRef.current = selectedArtistDetail; }, [selectedArtistDetail]);
   useEffect(() => { rejectingUserIdRef.current = rejectingUserId; }, [rejectingUserId]);
+  useEffect(() => { selectedUserForRoyaltyRef.current = selectedUserForRoyalty; }, [selectedUserForRoyalty]);
 
   // Trap back navigation and prevent unintended exit to landing page on iOS/Android
   useEffect(() => {
@@ -504,21 +506,29 @@ export default function AdminDashboardPage() {
       }
 
       if (data.users && data.releases) {
-        const appRels = (data.releases || []).filter((r: any) => r.status === "Approved");
-        const appArt = (data.users || []).filter(
-          (u: any) => u.role !== "ADMIN" && appRels.some((r: any) => r.userId === u.id)
-        );
-        const target =
-          appArt.find((u: any) => u.id === selectedUserForRoyalty) ||
-          appArt[0] ||
-          data.users.find((u: any) => u.role !== "ADMIN") ||
-          data.users[0];
-        if (target && !selectedUserForRoyalty) {
-          setSelectedUserForRoyalty(target.id);
-          setInputRoyaltyBalance(target.royaltyBalance || 0);
-          setInputRoyaltyPending(target.royaltyPending || 0);
-          setInputTotalStreams(target.totalStreams || 0);
-          setInputRoyaltyMonth(target.royaltyMonth || "November");
+        const currentSelected = selectedUserForRoyaltyRef.current;
+        const currentSelectedUser = (data.users || []).find((u: any) => u.id === currentSelected);
+
+        // Hanya tetapkan artis default jika belum ada artis yang dipilih sama sekali,
+        // atau artis yang sebelumnya dipilih sudah tidak ada lagi di database.
+        // Jangan pernah menimpa pilihan artis atau angka yang sedang diketik admin!
+        if (!currentSelected || !currentSelectedUser) {
+          const appRels = (data.releases || []).filter((r: any) => r.status === "Approved");
+          const appArt = (data.users || []).filter(
+            (u: any) => u.role !== "ADMIN" && appRels.some((r: any) => r.userId === u.id)
+          );
+          const target =
+            appArt[0] ||
+            data.users.find((u: any) => u.role !== "ADMIN") ||
+            data.users[0];
+          if (target) {
+            selectedUserForRoyaltyRef.current = target.id;
+            setSelectedUserForRoyalty(target.id);
+            setInputRoyaltyBalance(target.royaltyBalance || 0);
+            setInputRoyaltyPending(target.royaltyPending || 0);
+            setInputTotalStreams(target.totalStreams || 0);
+            setInputRoyaltyMonth(target.royaltyMonth || "November");
+          }
         }
       }
 
@@ -744,6 +754,7 @@ export default function AdminDashboardPage() {
 
   // When selected user changes for royalty input
   const handleSelectUserChange = (uId: string) => {
+    selectedUserForRoyaltyRef.current = uId;
     setSelectedUserForRoyalty(uId);
     const u = users.find((x) => x.id === uId);
     if (u) {
@@ -2313,6 +2324,7 @@ export default function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={() => {
+                  selectedUserForRoyaltyRef.current = selectedArtistDetail.id;
                   setSelectedUserForRoyalty(selectedArtistDetail.id);
                   setInputRoyaltyBalance(selectedArtistDetail.royaltyBalance || 0);
                   setInputRoyaltyPending(selectedArtistDetail.royaltyPending || 0);
@@ -6455,6 +6467,7 @@ export default function AdminDashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => {
+                                  selectedUserForRoyaltyRef.current = u.id;
                                   setSelectedUserForRoyalty(u.id);
                                   setInputRoyaltyBalance(u.royaltyBalance || 0);
                                   setInputRoyaltyPending(u.royaltyPending || 0);
