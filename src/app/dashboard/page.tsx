@@ -60,6 +60,7 @@ import {
   Banknote,
   Wallet,
   TrendingUp,
+  Pencil,
 } from "lucide-react";
 import GlobalStreamsMap3D from "@/components/GlobalStreamsMap3D";
 import VisaMetricCard from "@/components/VisaMetricCard";
@@ -246,6 +247,7 @@ export default function UserDashboardPage() {
   // Artist Management State (Daftar & Buat Profil Artis)
   const [userArtists, setUserArtists] = useState<any[]>([]);
   const [artistModalOpen, setArtistModalOpen] = useState(false);
+  const [editingArtist, setEditingArtist] = useState<any | null>(null);
   const [newArtistName, setNewArtistName] = useState("");
   const [newArtistGenre, setNewArtistGenre] = useState("Pop");
   const [newArtistSpotify, setNewArtistSpotify] = useState("");
@@ -1050,6 +1052,28 @@ export default function UserDashboardPage() {
     return null;
   };
 
+  const handleOpenCreateArtist = () => {
+    setEditingArtist(null);
+    setNewArtistName("");
+    setNewArtistGenre("Pop");
+    setNewArtistSpotify("");
+    setNewArtistApple("");
+    setNewArtistPhoto("");
+    setNewArtistBio("");
+    setArtistModalOpen(true);
+  };
+
+  const handleOpenEditArtist = (artist: any) => {
+    setEditingArtist(artist);
+    setNewArtistName(artist.name || artist.stageName || "");
+    setNewArtistGenre(artist.genre || "Pop");
+    setNewArtistSpotify(artist.spotifyId || "");
+    setNewArtistApple(artist.appleId || "");
+    setNewArtistPhoto(artist.photoUrl || artist.avatarUrl || "");
+    setNewArtistBio(artist.bio || "");
+    setArtistModalOpen(true);
+  };
+
   const handleCreateArtist = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newArtistName.trim()) {
@@ -1058,31 +1082,92 @@ export default function UserDashboardPage() {
     }
     setSavingArtist(true);
     try {
-      const res = await fetch("/api/artists", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newArtistName.trim(),
-          genre: newArtistGenre || "Pop",
-          spotifyId: newArtistSpotify.trim(),
-          appleId: newArtistApple.trim(),
-          photoUrl: newArtistPhoto.trim(),
-          bio: newArtistBio.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (data.ok && data.artist) {
-        setUserArtists((prev) => [data.artist, ...prev]);
-        setTrackArtist(data.artist.name);
-        setNewArtistName("");
-        setNewArtistSpotify("");
-        setNewArtistApple("");
-        setNewArtistPhoto("");
-        setNewArtistBio("");
-        setArtistModalOpen(false);
-        showNotice(`Profil Artis "${data.artist.name}" berhasil didaftarkan!`);
+      if (editingArtist) {
+        // Mode UPDATE / EDIT ARTIST
+        const res = await fetch("/api/artists", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingArtist.id,
+            name: newArtistName.trim(),
+            genre: newArtistGenre || "Pop",
+            spotifyId: newArtistSpotify.trim(),
+            appleId: newArtistApple.trim(),
+            photoUrl: newArtistPhoto.trim(),
+            bio: newArtistBio.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (data.ok && data.artist) {
+          const updated = data.artist;
+          const oldName = editingArtist.name || editingArtist.stageName;
+
+          setUserArtists((prev) =>
+            prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
+          );
+          if (trackArtist === oldName) {
+            setTrackArtist(updated.name);
+          }
+
+          // Sinkronkan state user di dashboard lokal
+          setUser((prev: any) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              name: updated.name,
+              artists: (prev.artists || []).map((a: any) =>
+                a.id === updated.id ? { ...a, ...updated, stageName: updated.name } : a
+              ),
+              releases: (prev.releases || []).map((r: any) =>
+                r.artistId === updated.id || r.primaryArtist === oldName || r.artist === oldName
+                  ? { ...r, primaryArtist: updated.name, artist: updated.name }
+                  : r
+              ),
+            };
+          });
+
+          setNewArtistName("");
+          setNewArtistSpotify("");
+          setNewArtistApple("");
+          setNewArtistPhoto("");
+          setNewArtistBio("");
+          setArtistModalOpen(false);
+          setEditingArtist(null);
+          showNotice(`Nama artis berhasil diubah menjadi "${updated.name}"!`);
+          fetchUserData(true);
+        } else {
+          showNotice(data.error || "Gagal memperbarui profil artis");
+        }
       } else {
-        showNotice(data.error || "Gagal membuat profil artis");
+        // Mode CREATE ARTIST
+        const res = await fetch("/api/artists", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newArtistName.trim(),
+            genre: newArtistGenre || "Pop",
+            spotifyId: newArtistSpotify.trim(),
+            appleId: newArtistApple.trim(),
+            photoUrl: newArtistPhoto.trim(),
+            bio: newArtistBio.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (data.ok && data.artist) {
+          setUserArtists((prev) => [data.artist, ...prev]);
+          setTrackArtist(data.artist.name);
+          setNewArtistName("");
+          setNewArtistSpotify("");
+          setNewArtistApple("");
+          setNewArtistPhoto("");
+          setNewArtistBio("");
+          setArtistModalOpen(false);
+          setEditingArtist(null);
+          showNotice(`Profil Artis "${data.artist.name}" berhasil didaftarkan!`);
+          fetchUserData(true);
+        } else {
+          showNotice(data.error || "Gagal membuat profil artis");
+        }
       }
     } catch (err) {
       showNotice("Terjadi kesalahan saat menyimpan artis");
@@ -3008,7 +3093,7 @@ export default function UserDashboardPage() {
                         </label>
                         <button
                           type="button"
-                          onClick={() => setArtistModalOpen(true)}
+                          onClick={handleOpenCreateArtist}
                           className="text-[11px] text-[#c8f560] hover:underline flex items-center gap-1 font-semibold"
                         >
                           <Plus className="w-3 h-3" /> Buat Artis Baru
@@ -3020,7 +3105,7 @@ export default function UserDashboardPage() {
                             value={trackArtist}
                             onChange={(e) => {
                               if (e.target.value === "__NEW__") {
-                                setArtistModalOpen(true);
+                                handleOpenCreateArtist();
                               } else {
                                 setTrackArtist(e.target.value);
                               }
@@ -3041,7 +3126,7 @@ export default function UserDashboardPage() {
                           </select>
                           <button
                             type="button"
-                            onClick={() => setArtistModalOpen(true)}
+                            onClick={handleOpenCreateArtist}
                             className="px-3.5 py-2 bg-[#c8f560] text-[#312042] font-bold rounded-xl text-xs whitespace-nowrap hover:bg-[#b5e050] transition-colors shrink-0"
                           >
                             + Artis
@@ -3058,7 +3143,7 @@ export default function UserDashboardPage() {
                           />
                           <button
                             type="button"
-                            onClick={() => setArtistModalOpen(true)}
+                            onClick={handleOpenCreateArtist}
                             className="px-3.5 py-2 bg-[#c8f560] text-[#312042] font-bold rounded-xl text-xs whitespace-nowrap hover:bg-[#b5e050] transition-colors shrink-0"
                           >
                             + Buat
@@ -5929,8 +6014,8 @@ export default function UserDashboardPage() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setArtistModalOpen(true)}
-                    className="px-4 py-2.5 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs hover:bg-[#b5e050] transition-colors shadow flex items-center gap-1.5"
+                    onClick={handleOpenCreateArtist}
+                    className="px-4 py-2.5 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs hover:bg-[#b5e050] transition-colors shadow flex items-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>+ Buat Artis Baru</span>
@@ -5949,8 +6034,8 @@ export default function UserDashboardPage() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => setArtistModalOpen(true)}
-                      className="px-4 py-2 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs inline-flex items-center gap-1.5"
+                      onClick={handleOpenCreateArtist}
+                      className="px-4 py-2 rounded-xl bg-[#c8f560] text-[#312042] font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" /> Buat Artis Pertama
                     </button>
@@ -6015,15 +6100,24 @@ export default function UserDashboardPage() {
                             setActiveTab("upload");
                             showNotice(`Artis "${artist.name}" dipilih untuk Submit Track!`);
                           }}
-                          className="flex-1 py-2 px-3 rounded-xl bg-[#c8f560] hover:bg-[#b5e050] text-[#312042] font-bold text-xs transition-colors text-center flex items-center justify-center gap-1.5"
+                          className="flex-1 py-2 px-3 rounded-xl bg-[#c8f560] hover:bg-[#b5e050] text-[#312042] font-bold text-xs transition-colors text-center flex items-center justify-center gap-1.5 cursor-pointer shadow active:scale-95"
                         >
                           <UploadCloud className="w-3.5 h-3.5" />
                           <span>Rilis Lagu</span>
                         </button>
                         <button
                           type="button"
+                          onClick={() => handleOpenEditArtist(artist)}
+                          className="py-2 px-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow active:scale-95"
+                          title="Edit Nama / Profil Artis"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-[#c8f560]" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleDeleteArtist(artist.id, artist.name)}
-                          className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-200 transition-colors"
+                          className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-200 transition-colors cursor-pointer active:scale-95"
                           title="Hapus Profil Artis"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -6350,24 +6444,33 @@ export default function UserDashboardPage() {
         </div>
       </div>
 
-      {/* MODAL: POPUP CREATE NEW ARTIST */}
+      {/* MODAL: POPUP CREATE / EDIT ARTIST */}
       {artistModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-md bg-[#46385f] border border-white/25 rounded-3xl p-6 text-white shadow-2xl animate-card-enter space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-white/15">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-[#c8f560] text-[#312042] flex items-center justify-center font-bold">
-                  <Mic2 className="w-5 h-5" />
+                  {editingArtist ? <Pencil className="w-5 h-5" /> : <Mic2 className="w-5 h-5" />}
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-white">Buat Profil Artis Baru</h3>
-                  <p className="text-[11px] text-white/70">Daftarkan nama artis untuk rilis lagu</p>
+                  <h3 className="font-bold text-base text-white">
+                    {editingArtist ? "Edit Profil Artis" : "Buat Profil Artis Baru"}
+                  </h3>
+                  <p className="text-[11px] text-white/70">
+                    {editingArtist
+                      ? "Ubah nama artis dan sinkronkan ke sistem & admin"
+                      : "Daftarkan nama artis untuk rilis lagu"}
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setArtistModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+                onClick={() => {
+                  setArtistModalOpen(false);
+                  setEditingArtist(null);
+                }}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -6386,6 +6489,11 @@ export default function UserDashboardPage() {
                   placeholder="Contoh: Sarah Viola / Basstrack Indo"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:border-[#c8f560]"
                 />
+                {editingArtist && (
+                  <p className="text-[10px] text-[#c8f560]/90 mt-1">
+                    *Nama baru akan langsung tersimpan dan otomatis tersinkron ke Admin.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -6458,15 +6566,18 @@ export default function UserDashboardPage() {
               <div className="flex items-center gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setArtistModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors"
+                  onClick={() => {
+                    setArtistModalOpen(false);
+                    setEditingArtist(null);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={savingArtist}
-                  className="flex-1 py-2.5 rounded-xl bg-[#c8f560] text-[#312042] font-bold hover:bg-[#b5e050] transition-colors shadow flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 rounded-xl bg-[#c8f560] text-[#312042] font-bold hover:bg-[#b5e050] transition-colors shadow flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   {savingArtist ? (
                     <>
@@ -6474,7 +6585,7 @@ export default function UserDashboardPage() {
                       <span>Menyimpan...</span>
                     </>
                   ) : (
-                    <span>Simpan Artis</span>
+                    <span>{editingArtist ? "Simpan Perubahan" : "Simpan Artis"}</span>
                   )}
                 </button>
               </div>
