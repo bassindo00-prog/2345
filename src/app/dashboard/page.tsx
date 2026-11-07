@@ -6528,11 +6528,11 @@ export default function UserDashboardPage() {
 
       {/* MODAL: POPUP CREATE / EDIT ARTIST */}
       {artistModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-md bg-[#46385f] border border-white/25 rounded-3xl p-6 text-white shadow-2xl animate-card-enter space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/15">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto overscroll-contain animate-fade-in">
+          <div className="relative w-full max-w-md max-h-[92dvh] sm:max-h-[88vh] bg-[#3a2c50] sm:bg-[#46385f] border-t sm:border border-white/25 rounded-t-[28px] sm:rounded-3xl p-5 sm:p-6 text-white shadow-2xl animate-card-enter flex flex-col my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-white/15 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#c8f560] text-[#312042] flex items-center justify-center font-bold">
+                <div className="w-9 h-9 rounded-xl bg-[#c8f560] text-[#312042] flex items-center justify-center font-bold shrink-0">
                   {editingArtist ? <Pencil className="w-5 h-5" /> : <Mic2 className="w-5 h-5" />}
                 </div>
                 <div>
@@ -6552,13 +6552,13 @@ export default function UserDashboardPage() {
                   setArtistModalOpen(false);
                   setEditingArtist(null);
                 }}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateArtist} className="space-y-3.5 text-xs">
+            <form onSubmit={handleCreateArtist} className="space-y-3.5 text-xs overflow-y-auto overscroll-contain pr-1 flex-1 py-1">
               <div>
                 <label className="block text-white/80 font-medium mb-1">
                   Nama Artis / Stage Name <span className="text-[#c8f560]">*</span>
@@ -6667,7 +6667,7 @@ export default function UserDashboardPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-3 border-t border-white/10 shrink-0 mt-1">
                 <button
                   type="button"
                   onClick={() => {

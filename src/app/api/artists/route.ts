@@ -73,30 +73,41 @@ export async function POST(req: Request) {
 
     try {
       await prisma.$executeRawUnsafe(
-        `INSERT INTO "Artist" ("id", "userId", "name", "genre", "spotifyId", "appleId", "bio", "photoUrl", "createdAt")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
-        newId, userId, trimmedName, finalGenre, finalSpotify, finalApple, finalBio, finalPhoto
+        `INSERT INTO "Artist" ("id", "userId", "stageName", "createdAt") VALUES ($1, $2, $3, NOW())`,
+        newId, userId, trimmedName
       );
     } catch {
       try {
         await prisma.$executeRawUnsafe(
-          `INSERT INTO "Artist" ("id", "userId", "stageName", "genre", "spotifyId", "appleId", "bio", "avatarUrl", "createdAt")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
-          newId, userId, trimmedName, finalGenre, finalSpotify, finalApple, finalBio, finalPhoto
+          `INSERT INTO "Artist" ("id", "userId", "name", "createdAt") VALUES ($1, $2, $3, NOW())`,
+          newId, userId, trimmedName
         );
-      } catch (ePrisma) {
+      } catch {
         await prisma.artist.create({
           data: {
+            id: newId,
             userId,
             stageName: trimmedName,
-            genre: finalGenre,
-            spotifyId: finalSpotify,
-            appleId: finalApple,
-            bio: finalBio,
-            avatarUrl: finalPhoto,
           },
         });
       }
+    }
+
+    if (finalBio) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "bio" = $1 WHERE "id" = $2`, finalBio, newId).catch(() => {});
+    }
+    if (finalPhoto) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "photoUrl" = $1 WHERE "id" = $2`, finalPhoto, newId).catch(() => {});
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "avatarUrl" = $1 WHERE "id" = $2`, finalPhoto, newId).catch(() => {});
+    }
+    if (finalSpotify) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "spotifyId" = $1 WHERE "id" = $2`, finalSpotify, newId).catch(() => {});
+    }
+    if (finalApple) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "appleId" = $1 WHERE "id" = $2`, finalApple, newId).catch(() => {});
+    }
+    if (finalGenre) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "genre" = $1 WHERE "id" = $2`, finalGenre, newId).catch(() => {});
     }
 
     // Singkronkan user.name jika masih belum ada atau default
@@ -169,31 +180,45 @@ export async function PATCH(req: Request) {
     const finalBio = bio ? bio.trim() : null;
     const finalPhoto = photoUrl ? photoUrl.trim() : null;
 
-    // 1. Update nama artis dan data profil di tabel Artist via SQL aman
+    // 1. Update nama artis di tabel Artist via SQL aman
     try {
       await prisma.$executeRawUnsafe(
-        `UPDATE "Artist" SET "name" = $1, "genre" = $2, "spotifyId" = $3, "appleId" = $4, "bio" = $5, "photoUrl" = $6 WHERE "id" = $7 AND "userId" = $8`,
-        trimmedName, finalGenre, finalSpotify, finalApple, finalBio, finalPhoto, id, userId
+        `UPDATE "Artist" SET "stageName" = $1 WHERE "id" = $2 AND "userId" = $3`,
+        trimmedName, id, userId
       );
     } catch {
       try {
         await prisma.$executeRawUnsafe(
-          `UPDATE "Artist" SET "stageName" = $1, "genre" = $2, "spotifyId" = $3, "appleId" = $4, "bio" = $5, "avatarUrl" = $6 WHERE "id" = $7 AND "userId" = $8`,
-          trimmedName, finalGenre, finalSpotify, finalApple, finalBio, finalPhoto, id, userId
+          `UPDATE "Artist" SET "name" = $1 WHERE "id" = $2 AND "userId" = $3`,
+          trimmedName, id, userId
         );
-      } catch (ePrisma) {
-        await prisma.artist.update({
-          where: { id },
-          data: {
-            stageName: trimmedName,
-            genre: finalGenre,
-            spotifyId: finalSpotify,
-            appleId: finalApple,
-            bio: finalBio,
-            avatarUrl: finalPhoto,
-          },
-        }).catch(() => {});
+      } catch (eArt) {
+        try {
+          await prisma.artist.update({
+            where: { id },
+            data: { stageName: trimmedName },
+          });
+        } catch (eArt2) {
+          console.warn("Artist name update fallback:", eArt2);
+        }
       }
+    }
+
+    if (finalBio !== undefined) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "bio" = $1 WHERE "id" = $2`, finalBio, id).catch(() => {});
+    }
+    if (finalPhoto !== undefined) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "photoUrl" = $1 WHERE "id" = $2`, finalPhoto, id).catch(() => {});
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "avatarUrl" = $1 WHERE "id" = $2`, finalPhoto, id).catch(() => {});
+    }
+    if (finalSpotify !== undefined) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "spotifyId" = $1 WHERE "id" = $2`, finalSpotify, id).catch(() => {});
+    }
+    if (finalApple !== undefined) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "appleId" = $1 WHERE "id" = $2`, finalApple, id).catch(() => {});
+    }
+    if (finalGenre !== undefined) {
+      await prisma.$executeRawUnsafe(`UPDATE "Artist" SET "genre" = $1 WHERE "id" = $2`, finalGenre, id).catch(() => {});
     }
 
     // 2. Singkronkan nama artis di tabel Release via SQL
